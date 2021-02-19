@@ -12,6 +12,7 @@ Run the following commands to install prerequisites and clone project source.
 
 ```shell
 sudo apt install sox
+sudo apt install python python-pip
 pip install configparser
 
 git clone https://github.com/kamranzafar/piprayer.git
