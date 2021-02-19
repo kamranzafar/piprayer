@@ -20,6 +20,11 @@ CURR_PATH=$(dirname $(realpath "$0"))
 CONF_FILE="$CURR_PATH/.piprayer"
 CRON_FILE="$CURR_PATH/.piprayercron"
 CRON_BLOCK="## PI PRAYER ##"
+AZAAN=1
+
+if [ $# -ne 0 ]; then
+  AZAAN=$1
+fi
 
 if [ ! -f "$CONF_FILE" ]; then
   echo "Configuration file $CONF_FILE not found"
@@ -36,23 +41,22 @@ fi
 #echo "$PRAYER_TIMES"
 
 NEW_CRON="$CRON_BLOCK"
-for prayer in $PRAYER_TIMES
-do
+for prayer in $PRAYER_TIMES; do
   PRAYER_NAME=$(echo "$prayer" | cut -f1 -d-)
   PRAYER_TIME_H=$(echo "$prayer" | cut -f2 -d- | cut -f1 -d:)
   PRAYER_TIME_M=$(echo "$prayer" | cut -f2 -d- | cut -f2 -d:)
 
-  NEW_CRON="$NEW_CRON\n$PRAYER_TIME_M $PRAYER_TIME_H * * * $CURR_PATH/play-azaan.sh 1 #$PRAYER_NAME"
+  NEW_CRON="$NEW_CRON\n$PRAYER_TIME_M $PRAYER_TIME_H * * * $CURR_PATH/play-azaan.sh $AZAAN #$PRAYER_NAME"
 done
 
-NEW_CRON="$NEW_CRON\n0 0 * * * $CURR_PATH/$0"
+NEW_CRON="$NEW_CRON\n0 0 * * * $CURR_PATH/$0 $AZAAN"
 NEW_CRON="$NEW_CRON\n$CRON_BLOCK"
 
 #echo -e "$NEW_CRON"
 
-crontab -l > "$CRON_FILE"
+crontab -l >"$CRON_FILE"
 cp "$CRON_FILE" "$CRON_FILE.bak"
-cat "$CRON_FILE.bak" | sed '/## PI PRAYER ##/,/## PI PRAYER ##/d' > "$CRON_FILE"
-echo -e "$NEW_CRON" >> "$CRON_FILE"
-crontab < "$CRON_FILE"
+cat "$CRON_FILE.bak" | sed '/## PI PRAYER ##/,/## PI PRAYER ##/d' >"$CRON_FILE"
+echo -e "$NEW_CRON" >>"$CRON_FILE"
+crontab <"$CRON_FILE"
 rm -f "$CRON_FILE"
