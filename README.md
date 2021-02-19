@@ -1,5 +1,5 @@
 # PiPrayer
-Prayer times for Raspberry Pi.<p>
+Azaan player for Raspberry Pi.<p>
 **Note: This project is still in progress. Will be released soon.**
 
 ## Overview
@@ -18,7 +18,7 @@ git clone https://github.com/kamranzafar/piprayer.git
 ```
 
 ## Configuration
-Create a `.piprayer` configuration file in the `piprayer` project directory. Below is a sample configuration file.
+Create a `.piprayer` configuration file in the `piprayer` project directory. Below is a sample configuration.
 
 ```editorconfig
 [Default]
@@ -32,7 +32,7 @@ prayers = Fajr, Dhuhr, Asr, Maghrib, Isha
 ```
 
 ### Configuration options
-
+Below are the available configuration options.
 ```
 lat         # Latitude of the place
 

@@ -1,6 +1,31 @@
+"""
+    PiPrayer - Azaan for Raspberry Pi
+    Copyright (C) 2021  Kamran Zafar
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
 import sys
 import configparser
 import praytimes
+
+LAT = "lat"
+LNG = "lng"
+DST = "dst"
+GMT_OFFSET = "gmt-offset"
+METHOD = "method"
+ASR_TIME = "asr-time"
+PRAYERS = "prayers"
 
 if __name__ == "__main__":
     if len(sys.argv) <= 1:
@@ -27,15 +52,15 @@ if __name__ == "__main__":
     # for key in prayerConfig:
     # 	print(key + ': '+prayerConfig[key])
 
-    prayTimes = praytimes.PrayTimes(prayerConfig['method'], prayerConfig['asr-time'])
+    prayTimes = praytimes.PrayTimes(prayerConfig[METHOD], prayerConfig[ASR_TIME])
 
     from datetime import date
 
     times = prayTimes.getTimes(date.today(),
-                               (float(prayerConfig['lat']),
-                                float(prayerConfig['lng'])),
-                               int(prayerConfig['gmt-offset']),
-                               int(prayerConfig['dst']))
+                               (float(prayerConfig[LAT]),
+                                float(prayerConfig[LNG])),
+                               int(prayerConfig[GMT_OFFSET]),
+                               int(prayerConfig[DST]))
 
-    for i in prayerConfig['prayers'].split(","):
+    for i in prayerConfig[PRAYERS].split(","):
         print(i + '-' + times[i.strip().lower()])
