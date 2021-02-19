@@ -24,7 +24,7 @@ do
   PRAYER_TIME_H=$(echo "$prayer" | cut -f2 -d- | cut -f1 -d:)
   PRAYER_TIME_M=$(echo "$prayer" | cut -f2 -d- | cut -f2 -d:)
 
-  NEW_CRON="$NEW_CRON\n$PRAYER_TIME_M $PRAYER_TIME_H * * * play-azaan.sh #$PRAYER_NAME"
+  NEW_CRON="$NEW_CRON\n$PRAYER_TIME_M $PRAYER_TIME_H * * * play-azaan.sh 1 #$PRAYER_NAME"
 done
 NEW_CRON="$NEW_CRON\n## PI PRAYER ###"
 
