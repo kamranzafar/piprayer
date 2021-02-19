@@ -1,0 +1,8 @@
+[Default]
+lat = -37.909499
+lng = 144.751876
+dst = 1
+gmt-offset = 10
+method = MWL
+asr-time = Hanafi
+prayers = Fajr, Dhuhr, Asr, Maghrib, Isha
