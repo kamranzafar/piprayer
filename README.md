@@ -35,10 +35,32 @@ prayers = Fajr, Dhuhr, Asr, Maghrib, Isha
 
 ```
 lat         # Latitude of the place
-lng         # Longitude
-dst         # Daylight Saving [0 or 1]
+
+lng         # Longitude of the place
+
+dst         # Daylight Saving
+            # Acceptable values (only one):
+            #   0
+            #   1
+
 gmt-offset  # Timezone, offet from GMT
+
 method      # Calculation method 
+            # Acceptable values (only one):
+            #   MWL
+            #   ISNA
+            #   Egypt
+            #   Makkah
+            #   Karachi
+            #   Tehran
+            #   Jafari
+
 asr-time    # Asr prayer calculation
+            # Acceptable values (only one):
+            #   Standard
+            #   Hanafi
+
 prayers     # Prayers to setup Azaan for
+            # Acceptable values (comma separated): 
+            #   Fajr, Dhuhr, Asr, Maghrib, Isha
 ```
