@@ -2,8 +2,9 @@
 Azaan player for Raspberry Pi.
 
 ## Overview
-PiPrayer project is for setting up and playing Azaan on Raspberry Pi (any version), using a bluetooth Speaker.
-The Azaan automatically plays at the calculated times depending on the coordinates provided. And also constantly updates the Azaan times as they change.
+PiPrayer project is for setting up and playing Azaan on Raspberry Pi (any version), using a bluetooth speaker.
+The Azaan automatically plays at the calculated times depending on the coordinates provided. 
+PiPrayer also constantly updates the Azaan times as they change.
 Tested on **Raspberry Pi Zero** (Raspbian LITE) using **Amazon Echo Dot** as a bluetooth speaker.
 
 ## Setup
@@ -28,7 +29,7 @@ defaults.bluealsa.profile "a2dp"
 defaults.bluealsa.delay 10000
 ```
 
-The above setup assumes that the Raspberry PI device can already connect to the bluetooth speakers.
+_The above setup assumes that the Raspberry PI device can already connect to the bluetooth speakers._
 
 ## PiPrayer Configuration and Installation
 Create a `.piprayer` configuration file in the `piprayer` project directory. Below is a sample configuration.
