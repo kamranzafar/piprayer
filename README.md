@@ -2,7 +2,7 @@
 Azaan player for Raspberry Pi.
 
 ## Overview
-PiPrayer project is for setting up and playing Azaan on Raspberry Pi (any version), using a bluetooth/usb Speaker.
+PiPrayer project is for setting up and playing Azaan on Raspberry Pi (any version), using a bluetooth Speaker.
 The Azaan automatically plays at the calculated times depending on the coordinates provided. And also constantly updates the Azaan times as they change.
 Tested on **Raspberry Pi Zero** (Raspbian LITE) using **Amazon Echo Dot** as a bluetooth speaker.
 
@@ -73,7 +73,7 @@ dst         # Daylight Saving
             #   0
             #   1
 
-gmt-offset  # Timezone, offet from GMT
+gmt-offset  # Timezone, offset from GMT
 
 method      # Calculation method 
             # Acceptable values (only one):
