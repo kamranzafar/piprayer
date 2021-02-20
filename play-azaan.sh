@@ -16,4 +16,4 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-play $(dirname "$0")/media/azaan-"$1".mp3
+aplay -D bluealsa $(dirname "$0")/media/azaan-"$1".wav
