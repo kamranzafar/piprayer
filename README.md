@@ -18,8 +18,6 @@ pip install configparser
 git clone https://github.com/kamranzafar/piprayer.git
 ```
 
-The above setup assumes that the Raspberry PI device can already connect to the bluetooth speakers.
-
 ### Configure Default Bluetooth Device
 Create `.asoundrc` file in the home directory, with the following device configuration. 
 Add the MAC address of your bluetooth device.
@@ -30,6 +28,8 @@ defaults.bluealsa.device "00:00:00:00:00:00" # MAC address of the bluetooth devi
 defaults.bluealsa.profile "a2dp"
 defaults.bluealsa.delay 10000
 ```
+
+The above setup assumes that the Raspberry PI device can already connect to the bluetooth speakers.
 
 ## PiPrayer Configuration and Installation
 Create a `.piprayer` configuration file in the `piprayer` project directory. Below is a sample configuration.
