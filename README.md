@@ -7,7 +7,7 @@ PiPrayer project is for setting up and playing Azaan on Raspberry Pi (any versio
 The Azaan automatically plays at the calculated times depending on the coordinates provided. And also constantly updates the Azaan times as they change.
 Tested on **Raspberry Pi Zero** (Raspbian LITE) using **Echo Dot** as a bluetooth speaker.
 
-## Installation
+## Setup
 Run the following commands to install prerequisites and clone project source.
 
 ```shell
@@ -18,7 +18,7 @@ pip install configparser
 git clone https://github.com/kamranzafar/piprayer.git
 ```
 
-## Configuration
+## Configuration and Installation
 Create a `.piprayer` configuration file in the `piprayer` project directory. Below is a sample configuration.
 
 ```editorconfig
@@ -31,6 +31,23 @@ method = MWL
 asr-time = Hanafi
 prayers = Fajr, Dhuhr, Asr, Maghrib, Isha
 ```
+
+### Installation
+Once the configuration file is created, simply run the following script to setup and install PiPrayer.
+
+```shell
+./setup-piprayer.sh
+```
+
+This script also takes an optional integer argument to play a different Azaan. 
+There are 15 different Azaans available in this project, so the script argument can be any number 
+between 1 and 15.  By default `azaan-1` is played, which can be changed by running the script as below.
+
+```shell
+./setup-piprayer.sh 5
+```
+
+All Azaan files can be found in the `media` folder.
 
 ### Configuration options
 Below are the available configuration options.
