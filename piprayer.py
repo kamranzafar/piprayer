@@ -36,6 +36,7 @@ if __name__ == "__main__":
         f = open(sys.argv[1])
     except IOError:
         print('File not found or is inaccessible')
+        exit(1)
     finally:
         f.close()
 
