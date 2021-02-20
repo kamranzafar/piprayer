@@ -20,7 +20,18 @@ git clone https://github.com/kamranzafar/piprayer.git
 
 The above setup assumes that the Raspberry PI device can already connect to the bluetooth speakers.
 
-## Configuration and Installation
+### Configure Default Bluetooth Device
+Create `.asoundrc` file in the home directory, with the following device configuration. 
+Add the MAC address of your bluetooth device.
+
+```shell
+defaults.bluealsa.interface "hci0"
+defaults.bluealsa.device "00:00:00:00:00:00" # MAC address of the bluetooth device
+defaults.bluealsa.profile "a2dp"
+defaults.bluealsa.delay 10000
+```
+
+## PiPrayer Configuration and Installation
 Create a `.piprayer` configuration file in the `piprayer` project directory. Below is a sample configuration.
 
 ```editorconfig
@@ -35,7 +46,7 @@ prayers = Fajr, Dhuhr, Asr, Maghrib, Isha
 ```
 
 ### Installation
-Once the configuration file is created, simply run the following script to setup and install PiPrayer.
+Once the `.piprayer` configuration file is created, simply run the following script to setup and install PiPrayer.
 
 ```shell
 ./setup-piprayer.sh
@@ -83,14 +94,4 @@ asr-time    # Asr prayer calculation
 prayers     # Prayers to setup Azaan for
             # Acceptable values (comma separated): 
             #   Fajr, Dhuhr, Asr, Maghrib, Isha
-```
-
-## Configuring Default Bluetooth Device
-Create `.asoundrc` file in the home directory, with the following device configuration
-
-```shell
-defaults.bluealsa.interface "hci0"
-defaults.bluealsa.device "00:00:00:00:00:00" # MAC address of the bluetooth device
-defaults.bluealsa.profile "a2dp"
-defaults.bluealsa.delay 10000
 ```
