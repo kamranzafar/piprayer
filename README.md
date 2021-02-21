@@ -29,7 +29,14 @@ defaults.bluealsa.profile "a2dp"
 defaults.bluealsa.delay 10000
 ```
 
-_The above setup assumes that the Raspberry PI device can already connect to the bluetooth speakers._
+Add the following line to `/etc/rc.local` so that Raspberry PI automatically connects to the bluetooth speaker on reboot.
+Add the MAC address of your bluetooth speaker.
+
+```shell
+echo "connect 00:00:00:00:00:00 \nquit" | bluetoothctl
+```
+
+_Make sure the bluetooth speaker is already paired and trusted on Raspberry PI._
 
 ## PiPrayer Configuration and Installation
 Create a `.piprayer` configuration file in the `piprayer` project directory. Below is a sample configuration.
