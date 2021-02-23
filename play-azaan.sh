@@ -19,7 +19,7 @@
 BLUETOOTH_MAC=$(hcitool con | grep -o "[[:xdigit:]:]\{11,17\}")
 
 if [ -z "$BLUETOOTH_MAC" ]; then
-    BLUETOOTH_MAC=$(grep '^defaults.bluealsa.device' ~/.asoundrc | awk '{gsub(/"/, "", $2); print $2}')
+    BLUETOOTH_MAC=$(grep "^defaults.bluealsa.device" ~/.asoundrc | grep -o "[[:xdigit:]:]\{11,17\}")
 
     if [ -z "$BLUETOOTH_MAC" ]; then
       echo "Can't connect to bluetooth"
