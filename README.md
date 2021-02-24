@@ -18,6 +18,12 @@ pip install configparser
 git clone https://github.com/kamranzafar/piprayer.git
 ```
 
+You could also download the latest piprayer release instead of cloning the repository.
+
+```shell
+wget -qO- https://github.com/kamranzafar/piprayer/archive/vX.X.tar.gz | tar -xzf -
+```
+
 ### Configure Default Bluetooth Device
 Create `.asoundrc` file in the home directory, with the following device configuration. 
 Add the MAC address of your bluetooth device.
