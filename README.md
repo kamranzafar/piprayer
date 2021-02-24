@@ -21,7 +21,7 @@ git clone https://github.com/kamranzafar/piprayer.git
 You could also download the latest piprayer release instead of cloning the repository.
 
 ```shell
-wget -qO- https://github.com/kamranzafar/piprayer/archive/vX.X.tar.gz | tar -xzf -
+wget -qO- https://github.com/kamranzafar/piprayer/archive/v0.2.tar.gz | tar -xzf -
 ```
 
 ### Configure Default Bluetooth Device
