@@ -49,7 +49,7 @@ for prayer in $PRAYER_TIMES; do
   NEW_CRON="$NEW_CRON\n$PRAYER_TIME_M $PRAYER_TIME_H * * * $CURR_PATH/play-azaan.sh $AZAAN #$PRAYER_NAME"
 done
 
-NEW_CRON="$NEW_CRON\n0 0 * * * $CURR_PATH/$0 $AZAAN"
+NEW_CRON="$NEW_CRON\n0 0 * * * $CURR_PATH/$(basename "$0") $AZAAN"
 NEW_CRON="$NEW_CRON\n$CRON_BLOCK"
 
 #echo -e "$NEW_CRON"
