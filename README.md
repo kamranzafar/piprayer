@@ -25,7 +25,8 @@ wget -qO- https://github.com/kamranzafar/piprayer/archive/v0.2.tar.gz | tar -xzf
 ```
 
 ### Configure Default Bluetooth Device
-Create `.asoundrc` file in the home directory, with the following device configuration. 
+PiPrayer connects to the default bluetooth speaker to play azaan and then disconnects when it finishes. 
+In order to setup a default bluetooth speaker, create `.asoundrc` file in the home directory, with the following device configuration. 
 Add the MAC address of your bluetooth device.
 
 ```shell
@@ -38,7 +39,8 @@ defaults.bluealsa.delay 10000
 _Make sure the bluetooth speaker is already paired and trusted on Raspberry PI._
 
 ## PiPrayer Configuration and Installation
-Create a `.piprayer` configuration file in the `piprayer` project directory. Below is a sample configuration.
+Create a `.piprayer` configuration file in the `piprayer` project directory. Below is a sample configuration. 
+The description of each configuration option is given at the end.
 
 ```editorconfig
 [Default]
@@ -50,6 +52,9 @@ method = MWL
 asr-time = Hanafi
 prayers = Fajr, Dhuhr, Asr, Maghrib, Isha
 ```
+You can get the coordinates **(latitude and longitude)** of the place from Google Maps, see the following link for more information.
+
+https://support.google.com/maps/answer/18539?co=GENIE.Platform%3DDesktop&hl=en
 
 ### Installation
 Once the `.piprayer` configuration file is created, simply run the following script to setup and install PiPrayer.
