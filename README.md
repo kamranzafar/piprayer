@@ -11,9 +11,11 @@ Tested on **Raspberry Pi Zero** (Raspbian LITE) using **Amazon Echo Dot** as a b
 Run the following commands to install prerequisites and clone project source.
 
 ```shell
-sudo apt install bluealsa
+sudo apt install bluealsa pulseaudio-module-bluetooth 
 sudo apt install python python-pip
 pip install configparser
+
+pulseaudio --start
 
 git clone https://github.com/kamranzafar/piprayer.git
 ```
@@ -21,7 +23,7 @@ git clone https://github.com/kamranzafar/piprayer.git
 You could also download the latest piprayer release instead of cloning the repository.
 
 ```shell
-wget -qO- https://github.com/kamranzafar/piprayer/archive/v0.3.tar.gz | tar -xzf -
+wget -qO- https://github.com/kamranzafar/piprayer/archive/v0.4.tar.gz | tar -xzf -
 ```
 
 ### Configure Default Bluetooth Device
