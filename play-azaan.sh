@@ -31,3 +31,4 @@ if [ -z "$BLUETOOTH_MAC" ]; then
 fi
 
 aplay -D bluealsa $(dirname "$0")/media/azaan-"$1".wav
+echo -e "disconnect $BLUETOOTH_MAC \nquit" | bluetoothctl
