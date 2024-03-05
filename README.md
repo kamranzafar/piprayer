@@ -5,13 +5,13 @@ Azaan player for Raspberry Pi.
 PiPrayer project is for setting up and playing Azaan on Raspberry Pi (any version), using a bluetooth speaker.
 The Azaan automatically plays at the calculated times depending on the coordinates provided. 
 PiPrayer also constantly updates the Azaan times as they change.
-Tested on **Raspberry Pi Zero** (Raspbian LITE) using **Amazon Echo Dot** as a bluetooth speaker.
+Tested on **Raspberry Pi 3** using **Amazon Echo Pop** as a bluetooth speaker.
 
 ## Setup
 Run the following commands to install prerequisites and clone project source.
 
 ```shell
-sudo apt install bluealsa pulseaudio-module-bluetooth 
+sudo apt install pulseaudio-module-bluetooth 
 sudo apt install python python-pip
 pip install configparser
 
@@ -23,22 +23,23 @@ git clone https://github.com/kamranzafar/piprayer.git
 You could also download the latest piprayer release instead of cloning the repository.
 
 ```shell
-wget -qO- https://github.com/kamranzafar/piprayer/archive/v0.4.tar.gz | tar -xzf -
+wget -qO- https://github.com/kamranzafar/piprayer/archive/v0.5.tar.gz | tar -xzf -
 ```
 
 ### Configure Default Bluetooth Device
-PiPrayer connects to the default bluetooth speaker to play azaan and then disconnects when it finishes. 
-In order to setup a default bluetooth speaker, create `.asoundrc` file in the home directory, with the following device configuration. 
-Add the MAC address of your bluetooth device.
+Scan and pair Raspberry Pi with the bluetooth speaker.
 
 ```shell
-defaults.bluealsa.interface "hci0"
-defaults.bluealsa.device "00:00:00:00:00:00" # MAC address of the bluetooth device
-defaults.bluealsa.profile "a2dp"
-defaults.bluealsa.delay 10000
+bluetoothctl scan on
 ```
 
-_Make sure the bluetooth speaker is already paired and trusted on Raspberry PI._
+All available bluetooth devices will be listed with their MAC addresses (_format is XX:XX:XX:XX:XX:XX_). Copy the MAC address of the preferred audio device from the list. 
+Once copied, run the following command to pair and trust the bluetooth speaker.
+
+```shell
+bluetoothctl pair XX:XX:XX:XX:XX:XX
+bluetoothctl trust XX:XX:XX:XX:XX:XX
+```
 
 ## PiPrayer Configuration and Installation
 Create a `.piprayer` configuration file in the `piprayer` project directory. Below is a sample configuration. 
