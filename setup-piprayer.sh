@@ -26,6 +26,11 @@ if [ $# -ne 0 ]; then
   AZAAN=$1
 fi
 
+if [ -z "$XDG_RUNTIME_DIR" ]; then
+  echo "XDG_RUNTIME_DIR variable not set. Please set the variable and run the setup again."
+  exit 1
+fi
+
 if [ ! -f "$CONF_FILE" ]; then
   echo "Configuration file $CONF_FILE not found"
   exit 1
@@ -46,11 +51,11 @@ for prayer in $PRAYER_TIMES; do
   PRAYER_TIME_H=$(echo "$prayer" | cut -f2 -d- | cut -f1 -d:)
   PRAYER_TIME_M=$(echo "$prayer" | cut -f2 -d- | cut -f2 -d:)
 
-  NEW_CRON="$NEW_CRON\n$PRAYER_TIME_M $PRAYER_TIME_H * * * $CURR_PATH/play-azaan.sh $AZAAN #$PRAYER_NAME"
+  NEW_CRON="$NEW_CRON\n$PRAYER_TIME_M $PRAYER_TIME_H * * * export XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR && $CURR_PATH/play-azaan.sh $AZAAN #$PRAYER_NAME"
 done
 
-NEW_CRON="$NEW_CRON\n0 1 * * * $CURR_PATH/$(basename "$0") $AZAAN"
-NEW_CRON="$NEW_CRON\n$CRON_BLOCK"
+NEW_CRON="$NEW_CRON\n0 1 * * * export XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR && $CURR_PATH/$(basename "$0") $AZAAN"
+NEW_CRON="$NEW_CRON\n$CRON_BLOCK\n"
 
 #echo -e "$NEW_CRON"
 
