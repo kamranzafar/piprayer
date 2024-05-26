@@ -128,7 +128,7 @@ class PrayTimes():
     invalidTime = '-----'
 
     numIterations = 1
-    offset = {}
+    offsets = {}
 
     # ---------------------- Initialization -----------------------
 
@@ -150,7 +150,7 @@ class PrayTimes():
 
         # init time offsets
         for name in self.timeNames:
-            self.offset[name] = 0
+            self.offsets[name] = 0
 
     # -------------------- Interface Functions --------------------
 
@@ -172,7 +172,7 @@ class PrayTimes():
         return self.settings
 
     def getOffsets(self):
-        return self.offset
+        return self.offsets
 
     def getDefaults(self):
         return self.methods
@@ -333,7 +333,7 @@ class PrayTimes():
     # apply offsets to the times
     def tuneTimes(self, times):
         for name, value in times.items():
-            times[name] += self.offset[name] / 60.0
+            times[name] += self.offsets[name] / 60.0
         return times
 
     # convert times to given time format
