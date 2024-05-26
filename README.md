@@ -53,7 +53,7 @@ dst = 1
 gmt-offset = 10
 method = MWL
 asr-time = Hanafi
-prayers = Fajr, Dhuhr, Asr, Maghrib, Isha
+prayers = Fajr:-11, Dhuhr:1, Asr:0, Maghrib:-23, Isha:19
 ```
 You can get the coordinates **(latitude and longitude)** of the place from Google Maps, see the following link for more information.
 
@@ -106,6 +106,8 @@ asr-time    # Asr prayer calculation
             #   Hanafi
 
 prayers     # Prayers to setup Azaan for
-            # Acceptable values (comma separated): 
-            #   Fajr, Dhuhr, Asr, Maghrib, Isha
+            # For each prayer, the time offset (in minutes) can be added after the colon (:)
+            # By default all time offsets are set to 0 minutes
+            # Acceptable values (comma separated) are below, with offsets separate by colon
+            #   Fajr:0, Dhuhr:0, Asr:0, Maghrib:0, Isha:0
 ```

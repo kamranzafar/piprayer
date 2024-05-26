@@ -18,6 +18,7 @@
 import sys
 import configparser
 import praytimes
+from datetime import date
 
 LAT = "lat"
 LNG = "lng"
@@ -53,9 +54,18 @@ if __name__ == "__main__":
     # for key in prayerConfig:
     # 	print(key + ': '+prayerConfig[key])
 
-    prayTimes = praytimes.PrayTimes(prayerConfig[METHOD], prayerConfig[ASR_TIME])
+    offsets = {}
+    prayers = []
 
-    from datetime import date
+    for p in prayerConfig[PRAYERS].split(","):
+        prayer = p.strip().split(":")[0].lower()
+        offset = p.strip().split(":")[1]
+
+        offsets[prayer] = int(offset)
+        prayers.append(prayer)
+
+    prayTimes = praytimes.PrayTimes(prayerConfig[METHOD], prayerConfig[ASR_TIME])
+    prayTimes.tune(offsets)
 
     times = prayTimes.getTimes(date.today(),
                                (float(prayerConfig[LAT]),
@@ -63,5 +73,5 @@ if __name__ == "__main__":
                                int(prayerConfig[GMT_OFFSET]),
                                int(prayerConfig[DST]))
 
-    for i in prayerConfig[PRAYERS].split(","):
-        print(i + '-' + times[i.strip().lower()])
+    for p in prayers:
+        print(p + '-' + times[p])
