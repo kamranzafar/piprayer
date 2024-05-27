@@ -1,5 +1,5 @@
 # PiPrayer
-Azaan player for Raspberry Pi.
+Azaan/Adhan player for Raspberry Pi.
 
 ## Overview
 PiPrayer project is for setting up and playing Azaan on Raspberry Pi (any version), using a bluetooth speaker.
