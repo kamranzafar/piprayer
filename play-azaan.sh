@@ -16,9 +16,9 @@ if [ -z "$BLUETOOTH_MAC" ]; then
       exit 1
     fi
 
-    echo "connect $BLUETOOTH_MAC \nquit" | bluetoothctl
+    echo "connect $BLUETOOTH_MAC" | bluetoothctl
     sleep 5
 fi
 
 paplay $(dirname "$0")/media/azaan-"$1".wav
-echo "disconnect $BLUETOOTH_MAC \nquit" | bluetoothctl
+echo "disconnect $BLUETOOTH_MAC" | bluetoothctl
