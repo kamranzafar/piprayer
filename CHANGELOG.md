@@ -18,7 +18,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - `piprayer.py config` creates or changes `.piprayer` by asking for each setting. It suggests the system
   timezone, that timezone's main city as the location, and the usual calculation method for the region, checks
-  each answer, and shows the Azaan times before saving. Run it again to change the settings.
+  each answer, and shows the Azaan times before saving. Run it again to change the settings: the running service
+  picks them up within a minute, and the wizard says so, or that the service still needs installing.
 - `./setup-piprayer.sh --configure` runs the configuration wizard before installing. The setup also runs it when
   there is no `.piprayer`.
 - `speaker` option to play on one Bluetooth speaker, by its address, instead of any paired speaker. The

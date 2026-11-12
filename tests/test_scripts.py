@@ -294,6 +294,7 @@ def test_setup_configure_asks_for_settings_then_installs(setup):
     assert "azaan = 7" in config
     assert "run --azaan 5" in setup.service_file.read_text()
     assert "PiPrayer installed." in result.stdout
+    assert "Run ./setup-piprayer.sh" not in result.stdout
 
 
 def test_setup_configure_stops_when_not_saved(setup):

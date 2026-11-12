@@ -77,7 +77,7 @@ fi
 
 # Ask for the settings when asked to, or when there is no configuration yet and someone can answer
 if [ "$CONFIGURE" -eq 1 ] || { [ ! -f "$CONF_FILE" ] && [ -t 0 ]; }; then
-  "$PYTHON" "$CURR_PATH/piprayer.py" -c "$CONF_FILE" config || exit 1
+  "$PYTHON" "$CURR_PATH/piprayer.py" -c "$CONF_FILE" config --no-next-step || exit 1
   echo
 fi
 

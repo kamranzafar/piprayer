@@ -365,11 +365,15 @@ def test_play(args):
     return play(azaan, volume, speaker=speaker)
 
 
+def service_file():
+    config_home = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return os.path.join(config_home, "systemd", "user", "piprayer.service")
+
+
 def installed_azaan():
     """The azaan the installed service was set up with, or the default."""
-    config_home = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
     try:
-        with open(os.path.join(config_home, "systemd", "user", "piprayer.service")) as f:
+        with open(service_file()) as f:
             for line in f:
                 if line.startswith("ExecStart=") and "--azaan" in line:
                     return int(line.split("--azaan")[1].split()[0])
@@ -875,7 +879,7 @@ def read_existing(path):
     return parser
 
 
-def configure(path, wizard=None):
+def configure(path, wizard=None, next_step=True):
     """Ask for each setting, show the resulting times and save them to path."""
     wizard = wizard or Wizard()
     parser = read_existing(path)
@@ -960,6 +964,11 @@ def configure(path, wizard=None):
             os.remove(preview)
 
     wizard.say("Saved " + path)
+    if next_step:
+        if os.path.exists(service_file()):
+            wizard.say("The PiPrayer service will use the new settings within a minute.")
+        else:
+            wizard.say("Run ./setup-piprayer.sh to install the PiPrayer service.")
     return 0
 
 
@@ -1003,14 +1012,16 @@ def main():
                               type=str.lower, help="play the azaan and volume set for this prayer")
     play_command.add_argument("-r", "--reminder", action="store_true", help="play the reminder sound")
 
-    commands.add_parser("config", help="create or change the configuration, asking for each setting")
+    config_command = commands.add_parser("config", help="create or change the configuration, asking for each setting")
+    # setup-piprayer.sh installs the service next, so it doesn't need saying
+    config_command.add_argument("--no-next-step", dest="next_step", action="store_false", help=argparse.SUPPRESS)
 
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     try:
         if args.command == "config":
-            return configure(args.config)
+            return configure(args.config, next_step=args.next_step)
         if args.command == "run":
             run(args.config, args.azaan)
         elif args.command == "play":

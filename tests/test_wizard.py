@@ -365,3 +365,28 @@ def test_bluetooth_speakers_without_bluetoothctl(monkeypatch):
 
     monkeypatch.setattr(piprayer.subprocess, "run", missing)
     assert piprayer.bluetooth_speakers() == []
+
+
+# ---------------------------------------------------------------- after saving
+
+
+@pytest.mark.parametrize("installed, message", [
+    (True, "The PiPrayer service will use the new settings within a minute."),
+    (False, "Run ./setup-piprayer.sh to install the PiPrayer service."),
+])
+def test_says_what_happens_next(tmp_path, monkeypatch, installed, message):
+    service = tmp_path / "piprayer.service"
+    if installed:
+        service.write_text("[Service]\n")
+    monkeypatch.setattr(piprayer, "service_file", lambda: str(service))
+    answers = Answers(*[""] * 11)
+
+    assert piprayer.configure(str(tmp_path / ".piprayer"), answers.wizard()) == 0
+    assert answers.output[-1] == message
+
+
+def test_no_next_step_when_run_by_the_setup(tmp_path):
+    answers = Answers(*[""] * 11)
+    path = str(tmp_path / ".piprayer")
+    assert piprayer.configure(path, answers.wizard(), next_step=False) == 0
+    assert answers.output[-1] == "Saved " + path
