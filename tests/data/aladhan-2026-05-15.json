@@ -1,0 +1,679 @@
+{
+ "source": "https://api.aladhan.com/v1/timings (latitudeAdjustmentMethod=1, middle of the night)",
+ "retrieved": "2026-11-12",
+ "date": "2026-05-15",
+ "cases": [
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Jafari",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:41",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "21:11",
+    "isha": "22:47"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Jafari",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "02:41",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "18:17",
+    "maghrib": "21:11",
+    "isha": "22:47"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Karachi",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:06",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "23:50"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Karachi",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "02:06",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "18:17",
+    "maghrib": "20:46",
+    "isha": "23:50"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "ISNA",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:55",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "23:00"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "ISNA",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "02:55",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "18:17",
+    "maghrib": "20:46",
+    "isha": "23:00"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "MWL",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:06",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "23:30"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "MWL",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "02:06",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "18:17",
+    "maghrib": "20:46",
+    "isha": "23:30"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Makkah",
+   "asr": "Standard",
+   "times": {
+    "fajr": "01:55",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "22:16"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Makkah",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "01:55",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "18:17",
+    "maghrib": "20:46",
+    "isha": "22:16"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Egypt",
+   "asr": "Standard",
+   "times": {
+    "fajr": "01:16",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "23:40"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Egypt",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "01:16",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "18:17",
+    "maghrib": "20:46",
+    "isha": "23:40"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Tehran",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:13",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "21:15",
+    "isha": "22:47"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Tehran",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "02:13",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "18:17",
+    "maghrib": "21:15",
+    "isha": "22:47"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Jafari",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:31",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "19:07",
+    "isha": "19:54"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Jafari",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "04:31",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "16:51",
+    "maghrib": "19:07",
+    "isha": "19:54"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Karachi",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:21",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "20:13"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Karachi",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "04:21",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "16:51",
+    "maghrib": "18:52",
+    "isha": "20:13"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "ISNA",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:36",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "19:59"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "ISNA",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "04:36",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "16:51",
+    "maghrib": "18:52",
+    "isha": "19:59"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "MWL",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:21",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "20:08"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "MWL",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "04:21",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "16:51",
+    "maghrib": "18:52",
+    "isha": "20:08"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Makkah",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:19",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "20:22"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Makkah",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "04:19",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "16:51",
+    "maghrib": "18:52",
+    "isha": "20:22"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Egypt",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:14",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "20:11"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Egypt",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "04:14",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "16:51",
+    "maghrib": "18:52",
+    "isha": "20:11"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Tehran",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:23",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "19:09",
+    "isha": "19:54"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Tehran",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "04:23",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "16:51",
+    "maghrib": "19:09",
+    "isha": "19:54"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "Jafari",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:06",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "17:14",
+    "maghrib": "20:56",
+    "isha": "22:06"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "Jafari",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "04:06",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "18:22",
+    "maghrib": "20:56",
+    "isha": "22:06"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "Karachi",
+   "asr": "Standard",
+   "times": {
+    "fajr": "03:49",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "17:14",
+    "maghrib": "20:36",
+    "isha": "22:39"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "Karachi",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "03:49",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "18:22",
+    "maghrib": "20:36",
+    "isha": "22:39"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "ISNA",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:15",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "17:14",
+    "maghrib": "20:36",
+    "isha": "22:14"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "ISNA",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "04:15",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "18:22",
+    "maghrib": "20:36",
+    "isha": "22:14"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "MWL",
+   "asr": "Standard",
+   "times": {
+    "fajr": "03:49",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "17:14",
+    "maghrib": "20:36",
+    "isha": "22:31"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "MWL",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "03:49",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "18:22",
+    "maghrib": "20:36",
+    "isha": "22:31"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "Makkah",
+   "asr": "Standard",
+   "times": {
+    "fajr": "03:45",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "17:14",
+    "maghrib": "20:36",
+    "isha": "22:06"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "Makkah",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "03:45",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "18:22",
+    "maghrib": "20:36",
+    "isha": "22:06"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "Egypt",
+   "asr": "Standard",
+   "times": {
+    "fajr": "03:36",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "17:14",
+    "maghrib": "20:36",
+    "isha": "22:35"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "Egypt",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "03:36",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "18:22",
+    "maghrib": "20:36",
+    "isha": "22:35"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "Tehran",
+   "asr": "Standard",
+   "times": {
+    "fajr": "03:52",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "17:14",
+    "maghrib": "20:59",
+    "isha": "22:06"
+   }
+  },
+  {
+   "location": "toronto",
+   "lat": 43.6532,
+   "lng": -79.3832,
+   "timezone": "America/Toronto",
+   "method": "Tehran",
+   "asr": "Hanafi",
+   "times": {
+    "fajr": "03:52",
+    "sunrise": "05:52",
+    "dhuhr": "13:14",
+    "asr": "18:22",
+    "maghrib": "20:59",
+    "isha": "22:06"
+   }
+  }
+ ]
+}

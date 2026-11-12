@@ -315,12 +315,12 @@ class PrayTimes():
 
         if self.isMin(params['imsak']):
             times['imsak'] = times['fajr'] - self.eval(params['imsak']) / 60.0
-        # need to ask about 'min' settings
+        # maghrib and isha given in minutes are after sunset and maghrib respectively
         if self.isMin(params['maghrib']):
-            times['maghrib'] = times['sunset'] - self.eval(params['maghrib']) / 60.0
+            times['maghrib'] = times['sunset'] + self.eval(params['maghrib']) / 60.0
 
         if self.isMin(params['isha']):
-            times['isha'] = times['maghrib'] - self.eval(params['isha']) / 60.0
+            times['isha'] = times['maghrib'] + self.eval(params['isha']) / 60.0
         times['dhuhr'] += self.eval(params['dhuhr']) / 60.0
 
         return times
@@ -389,7 +389,7 @@ class PrayTimes():
 
     # convert given string into a number
     def eval(self, st):
-        val = re.split('[^0-9.+-]', str(st), 1)[0]
+        val = re.split('[^0-9.+-]', str(st), maxsplit=1)[0]
         return float(val) if val else 0
 
     # detect if input contains 'min'

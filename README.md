@@ -1,15 +1,9 @@
-```text
-     .-'''-.    *      ____  _ ____
-    /   .-'           / __ \(_) __ \_________ ___  _____  _____
-   |   (       .     / /_/ / / /_/ / ___/ __ `/ / / / _ \/ ___/
-   |   (            / ____/ / ____/ /  / /_/ / /_/ /  __/ /
-    \   '-.    *   /_/   /_/_/   /_/   \__,_/\__, /\___/_/
-     '-...-'                                /____/
+<p align="center">
+  <img src="assets/header.svg" alt="PiPrayer: Azaan at every prayer time, on your Raspberry Pi" width="608">
+</p>
 
-          Azaan at every prayer time, on your Raspberry Pi
-```
-
-<p>
+<p align="center">
+  <a href="https://github.com/kamranzafar/piprayer/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/kamranzafar/piprayer/actions/workflows/tests.yml/badge.svg"></a>
   <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white">
   <img alt="Raspberry Pi" src="https://img.shields.io/badge/Raspberry%20Pi-any-C51A4A?logo=raspberrypi&logoColor=white">
   <img alt="systemd service" src="https://img.shields.io/badge/runs%20as-systemd%20service-30D475">
@@ -204,6 +198,21 @@ Make sure the speaker is switched on, paired and trusted (`bluetoothctl info XX:
 
 Run `git pull` and then `./setup-piprayer.sh`. The setup removes the old cron jobs and installs the service.
 </details>
+
+## Development
+
+The tests cover:
+- prayer times, compared with reference times from the [AlAdhan API](https://aladhan.com/prayer-times-api)
+- the service loop, run against a simulated clock
+- both shell scripts, with fake `bluetoothctl` and `systemctl` commands
+
+```shell
+python3 -m pip install pytest
+python3 -m pytest
+```
+
+They run on GitHub Actions for every push, along with [ShellCheck](https://www.shellcheck.net) for the shell scripts.
+Notable changes are recorded in the [changelog](CHANGELOG.md).
 
 ## License
 

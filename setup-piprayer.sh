@@ -90,11 +90,9 @@ RestartSec=30
 WantedBy=default.target
 EOF
 
-systemctl --user daemon-reload &&
+if ! { systemctl --user daemon-reload &&
   systemctl --user enable "$SERVICE_NAME" &&
-  systemctl --user restart "$SERVICE_NAME"
-
-if [ $? -ne 0 ]; then
+  systemctl --user restart "$SERVICE_NAME"; }; then
   echo "Failed to start $SERVICE_NAME"
   exit 1
 fi

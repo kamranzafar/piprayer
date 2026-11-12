@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="608" height="186" viewBox="0 0 608 186" role="img" aria-label="PiPrayer">
+<title>PiPrayer</title>
+<style>
+  text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; white-space: pre; }
+  .moon { fill: #d4a72c; }
+  .word { fill: #2ea043; font-weight: 600; }
+  .tag { fill: #8b949e; font-size: 15px; }
+</style>
+<text x="16" y="31" font-size="16" xml:space="preserve"><tspan class="moon">  .-'''-.    * </tspan><tspan class="word">     ____  _ ____</tspan></text>
+<text x="16" y="51" font-size="16" xml:space="preserve"><tspan class="moon"> /   .-'       </tspan><tspan class="word">    / __ \(_) __ \_________ ___  _____  _____</tspan></text>
+<text x="16" y="71" font-size="16" xml:space="preserve"><tspan class="moon">|   (       .  </tspan><tspan class="word">   / /_/ / / /_/ / ___/ __ `/ / / / _ \/ ___/</tspan></text>
+<text x="16" y="91" font-size="16" xml:space="preserve"><tspan class="moon">|   (          </tspan><tspan class="word">  / ____/ / ____/ /  / /_/ / /_/ /  __/ /</tspan></text>
+<text x="16" y="111" font-size="16" xml:space="preserve"><tspan class="moon"> \   '-.    *  </tspan><tspan class="word"> /_/   /_/_/   /_/   \__,_/\__, /\___/_/</tspan></text>
+<text x="16" y="131" font-size="16" xml:space="preserve"><tspan class="moon">  '-...-'      </tspan><tspan class="word">                          /____/</tspan></text>
+<text class="tag" x="304" y="162" text-anchor="middle">Azaan at every prayer time, on your Raspberry Pi</text>
+</svg>

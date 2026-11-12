@@ -7,6 +7,21 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- Automated tests, run by GitHub Actions on every push for Python 3.9, 3.11, 3.13 and 3.14. They cover:
+  - prayer times, compared with the AlAdhan API for 7 methods, 3 locations and both Asr methods
+  - configuration parsing
+  - the service loop, using a simulated clock that includes daylight saving changes
+  - `play-azaan.sh` and `setup-piprayer.sh`
+- ShellCheck linting of the shell scripts in CI.
+
+### Changed
+- The README header is now a centered image (`assets/header.svg`).
+
+### Fixed
+- The `Makkah` method put Isha 90 minutes before Maghrib instead of after it. Maghrib set in minutes
+  after sunset had the same problem.
+
 ## [0.7] - 2026-11-12
 
 ### Upgrading from 0.6
