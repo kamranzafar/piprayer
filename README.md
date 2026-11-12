@@ -87,8 +87,17 @@ the region. Enter your own coordinates for accurate times, e.g. from
 That's it. PiPrayer now runs in the background and starts at boot. The setup may ask for your sudo password
 once, so the service can start without anyone logging in.
 
-To change the settings later, run `python3 piprayer.py config`, or edit `.piprayer` directly. Changes are picked
-up automatically.
+**Changing the settings**
+
+Run the wizard again. It starts from your current settings, so press Enter to keep each one:
+
+```shell
+python3 piprayer.py config
+```
+
+Or edit `.piprayer` directly. Either way, the running service picks up the new settings within a minute, with no
+restart or setup needed. The wizard says so when it saves, or tells you to run `./setup-piprayer.sh` if the service
+isn't installed yet. Run the setup again only to apply an update after `git pull`.
 
 <details>
 <summary>Writing <code>.piprayer</code> by hand</summary>
@@ -111,7 +120,8 @@ and check the result with `python3 piprayer.py times`. All the options are descr
 
 ## Configuration
 
-All options go in the `[Default]` section of `.piprayer`. Changes are picked up automatically, no restart needed.
+All options go in the `[Default]` section of `.piprayer`. `python3 piprayer.py config` sets them for you, or edit
+the file directly. The running service picks up changes within a minute, no restart needed.
 
 | Option | Description | Example |
 |---|---|---|
@@ -175,7 +185,7 @@ dst = 1            # 1 during daylight saving, otherwise 0
 | `python3 piprayer.py times next` | Show the next Azaan and how long until it |
 | `python3 piprayer.py times -d 2026-12-25` | Print the times for another day |
 | `python3 piprayer.py times -f json` | Print the times as JSON, e.g. for a dashboard or Home Assistant. Also works with `next`. `-f plain` prints `fajr-04:21` lines |
-| `python3 piprayer.py config` | Create or change `.piprayer`, asking for each setting |
+| `python3 piprayer.py config` | Create or change `.piprayer`, asking for each setting. The running service uses the new settings within a minute |
 | `python3 piprayer.py play` | Play the Azaan now, to test the speaker |
 | `python3 piprayer.py play -p fajr` | Play the Azaan and volume set for a prayer |
 | `python3 piprayer.py play -r` | Play the reminder chime |
@@ -197,6 +207,8 @@ The Azaan recordings and the reminder chime are in the [`media`](media) folder.
 ```
 
 `setup-piprayer.sh` installs `piprayer.py run` as a systemd user service and turns on lingering, so it starts at boot.
+While waiting for the next prayer, the service checks `.piprayer` at least once a minute and reloads it when it
+changes, so new settings apply without a restart.
 Prayer times are calculated with the [PrayTimes.org](http://praytimes.org) library, included as `praytimes.py`.
 
 If the clock jumps forward after boot (the Raspberry Pi has no hardware clock), any Azaan missed by more than
