@@ -9,12 +9,17 @@ on:
 jobs:
   test:
     name: Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # 3.9 is the oldest supported, 3.11 and 3.13 ship with Raspberry Pi OS Bookworm and Trixie
-        python-version: ["3.9", "3.11", "3.13", "3.14"]
+        # Raspberry Pi OS ships 3.9 (Bullseye), 3.11 (Bookworm) and 3.13 (Trixie)
+        python-version: ["3.11", "3.13", "3.14"]
+        os: [ubuntu-latest]
+        include:
+          # Python 3.9 builds are not available for the newest Ubuntu
+          - python-version: "3.9"
+            os: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
