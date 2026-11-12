@@ -7,7 +7,7 @@ MELBOURNE = ZoneInfo("Australia/Melbourne")
 
 
 def played(clock):
-    return [(at.strftime("%a %H:%M %Z"), azaan) for at, azaan in clock.played]
+    return [(at.strftime("%a %H:%M %Z"), sound) for at, sound, _ in clock.played]
 
 
 def test_plays_every_prayer_through_the_day(write_config, fake_clock):
@@ -88,4 +88,4 @@ def test_azaan_noticed_slightly_late_still_plays(write_config, fake_clock):
     clock.at(datetime(2026, 11, 12, 4, 1), jump_forward)
     clock.run_service(write_config(), hours=1)
 
-    assert [azaan for _, azaan in clock.played] == ["1"]
+    assert [sound for _, sound, _ in clock.played] == ["1"]

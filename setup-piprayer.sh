@@ -18,6 +18,7 @@
 
 #    Usage:
 #      ./setup-piprayer.sh [1-15]      install (or update) PiPrayer, optionally choosing the azaan
+#                                      (the azaan option in .piprayer takes precedence)
 #      ./setup-piprayer.sh --uninstall remove PiPrayer
 
 CURR_PATH=$(dirname "$(realpath "$0")")
@@ -72,7 +73,7 @@ if [ -z "$PYTHON" ]; then
 fi
 
 # Check the configuration before installing
-PRAYER_TIMES=$("$PYTHON" "$CURR_PATH/piprayer.py" -c "$CONF_FILE" times) || exit 1
+PRAYER_TIMES=$("$PYTHON" "$CURR_PATH/piprayer.py" -c "$CONF_FILE" times --azaan "$AZAAN") || exit 1
 
 mkdir -p "$SERVICE_DIR"
 cat >"$SERVICE_FILE" <<EOF
@@ -109,7 +110,8 @@ if [ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)" != "yes" ]; t
 fi
 
 echo
-echo "PiPrayer installed with azaan $AZAAN. Today's azaan times:"
+echo "PiPrayer installed."
+echo
 echo "$PRAYER_TIMES"
 echo
 echo "Status: systemctl --user status piprayer"

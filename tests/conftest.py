@@ -63,7 +63,8 @@ class FakeClock:
             raise Stop
 
     def run_player(self, cmd):
-        self.played.append((self.local_now().replace(second=0, microsecond=0), cmd[1]))
+        # (local time, azaan number or sound file, volume)
+        self.played.append((self.local_now().replace(second=0, microsecond=0), cmd[1], cmd[2]))
         self.now += self.play_duration
 
         class Result:

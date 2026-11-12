@@ -15,8 +15,9 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 
 - 🕌 **Accurate prayer times** from your coordinates, with 7 calculation methods and Standard or Hanafi Asr
 - ⏱️ **Per-prayer offsets** in minutes, to match your local mosque's timetable
+- 🔔 **Optional reminder chime** a few minutes before each Azaan
 - 🌍 **Daylight saving handled automatically** from your timezone
-- 🔊 **15 Azaan recordings** to choose from
+- 🔊 **15 Azaan recordings** to choose from, with a separate one for Fajr if you like, and per-prayer volume
 - 🔁 **Runs as a background service** that starts at boot and picks up configuration changes on its own
 - 📶 **Connects to your Bluetooth speaker** just before the Azaan and disconnects afterwards
 
@@ -74,11 +75,16 @@ the [tz database list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zo
 
 ```console
 $ python3 piprayer.py times
-fajr-04:21
-dhuhr-13:05
-asr-18:03
-maghrib-20:07
-isha-21:44
+ Thursday 12 November 2026
+ Australia/Melbourne (AEDT) · MWL method · Hanafi Asr
+
+ Prayer   Time   Azaan  Volume
+ ─────────────────────────────
+ Fajr     04:21  1      100%
+ Dhuhr    13:05  1      100%
+ Asr      18:03  1      100%    ◀ next
+ Maghrib  20:07  1      100%
+ Isha     21:44  1      100%
 ```
 
 **4. Install the service**
@@ -102,6 +108,26 @@ All options go in the `[Default]` section of `.piprayer`. Changes are picked up 
 | `method` | Calculation method, see below | `MWL` |
 | `asr-time` | Asr calculation: `Standard` or `Hanafi` | `Hanafi` |
 | `prayers` | Comma separated prayers to play the Azaan for. Add `:minutes` to shift a time earlier (negative) or later | `Fajr:-10, Dhuhr:5, Asr, Maghrib, Isha` |
+
+### Optional settings
+
+| Option | Description | Default | Example |
+|---|---|---|---|
+| `azaan` | Azaan recording to play, from 1 to 15 | 1, or the number given to `setup-piprayer.sh` | `5` |
+| `fajr-azaan` | A different recording for Fajr | same as `azaan` | `3` |
+| `volume` | Volume in percent. Add `Prayer:percent` to set a prayer's volume | `100` | `80, Fajr:40` |
+| `reminder` | Play a short chime this many minutes before each Azaan, up to 60. `0` turns it off | `0` | `10` |
+
+For example, to play azaan 5, a quieter azaan 3 for Fajr, and a chime 10 minutes before each prayer:
+
+```ini
+azaan = 5
+fajr-azaan = 3
+volume = 80, Fajr:40
+reminder = 10
+```
+
+The volume is that of the Raspberry Pi's audio output, so the speaker's own volume still applies.
 
 ### Calculation methods
 
@@ -131,14 +157,17 @@ dst = 1            # 1 during daylight saving, otherwise 0
 
 | Command | What it does |
 |---|---|
-| `python3 piprayer.py times` | Print today's Azaan times |
+| `python3 piprayer.py times` | Print today's Azaan times, with the azaan, volume and reminder for each |
+| `python3 piprayer.py times -d 2026-12-25` | Print the times for another day. `--plain` prints `fajr-04:21` lines for scripts |
 | `python3 piprayer.py play` | Play the Azaan now, to test the speaker |
+| `python3 piprayer.py play -p fajr` | Play the Azaan and volume set for a prayer |
+| `python3 piprayer.py play -r` | Play the reminder chime |
 | `systemctl --user status piprayer` | Check the service is running, and when the next Azaan is |
 | `journalctl --user-unit piprayer -f` | Follow the logs |
-| `./setup-piprayer.sh [1-15]` | Change the Azaan, or apply an update after `git pull` |
+| `./setup-piprayer.sh [1-15]` | Set the default Azaan, or apply an update after `git pull`. The `azaan` setting takes precedence |
 | `./setup-piprayer.sh --uninstall` | Remove PiPrayer |
 
-The Azaan recordings are in the [`media`](media) folder.
+The Azaan recordings and the reminder chime are in the [`media`](media) folder.
 
 ## How it works
 

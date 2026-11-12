@@ -3,7 +3,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import piprayer
-from piprayer import Config, next_prayer, prayer_times
+from piprayer import Config, next_event, prayer_times
 
 MELBOURNE = ZoneInfo("Australia/Melbourne")
 
@@ -57,24 +57,25 @@ def test_daylight_saving_matches_legacy_dst_flag(write_config):
 
 def test_next_prayer_later_today(write_config):
     config = Config(write_config())
-    prayer, at = next_prayer(config, datetime(2026, 11, 12, 14, 0, tzinfo=MELBOURNE))
-    assert (prayer, at.strftime("%Y-%m-%d %H:%M")) == ("asr", "2026-11-12 18:03")
+    event = next_event(config, datetime(2026, 11, 12, 14, 0, tzinfo=MELBOURNE))
+    assert (event.prayer, event.at.strftime("%Y-%m-%d %H:%M")) == ("asr", "2026-11-12 18:03")
+    assert not event.reminder
 
 
 def test_next_prayer_is_tomorrow_after_isha(write_config):
     config = Config(write_config())
-    prayer, at = next_prayer(config, datetime(2026, 11, 12, 22, 0, tzinfo=MELBOURNE))
-    assert (prayer, at.strftime("%Y-%m-%d %H:%M")) == ("fajr", "2026-11-13 04:22")
+    event = next_event(config, datetime(2026, 11, 12, 22, 0, tzinfo=MELBOURNE))
+    assert (event.prayer, event.at.strftime("%Y-%m-%d %H:%M")) == ("fajr", "2026-11-13 04:22")
 
 
 def test_next_prayer_skips_one_starting_now(write_config):
     config = Config(write_config())
-    prayer, _ = next_prayer(config, datetime(2026, 11, 12, 18, 3, tzinfo=MELBOURNE))
-    assert prayer == "maghrib"
+    event = next_event(config, datetime(2026, 11, 12, 18, 3, tzinfo=MELBOURNE))
+    assert event.prayer == "maghrib"
 
 
-def test_times_command_prints_schedule(write_config, monkeypatch, capsys):
-    monkeypatch.setattr("sys.argv", ["piprayer.py", "-c", write_config(), "times"])
+def test_times_command_plain_output(write_config, monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["piprayer.py", "-c", write_config(), "times", "--plain", "-d", "2026-11-12"])
     assert piprayer.main() == 0
-    lines = capsys.readouterr().out.split()
-    assert [line.split("-")[0] for line in lines] == ["fajr", "dhuhr", "asr", "maghrib", "isha"]
+    assert capsys.readouterr().out.split() == [
+        "fajr-04:23", "dhuhr-13:06", "asr-18:03", "maghrib-20:02", "isha-21:43"]

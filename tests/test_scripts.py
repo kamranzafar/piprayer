@@ -58,7 +58,7 @@ def bluetooth(tmp_path):
           echo "$mac" >> $STATE/connected
         fi
         """.format(state=state, s1=SPEAKER_1, s2=SPEAKER_2))
-    make_command(bin_dir, "paplay", 'echo "play $1" >> {}/log\n'.format(state))
+    make_command(bin_dir, "paplay", 'echo "play $*" >> {}/log\n'.format(state))
     make_command(bin_dir, "sleep", "")
 
     class Bluetooth:
@@ -68,8 +68,8 @@ def bluetooth(tmp_path):
         def refuse(self, *macs):
             (state / "refuse").write_text("".join(m + "\n" for m in macs))
 
-        def play(self, azaan="3"):
-            return run([os.path.join(ROOT, "play-azaan.sh"), azaan], bin_dir)
+        def play(self, *args):
+            return run([os.path.join(ROOT, "play-azaan.sh")] + list(args or ["3"]), bin_dir)
 
         def log(self):
             path = state / "log"
@@ -78,8 +78,8 @@ def bluetooth(tmp_path):
     return Bluetooth()
 
 
-def azaan_file(azaan):
-    return "play " + os.path.join(ROOT, "media", "azaan-{}.wav".format(azaan))
+def azaan_file(azaan, volume=65536):
+    return "play --volume={} {}".format(volume, os.path.join(ROOT, "media", "azaan-{}.wav".format(azaan)))
 
 
 def test_connects_plays_and_disconnects(bluetooth):
@@ -107,6 +107,30 @@ def test_fails_when_no_speaker_connects(bluetooth):
     assert result.returncode == 1
     assert "Can't connect to bluetooth" in result.stdout
     assert not any(line.startswith("play") for line in bluetooth.log())
+
+
+def test_plays_at_requested_volume(bluetooth):
+    assert bluetooth.play("3", "50").returncode == 0
+    assert azaan_file(3, volume=32768) in bluetooth.log()
+
+
+def test_plays_a_sound_file(bluetooth):
+    sound = os.path.join(ROOT, "media", "reminder.wav")
+    assert bluetooth.play(sound, "100").returncode == 0
+    assert "play --volume=65536 " + sound in bluetooth.log()
+
+
+@pytest.mark.parametrize("args, message", [
+    (["99"], "Sound file not found"),
+    (["/no/such/file.wav"], "Sound file not found"),
+    (["3", "150"], "Invalid volume: 150"),
+    (["3", "loud"], "Invalid volume: loud"),
+])
+def test_rejects_bad_arguments_before_connecting(bluetooth, args, message):
+    result = bluetooth.play(*args)
+    assert result.returncode == 1
+    assert message in result.stdout
+    assert bluetooth.log() == []
 
 
 # ------------------------------------------------------------- setup-piprayer.sh
@@ -187,7 +211,8 @@ def test_setup_installs_and_starts_service(setup):
         "systemctl --user restart piprayer.service",
         "sudo loginctl enable-linger " + os.environ.get("USER", ""),
     ]
-    assert "fajr-" in result.stdout
+    assert "Fajr     04:" in result.stdout
+    assert "Azaan" in result.stdout
 
 
 def test_setup_removes_only_old_piprayer_cron_jobs(setup):

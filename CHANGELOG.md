@@ -14,9 +14,20 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   - the service loop, using a simulated clock that includes daylight saving changes
   - `play-azaan.sh` and `setup-piprayer.sh`
 - ShellCheck linting of the shell scripts in CI.
+- `azaan` option to choose the Azaan recording in `.piprayer`. It takes precedence over the number given to
+  `setup-piprayer.sh`, and changes are picked up without running the setup again.
+- `fajr-azaan` option to play a different recording for Fajr.
+- `volume` option, in percent, with optional per-prayer volumes, e.g. `volume = 80, Fajr:40`.
+- `reminder` option to play a short chime (`media/reminder.wav`) a number of minutes before each Azaan.
+- `piprayer.py times` prints a table with each prayer's azaan, volume and reminder, and marks the next azaan.
+  `-d YYYY-MM-DD` shows another day, and `--plain` prints the previous `fajr-04:21` format for scripts.
+- `piprayer.py play` uses the configured azaan and volume. `-p fajr` plays what is set for a prayer,
+  and `-r` plays the reminder chime.
 
 ### Changed
 - The README header is now a centered image (`assets/header.svg`).
+- `play-azaan.sh` takes a sound file as well as an Azaan number, and an optional volume. It checks its
+  arguments before connecting to the speaker.
 
 ### Fixed
 - The `Makkah` method put Isha 90 minutes before Maghrib instead of after it. Maghrib set in minutes
