@@ -39,10 +39,7 @@ def saved(path):
 def melbourne_system(monkeypatch):
     monkeypatch.setattr(piprayer, "system_timezone", lambda: "Australia/Melbourne")
     monkeypatch.setattr(piprayer, "installed_azaan", lambda: 1)
-    monkeypatch.setattr(piprayer, "bluetooth_speakers", lambda: [])
-
-
-SPEAKERS = [("AA:AA:AA:AA:AA:01", "Kitchen Speaker", False), ("BB:BB:BB:BB:BB:02", "Echo Pop", True)]
+    monkeypatch.setattr(piprayer, "bluetoothctl", FakeBluetooth())
 
 # Answers up to the speaker question, and after it
 BEFORE_SPEAKER = [""] * 6
@@ -185,62 +182,157 @@ def test_system_timezone_from_tz_variable(monkeypatch):
 
 # ---------------------------------------------------------------- speaker
 
+KITCHEN, ECHO, SOUNDBAR, PHONE = "AA:AA:AA:AA:AA:01", "BB:BB:BB:BB:BB:02", "CC:CC:CC:CC:CC:03", "DD:DD:DD:DD:DD:04"
+
+
+class FakeBluetooth:
+    """Stands in for bluetoothctl: an adapter, known devices, and devices that appear when scanning."""
+
+    def __init__(self, controller=False):
+        self.controller = controller
+        self.devices = {}  # mac: [name, paired, connected]
+        self.nearby = {}  # mac: name, found by a scan
+        self.refuse = set()
+        self.commands = []
+
+    def __call__(self, *args, timeout=10):
+        self.commands.append(" ".join(args))
+        if args == ("show",):
+            return "Controller 00:11:22:33:44:55 (public)\n\tPowered: yes\n" if self.controller else ""
+        if args == ("devices",):
+            return "".join("Device {} {}\n".format(mac, d[0]) for mac, d in self.devices.items())
+        if args[0] == "info":
+            device = self.devices.get(args[1])
+            if not device:
+                return "Device {} not available\n".format(args[1])
+            return "Device {}\n\tPaired: {}\n\tConnected: {}\n".format(
+                args[1], "yes" if device[1] else "no", "yes" if device[2] else "no")
+        if args[1:] == ("15", "scan", "on"):
+            output = "Discovery started\n"
+            for mac, name in self.nearby.items():
+                self.devices.setdefault(mac, [name, False, False])
+                output += "[NEW] Device {} {}\n[CHG] Device {} RSSI: -60\n".format(mac, name, mac)
+            return output
+        if args[0] == "pair":
+            if args[1] in self.refuse:
+                return "Attempting to pair with {}\nFailed to pair: org.bluez.Error.AuthenticationFailed\n".format(args[1])
+            self.devices[args[1]][1] = True
+            return "Attempting to pair with {}\nPairing successful\n".format(args[1])
+        return ""
+
 
 @pytest.fixture
-def paired(monkeypatch):
-    monkeypatch.setattr(piprayer, "bluetooth_speakers", lambda: list(SPEAKERS))
+def bluetooth(monkeypatch):
+    fake = FakeBluetooth(controller=True)
+    fake.devices = {KITCHEN: ["Kitchen Speaker", True, False], ECHO: ["Echo Pop", True, True],
+                    PHONE: ["Phone", False, False]}
+    monkeypatch.setattr(piprayer, "bluetoothctl", fake)
+    return fake
 
 
-def test_lists_paired_speakers_and_saves_the_choice(tmp_path, paired):
+def test_lists_paired_speakers_and_saves_the_choice(tmp_path, bluetooth):
     path = str(tmp_path / ".piprayer")
     answers = Answers(*BEFORE_SPEAKER, "2", *AFTER_SPEAKER)
 
     assert piprayer.configure(path, answers.wizard()) == 0
-    assert saved(path)["speaker"] == "BB:BB:BB:BB:BB:02"
-    assert "  1. Kitchen Speaker (AA:AA:AA:AA:AA:01)" in answers.output
-    assert "  2. Echo Pop (BB:BB:BB:BB:BB:02), connected" in answers.output
+    assert saved(path)["speaker"] == ECHO
+    assert "  1. Kitchen Speaker ({})".format(KITCHEN) in answers.output
+    assert "  2. Echo Pop ({}), connected".format(ECHO) in answers.output
+    assert not any("Phone" in line for line in answers.output)
     assert "Speaker [0]: " in answers.prompts
 
 
-def test_any_speaker_is_the_default(tmp_path, paired):
+def test_any_speaker_is_the_default(tmp_path, bluetooth):
     path = str(tmp_path / ".piprayer")
     assert piprayer.configure(path, Answers(*BEFORE_SPEAKER, "", *AFTER_SPEAKER).wizard()) == 0
     assert "speaker" not in saved(path)
 
 
-def test_keeps_or_removes_the_configured_speaker(write_config, paired):
-    path = write_config(MELBOURNE_CONFIG + "speaker = AA:AA:AA:AA:AA:01\n")
+def test_keeps_or_removes_the_configured_speaker(write_config, bluetooth):
+    path = write_config(MELBOURNE_CONFIG + "speaker = {}\n".format(KITCHEN))
     answers = Answers(*BEFORE_SPEAKER, "", *AFTER_SPEAKER)
     assert piprayer.configure(path, answers.wizard()) == 0
-    assert saved(path)["speaker"] == "AA:AA:AA:AA:AA:01"
+    assert saved(path)["speaker"] == KITCHEN
     assert "Speaker [1]: " in answers.prompts
 
     assert piprayer.configure(path, Answers(*BEFORE_SPEAKER, "0", *AFTER_SPEAKER).wizard()) == 0
     assert "speaker" not in saved(path)
 
 
-def test_configured_speaker_that_is_no_longer_paired_is_offered(write_config, paired):
-    path = write_config(MELBOURNE_CONFIG + "speaker = CC:CC:CC:CC:CC:03\n")
+def test_configured_speaker_that_is_no_longer_paired_is_offered(write_config, bluetooth):
+    path = write_config(MELBOURNE_CONFIG + "speaker = {}\n".format(SOUNDBAR))
     answers = Answers(*BEFORE_SPEAKER, "", *AFTER_SPEAKER)
     assert piprayer.configure(path, answers.wizard()) == 0
-    assert saved(path)["speaker"] == "CC:CC:CC:CC:CC:03"
-    assert "  3. not paired now (CC:CC:CC:CC:CC:03)" in answers.output
+    assert saved(path)["speaker"] == SOUNDBAR
+    assert "  3. not paired now ({})".format(SOUNDBAR) in answers.output
 
 
-def test_speaker_by_address_and_invalid_choices(tmp_path, paired):
+def test_speaker_by_address_and_invalid_choices(tmp_path, bluetooth):
     path = str(tmp_path / ".piprayer")
-    answers = Answers(*BEFORE_SPEAKER, "3", "speaker", "dd:dd:dd:dd:dd:04", *AFTER_SPEAKER)
+    answers = Answers(*BEFORE_SPEAKER, "3", "speaker", SOUNDBAR.lower(), *AFTER_SPEAKER)
     assert piprayer.configure(path, answers.wizard()) == 0
-    assert saved(path)["speaker"] == "DD:DD:DD:DD:DD:04"
-    assert answers.output.count("  Choose a number from 0 to 2, or enter a Bluetooth address") == 2
+    assert saved(path)["speaker"] == SOUNDBAR
+    assert answers.output.count(
+        "  Choose a number from 0 to 2, p to pair a new speaker, or enter a Bluetooth address") == 2
 
 
-def test_no_paired_speakers_skips_the_question(tmp_path):
+def test_pairs_a_new_speaker(tmp_path, bluetooth):
+    bluetooth.nearby = {SOUNDBAR: "Soundbar", "EE:EE:EE:EE:EE:05": "EE-EE-EE-EE-EE-05"}
     path = str(tmp_path / ".piprayer")
+    answers = Answers(*BEFORE_SPEAKER, "p", "", "1", *AFTER_SPEAKER)
+
+    assert piprayer.configure(path, answers.wizard()) == 0
+    assert saved(path)["speaker"] == SOUNDBAR
+    assert "  1. Soundbar ({})".format(SOUNDBAR) in answers.output
+    # devices without a name, and the paired ones, are not offered
+    assert not any("EE-EE" in line or "Kitchen" in line for line in answers.output[answers.output.index("Speakers found:"):])
+    assert "Paired Soundbar" in answers.output
+    assert ["power on", "--timeout 15 scan on", "pair " + SOUNDBAR, "trust " + SOUNDBAR] == [
+        c for c in bluetooth.commands if c.split()[0] in ("power", "--timeout", "pair", "trust")]
+
+
+def test_pairing_failure_can_be_retried_or_abandoned(tmp_path, bluetooth):
+    bluetooth.nearby = {SOUNDBAR: "Soundbar"}
+    bluetooth.refuse.add(SOUNDBAR)
+    path = str(tmp_path / ".piprayer")
+    answers = Answers(*BEFORE_SPEAKER, "p", "", "1", "r", "", "1", *AFTER_SPEAKER)
+
+    assert piprayer.configure(path, answers.wizard()) == 0
+    assert "Could not pair Soundbar: Failed to pair: org.bluez.Error.AuthenticationFailed" in answers.output
+    assert sum(c.startswith("--timeout") for c in bluetooth.commands) == 2
+    # back at the list of paired speakers, Kitchen Speaker was chosen
+    assert saved(path)["speaker"] == KITCHEN
+
+
+def test_offers_pairing_when_nothing_is_paired(tmp_path, bluetooth):
+    bluetooth.devices = {}
+    bluetooth.nearby = {SOUNDBAR: "Soundbar"}
+    path = str(tmp_path / ".piprayer")
+    answers = Answers(*BEFORE_SPEAKER, "", "", "1", *AFTER_SPEAKER)
+
+    assert piprayer.configure(path, answers.wizard()) == 0
+    assert "No paired Bluetooth speakers found." in answers.output
+    assert "Pair a speaker now? [Y/n]: " in answers.prompts
+    assert saved(path)["speaker"] == SOUNDBAR
+
+
+def test_nothing_found_when_scanning(tmp_path, bluetooth):
+    bluetooth.devices = {}
+    path = str(tmp_path / ".piprayer")
+    answers = Answers(*BEFORE_SPEAKER, "", "", "", "n", *AFTER_SPEAKER)
+
+    assert piprayer.configure(path, answers.wizard()) == 0
+    assert any(line.startswith("No new speakers found") for line in answers.output)
+    assert "speaker" not in saved(path)
+
+
+def test_without_a_bluetooth_adapter_the_speaker_is_kept(write_config):
+    path = write_config(MELBOURNE_CONFIG + "speaker = {}\n".format(KITCHEN))
     answers = Answers(*BEFORE_SPEAKER, *AFTER_SPEAKER)
     assert piprayer.configure(path, answers.wizard()) == 0
     assert not any(prompt.startswith("Speaker") for prompt in answers.prompts)
-    assert any("No paired Bluetooth speakers found" in line for line in answers.output)
+    assert any("No Bluetooth adapter found" in line for line in answers.output)
+    assert saved(path)["speaker"] == KITCHEN
 
 
 def test_bluetooth_speakers_reads_bluetoothctl(monkeypatch):
@@ -262,7 +354,7 @@ def test_bluetooth_speakers_reads_bluetoothctl(monkeypatch):
         }[mac])
 
     monkeypatch.setattr(piprayer.subprocess, "run", fake_run)
-    assert piprayer.bluetooth_speakers() == SPEAKERS
+    assert piprayer.bluetooth_speakers() == [(KITCHEN, "Kitchen Speaker", False), (ECHO, "Echo Pop", True)]
 
 
 def test_bluetooth_speakers_without_bluetoothctl(monkeypatch):

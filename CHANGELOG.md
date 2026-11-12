@@ -22,7 +22,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `./setup-piprayer.sh --configure` runs the configuration wizard before installing. The setup also runs it when
   there is no `.piprayer`.
 - `speaker` option to play on one Bluetooth speaker, by its address, instead of any paired speaker. The
-  configuration wizard lists the paired speakers to choose from.
+  configuration wizard lists the paired speakers to choose from, and can find and pair a new speaker.
 
 ### Changed
 - `play-azaan.sh` takes an optional speaker address after the volume.

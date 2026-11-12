@@ -701,16 +701,29 @@ class Wizard:
         return default if not answer else answer in ("y", "yes")
 
 
+SCAN_SECONDS = 15
+ANSI_CODE = re.compile(r"\x1b\[[0-9;]*m|\x01|\x02")
+DEVICE_LINE = re.compile(r"Device ((?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}) (.+)$")
+PAIR = "pair"
+SCAN_AGAIN = "scan"
+
+
+def bluetoothctl(*args, timeout=10):
+    """Run bluetoothctl and return its output, without colours. Empty when it isn't available."""
+    try:
+        output = subprocess.run(["bluetoothctl"] + list(args), capture_output=True, text=True,
+                                timeout=timeout).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return ANSI_CODE.sub("", output)
+
+
+def bluetooth_available():
+    return bluetoothctl("show").startswith("Controller")
+
+
 def bluetooth_speakers():
     """Paired Bluetooth devices as [(mac, name, connected)], empty when bluetoothctl isn't available."""
-
-    def bluetoothctl(*args):
-        try:
-            return subprocess.run(["bluetoothctl"] + list(args), capture_output=True, text=True,
-                                  timeout=10).stdout
-        except (OSError, subprocess.SubprocessError):
-            return ""
-
     speakers = []
     for line in bluetoothctl("devices").splitlines():
         fields = line.split(" ", 2)
@@ -724,36 +737,133 @@ def bluetooth_speakers():
     return speakers
 
 
-def choose_speaker(wizard, current):
-    """Ask which paired speaker to use. Returns its address, or "" for any paired speaker."""
-    speakers = bluetooth_speakers()
-    if current and current.upper() not in [mac for mac, _, _ in speakers]:
-        speakers.append((current.upper(), "not paired now", False))
+def scan_speakers(seconds=SCAN_SECONDS):
+    """Named devices nearby that aren't paired, as [(mac, name)]."""
+    bluetoothctl("power", "on")
+    scan = bluetoothctl("--timeout", str(seconds), "scan", "on", timeout=seconds + 10)
+    lines = [line for line in scan.splitlines() if "[NEW]" in line] + bluetoothctl("devices").splitlines()
 
+    paired = {mac for mac, _, _ in bluetooth_speakers()}
+    found = {}
+    for line in lines:
+        match = DEVICE_LINE.search(line.strip())
+        if not match:
+            continue
+        mac, name = match.group(1).upper(), match.group(2).strip()
+        # devices that don't send a name show their address instead
+        if mac in paired or name.upper().replace("-", ":") == mac:
+            continue
+        found.setdefault(mac, name)
+    return list(found.items())
+
+
+def pair_speaker(mac):
+    """Pair and trust a device. Returns None, or why it failed."""
+    output = bluetoothctl("pair", mac, timeout=40)
+    if "Paired: yes" not in bluetoothctl("info", mac):
+        reasons = [line.strip() for line in output.splitlines() if "fail" in line.lower() or "error" in line.lower()]
+        return reasons[-1] if reasons else "no answer from the speaker"
+    bluetoothctl("trust", mac)
+    return None
+
+
+def pair_new_speaker(wizard):
+    """Find and pair a speaker. Returns its address, or "" when none was paired."""
     wizard.say("")
-    if not speakers:
-        wizard.say("No paired Bluetooth speakers found. Pair one with bluetoothctl, see the README, then run")
-        wizard.say("python3 piprayer.py config again to choose it. PiPrayer uses any paired speaker until then.")
-        return ""
+    wizard.ask_input("Put the speaker in pairing mode, then press Enter ")
+    scan = True
+    while True:
+        if scan:
+            wizard.say("Looking for speakers for {} seconds...".format(SCAN_SECONDS))
+            found = scan_speakers()
+            scan = False
+        wizard.say("")
+        if found:
+            wizard.say("Speakers found:")
+            for number, (mac, name) in enumerate(found, 1):
+                wizard.say("  {}. {} ({})".format(number, name, mac))
+        else:
+            wizard.say("No new speakers found. Check it is in pairing mode and close to the Raspberry Pi.")
 
-    wizard.say("Bluetooth speakers:")
-    wizard.say("  0. Any paired speaker: one that is connected, otherwise the first that connects")
-    for number, (mac, name, connected) in enumerate(speakers, 1):
-        wizard.say("  {}. {} ({}){}".format(number, name, mac, ", connected" if connected else ""))
+        def parse(value):
+            if value == "":
+                return ""
+            if value.lower() == "r":
+                return SCAN_AGAIN
+            if value.isdigit() and 1 <= int(value) <= len(found):
+                return found[int(value) - 1]
+            raise ConfigError("Choose a number from 1 to {}, r to look again, or Enter to go back".format(
+                len(found)) if found else "Enter r to look again, or Enter to go back")
 
-    default = "0"
-    for number, (mac, _, _) in enumerate(speakers, 1):
-        if current and mac == current.upper():
-            default = str(number)
+        prompt = "Speaker to pair (r to look again, Enter to go back)" if found else "r to look again, Enter to go back"
+        choice = wizard.ask(prompt, "", parse)
+        if choice == "":
+            return ""
+        if choice == SCAN_AGAIN:
+            scan = True
+            continue
 
-    def parse(value):
-        if value.isdigit() and int(value) <= len(speakers):
-            return speakers[int(value) - 1][0] if int(value) else ""
-        if MAC_ADDRESS.match(value.upper()):
-            return value.upper()
-        raise ConfigError("Choose a number from 0 to {}, or enter a Bluetooth address".format(len(speakers)))
+        mac, name = choice
+        wizard.say("Pairing {}...".format(name))
+        failure = pair_speaker(mac)
+        if failure:
+            wizard.say("Could not pair {}: {}".format(name, failure))
+            continue
+        wizard.say("Paired {}".format(name))
+        return mac
 
-    return wizard.ask("Speaker", default, parse)
+
+def choose_speaker(wizard, current):
+    """Ask which paired speaker to use, offering to pair one. Returns its address, or "" for any paired speaker."""
+    wizard.say("")
+    if not bluetooth_available():
+        wizard.say("No Bluetooth adapter found, so the speaker can't be chosen now.")
+        return current
+
+    while True:
+        speakers = bluetooth_speakers()
+        if current and current.upper() not in [mac for mac, _, _ in speakers]:
+            speakers.append((current.upper(), "not paired now", False))
+
+        if not speakers:
+            wizard.say("No paired Bluetooth speakers found.")
+            if not wizard.confirm("Pair a speaker now?"):
+                wizard.say("PiPrayer will use any paired speaker. Run python3 piprayer.py config to choose one later.")
+                return ""
+            mac = pair_new_speaker(wizard)
+            if mac:
+                return mac
+            wizard.say("")
+            continue
+
+        wizard.say("Bluetooth speakers:")
+        wizard.say("  0. Any paired speaker: one that is connected, otherwise the first that connects")
+        for number, (mac, name, connected) in enumerate(speakers, 1):
+            wizard.say("  {}. {} ({}){}".format(number, name, mac, ", connected" if connected else ""))
+        wizard.say("  p. Pair a new speaker")
+
+        default = "0"
+        for number, (mac, _, _) in enumerate(speakers, 1):
+            if current and mac == current.upper():
+                default = str(number)
+
+        def parse(value):
+            if value.lower() == "p":
+                return PAIR
+            if value.isdigit() and int(value) <= len(speakers):
+                return speakers[int(value) - 1][0] if int(value) else ""
+            if MAC_ADDRESS.match(value.upper()):
+                return value.upper()
+            raise ConfigError("Choose a number from 0 to {}, p to pair a new speaker, or enter a Bluetooth address"
+                              .format(len(speakers)))
+
+        choice = wizard.ask("Speaker", default, parse)
+        if choice != PAIR:
+            return choice
+        mac = pair_new_speaker(wizard)
+        if mac:
+            return mac
+        wizard.say("")
 
 
 def read_existing(path):

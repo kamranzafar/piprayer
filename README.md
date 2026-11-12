@@ -48,6 +48,8 @@ sudo apt install python3 bluez pulseaudio pulseaudio-module-bluetooth
 
 **2. Pair your Bluetooth speaker**
 
+The setup in the next step can find and pair the speaker for you. To pair it yourself:
+
 ```shell
 bluetoothctl scan on                     # find your speaker's MAC address (XX:XX:XX:XX:XX:XX)
 bluetoothctl pair XX:XX:XX:XX:XX:XX
@@ -63,8 +65,8 @@ To always use one speaker, choose it during the setup or set the `speaker` optio
 ./setup-piprayer.sh        # or ./setup-piprayer.sh 5 to play azaan 5 (choose 1-15)
 ```
 
-The first time, the setup asks for your settings, including which paired speaker to use, and saves them to
-`.piprayer`. It suggests a default for each:
+The first time, the setup asks for your settings and saves them to `.piprayer`. It lists the paired speakers to
+choose from, and can look for a new one and pair it. It suggests a default for each:
 the timezone comes from the system, the location from that timezone's main city, and the calculation method from
 the region. Enter your own coordinates for accurate times, e.g. from
 [Google Maps](https://support.google.com/maps/answer/18539). Before saving, it shows the Azaan times:
