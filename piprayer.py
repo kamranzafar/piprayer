@@ -20,6 +20,7 @@ import configparser
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time as systime
@@ -39,6 +40,9 @@ AZAAN = "azaan"
 FAJR_AZAAN = "fajr-azaan"
 VOLUME = "volume"
 REMINDER = "reminder"
+SPEAKER = "speaker"
+
+MAC_ADDRESS = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 DEFAULT_CONFIG = os.path.join(SCRIPT_DIR, ".piprayer")
@@ -93,6 +97,7 @@ class Config:
         self.fajr_azaan = parse_azaan(section, FAJR_AZAAN)
         self.volume, self.volumes = parse_volume(section.get(VOLUME, ""))
         self.reminder = parse_number(section, REMINDER, 0, 0, 60)
+        self.speaker = parse_speaker(section.get(SPEAKER, ""))
 
     def azaan_for(self, prayer, default=DEFAULT_AZAAN):
         """The azaan to play for a prayer. default is used when the configuration doesn't set one."""
@@ -172,6 +177,16 @@ def parse_azaan(section, option):
         raise ConfigError("Invalid {}: {}, there is no {}".format(
             option, azaan, os.path.relpath(azaan_file(azaan), SCRIPT_DIR)))
     return azaan
+
+
+def parse_speaker(value):
+    """A Bluetooth MAC address, or None to use any paired speaker."""
+    value = value.strip().upper()
+    if not value:
+        return None
+    if not MAC_ADDRESS.match(value):
+        raise ConfigError("Invalid speaker: {}, use the Bluetooth address, e.g. AA:BB:CC:DD:EE:FF".format(value))
+    return value
 
 
 def parse_number(section, option, default, minimum, maximum):
@@ -276,10 +291,11 @@ def config_mtime(path):
         return None
 
 
-def play(sound, volume=DEFAULT_VOLUME, description=None):
-    """Play an azaan (by number) or a sound file through play-azaan.sh."""
-    log.info("Playing %s at %d%% volume", description or "azaan " + str(sound), volume)
-    result = subprocess.run([PLAYER, str(sound), str(volume)])
+def play(sound, volume=DEFAULT_VOLUME, description=None, speaker=None):
+    """Play an azaan (by number) or a sound file through play-azaan.sh, on the given speaker or any paired one."""
+    log.info("Playing %s at %d%% volume%s", description or "azaan " + str(sound), volume,
+             " on " + speaker if speaker else "")
+    result = subprocess.run([PLAYER, str(sound), str(volume)] + ([speaker] if speaker else []))
     if result.returncode != 0:
         log.error("%s failed with exit code %d", os.path.basename(PLAYER), result.returncode)
     return result.returncode
@@ -288,9 +304,9 @@ def play(sound, volume=DEFAULT_VOLUME, description=None):
 def play_event(config, event, default_azaan):
     volume = config.volume_for(event.prayer)
     if event.reminder:
-        return play(REMINDER_SOUND, volume, "reminder for " + event.prayer)
+        return play(REMINDER_SOUND, volume, "reminder for " + event.prayer, config.speaker)
     azaan = config.azaan_for(event.prayer, default_azaan)
-    return play(azaan, volume, "azaan {} for {}".format(azaan, event.prayer))
+    return play(azaan, volume, "azaan {} for {}".format(azaan, event.prayer), config.speaker)
 
 
 def run(config_path, default_azaan):
@@ -338,14 +354,15 @@ def test_play(args):
     prayer = args.prayer.lower() if args.prayer else None
 
     volume = config.volume_for(prayer) if config else DEFAULT_VOLUME
+    speaker = config.speaker if config else None
     if args.reminder:
-        return play(REMINDER_SOUND, volume, "reminder")
+        return play(REMINDER_SOUND, volume, "reminder", speaker)
 
     if args.azaan:
         azaan = args.azaan
     else:
         azaan = config.azaan_for(prayer) if config else DEFAULT_AZAAN
-    return play(azaan, volume)
+    return play(azaan, volume, speaker=speaker)
 
 
 def installed_azaan():
@@ -684,6 +701,61 @@ class Wizard:
         return default if not answer else answer in ("y", "yes")
 
 
+def bluetooth_speakers():
+    """Paired Bluetooth devices as [(mac, name, connected)], empty when bluetoothctl isn't available."""
+
+    def bluetoothctl(*args):
+        try:
+            return subprocess.run(["bluetoothctl"] + list(args), capture_output=True, text=True,
+                                  timeout=10).stdout
+        except (OSError, subprocess.SubprocessError):
+            return ""
+
+    speakers = []
+    for line in bluetoothctl("devices").splitlines():
+        fields = line.split(" ", 2)
+        if len(fields) < 2 or fields[0] != "Device" or not MAC_ADDRESS.match(fields[1].upper()):
+            continue
+        info = bluetoothctl("info", fields[1])
+        if "Paired: yes" not in info:
+            continue
+        name = fields[2].strip() if len(fields) > 2 else fields[1]
+        speakers.append((fields[1].upper(), name, "Connected: yes" in info))
+    return speakers
+
+
+def choose_speaker(wizard, current):
+    """Ask which paired speaker to use. Returns its address, or "" for any paired speaker."""
+    speakers = bluetooth_speakers()
+    if current and current.upper() not in [mac for mac, _, _ in speakers]:
+        speakers.append((current.upper(), "not paired now", False))
+
+    wizard.say("")
+    if not speakers:
+        wizard.say("No paired Bluetooth speakers found. Pair one with bluetoothctl, see the README, then run")
+        wizard.say("python3 piprayer.py config again to choose it. PiPrayer uses any paired speaker until then.")
+        return ""
+
+    wizard.say("Bluetooth speakers:")
+    wizard.say("  0. Any paired speaker: one that is connected, otherwise the first that connects")
+    for number, (mac, name, connected) in enumerate(speakers, 1):
+        wizard.say("  {}. {} ({}){}".format(number, name, mac, ", connected" if connected else ""))
+
+    default = "0"
+    for number, (mac, _, _) in enumerate(speakers, 1):
+        if current and mac == current.upper():
+            default = str(number)
+
+    def parse(value):
+        if value.isdigit() and int(value) <= len(speakers):
+            return speakers[int(value) - 1][0] if int(value) else ""
+        if MAC_ADDRESS.match(value.upper()):
+            return value.upper()
+        raise ConfigError("Choose a number from 0 to {}, or enter a Bluetooth address".format(len(speakers)))
+
+    return wizard.ask("Speaker", default, parse)
+
+
 def read_existing(path):
     parser = configparser.ConfigParser()
     try:
@@ -734,6 +806,8 @@ def configure(path, wizard=None):
     prayers = wizard.ask("Prayers", current.get(PRAYERS, ", ".join(PRAYER_NAMES)), prayers_option,
                          hint="\nPrayers to play the azaan for. Add :minutes to shift a time, e.g. Fajr:-10, Dhuhr:5")
 
+    speaker = choose_speaker(wizard, current.get(SPEAKER, ""))
+
     wizard.say("")
     wizard.say("Azaan recordings are numbered 1 to 15. Try one with: python3 piprayer.py play -a 5")
     azaan = wizard.ask("Azaan", current.get(AZAAN, str(installed_azaan())), number_option("azaan", 1, 99))
@@ -746,7 +820,7 @@ def configure(path, wizard=None):
 
     settings = [(TIMEZONE, tz_name), (LAT, lat), (LNG, lng), (METHOD, method), (ASR_TIME, asr),
                 (PRAYERS, prayers), (AZAAN, azaan), (FAJR_AZAAN, fajr_azaan), (VOLUME, volume),
-                (REMINDER, reminder)]
+                (REMINDER, reminder), (SPEAKER, speaker)]
 
     # Keep any other options, but timezone replaces the legacy ones
     result = configparser.ConfigParser()
@@ -755,7 +829,7 @@ def configure(path, wizard=None):
         if value != "":
             result["Default"][option] = value
     for option, value in current.items():
-        if option not in result["Default"] and option not in (GMT_OFFSET, DST, FAJR_AZAAN):
+        if option not in result["Default"] and option not in (GMT_OFFSET, DST, FAJR_AZAAN, SPEAKER):
             result["Default"][option] = value
 
     preview = path + ".new"

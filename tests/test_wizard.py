@@ -39,6 +39,14 @@ def saved(path):
 def melbourne_system(monkeypatch):
     monkeypatch.setattr(piprayer, "system_timezone", lambda: "Australia/Melbourne")
     monkeypatch.setattr(piprayer, "installed_azaan", lambda: 1)
+    monkeypatch.setattr(piprayer, "bluetooth_speakers", lambda: [])
+
+
+SPEAKERS = [("AA:AA:AA:AA:AA:01", "Kitchen Speaker", False), ("BB:BB:BB:BB:BB:02", "Echo Pop", True)]
+
+# Answers up to the speaker question, and after it
+BEFORE_SPEAKER = [""] * 6
+AFTER_SPEAKER = [""] * 5
 
 
 def test_new_configuration_from_system_timezone(tmp_path):
@@ -173,3 +181,95 @@ def test_system_timezone_from_tz_variable(monkeypatch):
     monkeypatch.setenv("TZ", "Europe/London")
     assert piprayer.system_timezone() == "Europe/London"
     ZoneInfo(piprayer.system_timezone())
+
+
+# ---------------------------------------------------------------- speaker
+
+
+@pytest.fixture
+def paired(monkeypatch):
+    monkeypatch.setattr(piprayer, "bluetooth_speakers", lambda: list(SPEAKERS))
+
+
+def test_lists_paired_speakers_and_saves_the_choice(tmp_path, paired):
+    path = str(tmp_path / ".piprayer")
+    answers = Answers(*BEFORE_SPEAKER, "2", *AFTER_SPEAKER)
+
+    assert piprayer.configure(path, answers.wizard()) == 0
+    assert saved(path)["speaker"] == "BB:BB:BB:BB:BB:02"
+    assert "  1. Kitchen Speaker (AA:AA:AA:AA:AA:01)" in answers.output
+    assert "  2. Echo Pop (BB:BB:BB:BB:BB:02), connected" in answers.output
+    assert "Speaker [0]: " in answers.prompts
+
+
+def test_any_speaker_is_the_default(tmp_path, paired):
+    path = str(tmp_path / ".piprayer")
+    assert piprayer.configure(path, Answers(*BEFORE_SPEAKER, "", *AFTER_SPEAKER).wizard()) == 0
+    assert "speaker" not in saved(path)
+
+
+def test_keeps_or_removes_the_configured_speaker(write_config, paired):
+    path = write_config(MELBOURNE_CONFIG + "speaker = AA:AA:AA:AA:AA:01\n")
+    answers = Answers(*BEFORE_SPEAKER, "", *AFTER_SPEAKER)
+    assert piprayer.configure(path, answers.wizard()) == 0
+    assert saved(path)["speaker"] == "AA:AA:AA:AA:AA:01"
+    assert "Speaker [1]: " in answers.prompts
+
+    assert piprayer.configure(path, Answers(*BEFORE_SPEAKER, "0", *AFTER_SPEAKER).wizard()) == 0
+    assert "speaker" not in saved(path)
+
+
+def test_configured_speaker_that_is_no_longer_paired_is_offered(write_config, paired):
+    path = write_config(MELBOURNE_CONFIG + "speaker = CC:CC:CC:CC:CC:03\n")
+    answers = Answers(*BEFORE_SPEAKER, "", *AFTER_SPEAKER)
+    assert piprayer.configure(path, answers.wizard()) == 0
+    assert saved(path)["speaker"] == "CC:CC:CC:CC:CC:03"
+    assert "  3. not paired now (CC:CC:CC:CC:CC:03)" in answers.output
+
+
+def test_speaker_by_address_and_invalid_choices(tmp_path, paired):
+    path = str(tmp_path / ".piprayer")
+    answers = Answers(*BEFORE_SPEAKER, "3", "speaker", "dd:dd:dd:dd:dd:04", *AFTER_SPEAKER)
+    assert piprayer.configure(path, answers.wizard()) == 0
+    assert saved(path)["speaker"] == "DD:DD:DD:DD:DD:04"
+    assert answers.output.count("  Choose a number from 0 to 2, or enter a Bluetooth address") == 2
+
+
+def test_no_paired_speakers_skips_the_question(tmp_path):
+    path = str(tmp_path / ".piprayer")
+    answers = Answers(*BEFORE_SPEAKER, *AFTER_SPEAKER)
+    assert piprayer.configure(path, answers.wizard()) == 0
+    assert not any(prompt.startswith("Speaker") for prompt in answers.prompts)
+    assert any("No paired Bluetooth speakers found" in line for line in answers.output)
+
+
+def test_bluetooth_speakers_reads_bluetoothctl(monkeypatch):
+    monkeypatch.undo()
+
+    class Result:
+        def __init__(self, stdout):
+            self.stdout = stdout
+
+    def fake_run(cmd, **kwargs):
+        if cmd[1:] == ["devices"]:
+            return Result("Device AA:AA:AA:AA:AA:01 Kitchen Speaker\nDevice BB:BB:BB:BB:BB:02 Echo Pop\n"
+                          "Device CC:CC:CC:CC:CC:03 Phone\n")
+        mac = cmd[2]
+        return Result({
+            "AA:AA:AA:AA:AA:01": "\tPaired: yes\n\tConnected: no\n",
+            "BB:BB:BB:BB:BB:02": "\tPaired: yes\n\tConnected: yes\n",
+            "CC:CC:CC:CC:CC:03": "\tPaired: no\n",
+        }[mac])
+
+    monkeypatch.setattr(piprayer.subprocess, "run", fake_run)
+    assert piprayer.bluetooth_speakers() == SPEAKERS
+
+
+def test_bluetooth_speakers_without_bluetoothctl(monkeypatch):
+    monkeypatch.undo()
+
+    def missing(cmd, **kwargs):
+        raise FileNotFoundError(cmd[0])
+
+    monkeypatch.setattr(piprayer.subprocess, "run", missing)
+    assert piprayer.bluetooth_speakers() == []

@@ -206,3 +206,39 @@ def test_play_command_rejects_unknown_azaan(monkeypatch, capsys):
     with pytest.raises(SystemExit):
         run_main(monkeypatch, "play", "-a", "16")
     assert "no azaan 16" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------- speaker
+
+
+def test_speaker_is_optional(write_config):
+    assert piprayer.Config(write_config()).speaker is None
+
+
+def test_speaker_address_is_upper_case(write_config):
+    assert piprayer.Config(config_with(write_config, "speaker = aa:bb:cc:dd:ee:0f")).speaker == "AA:BB:CC:DD:EE:0F"
+
+
+@pytest.mark.parametrize("value", ["kitchen", "AA:BB:CC:DD:EE", "AA-BB-CC-DD-EE-FF", "GG:BB:CC:DD:EE:FF"])
+def test_rejects_invalid_speaker(write_config, value):
+    with pytest.raises(piprayer.ConfigError, match="Invalid speaker"):
+        piprayer.Config(config_with(write_config, "speaker = " + value))
+
+
+@pytest.mark.parametrize("args, expected", [
+    ([], ["1", "100", "AA:BB:CC:DD:EE:FF"]),
+    (["-r"], [piprayer.REMINDER_SOUND, "100", "AA:BB:CC:DD:EE:FF"]),
+])
+def test_play_command_uses_configured_speaker(write_config, monkeypatch, played_commands, args, expected):
+    path = config_with(write_config, "speaker = AA:BB:CC:DD:EE:FF")
+    assert run_main(monkeypatch, "-c", path, "play", *args) == 0
+    assert played_commands == [expected]
+
+
+def test_service_plays_on_configured_speaker(write_config, played_commands):
+    config = piprayer.Config(config_with(write_config, "speaker = AA:BB:CC:DD:EE:FF", "reminder = 5"))
+    at = piprayer.datetime(2026, 11, 13, 5, 0, tzinfo=config.tz)
+    piprayer.play_event(config, piprayer.Event(at, "fajr"), 1)
+    piprayer.play_event(config, piprayer.Event(at, "fajr", reminder=True), 1)
+    assert played_commands == [["1", "100", "AA:BB:CC:DD:EE:FF"],
+                               [piprayer.REMINDER_SOUND, "100", "AA:BB:CC:DD:EE:FF"]]

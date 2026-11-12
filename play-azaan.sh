@@ -16,10 +16,13 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#    Usage: play-azaan.sh <azaan number | sound file> [volume percent]
+#    Usage: play-azaan.sh <azaan number | sound file> [volume percent] [speaker address]
+#
+#    Without a speaker address, any paired speaker is used.
 
 SOUND=$1
 VOLUME=${2:-100}
+SPEAKER=$(echo "$3" | tr "[:lower:]" "[:upper:]")
 
 if [[ "$SOUND" =~ ^[0-9]+$ ]]; then
   SOUND_FILE="$(dirname "$0")/media/azaan-$SOUND.wav"
@@ -45,7 +48,16 @@ is_connected() {
   device_info "$1" | grep -q "Connected: yes"
 }
 
-DEVICES=$(bluetoothctl devices | awk '/^Device/ {print $2}')
+if [ -n "$SPEAKER" ] && ! [[ "$SPEAKER" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]]; then
+  echo "Invalid speaker: $3, use the Bluetooth address, e.g. AA:BB:CC:DD:EE:FF"
+  exit 1
+fi
+
+if [ -n "$SPEAKER" ]; then
+  DEVICES=$SPEAKER
+else
+  DEVICES=$(bluetoothctl devices | awk '/^Device/ {print $2}')
+fi
 BLUETOOTH_MAC=""
 
 # Use a device that is already connected, if there is one
@@ -72,7 +84,7 @@ if [ -z "$BLUETOOTH_MAC" ]; then
 fi
 
 if [ -z "$BLUETOOTH_MAC" ]; then
-  echo "Can't connect to bluetooth"
+  echo "Can't connect to bluetooth${SPEAKER:+ speaker $SPEAKER}"
   exit 1
 fi
 

@@ -120,7 +120,28 @@ def test_plays_a_sound_file(bluetooth):
     assert "play --volume=65536 " + sound in bluetooth.log()
 
 
+def test_plays_on_chosen_speaker_only(bluetooth):
+    bluetooth.connected(SPEAKER_1)
+    assert bluetooth.play("3", "100", SPEAKER_2).returncode == 0
+    assert bluetooth.log() == ["connect " + SPEAKER_2, azaan_file(3), "disconnect " + SPEAKER_2]
+
+
+def test_chosen_speaker_that_is_connected_is_used(bluetooth):
+    bluetooth.connected(SPEAKER_2)
+    assert bluetooth.play("3", "100", SPEAKER_2.lower()).returncode == 0
+    assert bluetooth.log() == [azaan_file(3), "disconnect " + SPEAKER_2]
+
+
+def test_fails_when_chosen_speaker_refuses(bluetooth):
+    bluetooth.refuse(SPEAKER_2)
+    result = bluetooth.play("3", "100", SPEAKER_2)
+    assert result.returncode == 1
+    assert "Can't connect to bluetooth speaker " + SPEAKER_2 in result.stdout
+    assert bluetooth.log() == ["connect " + SPEAKER_2]
+
+
 @pytest.mark.parametrize("args, message", [
+    (["3", "100", "kitchen"], "Invalid speaker: kitchen"),
     (["99"], "Sound file not found"),
     (["/no/such/file.wav"], "Sound file not found"),
     (["3", "150"], "Invalid volume: 150"),
@@ -168,6 +189,7 @@ def setup(tmp_path):
     make_command(bin_dir, "systemctl", 'echo "systemctl $*" >> {}\n'.format(log))
     make_command(bin_dir, "sudo", 'echo "sudo $*" >> {}\n'.format(log))
     make_command(bin_dir, "loginctl", '[ "$1" = show-user ] && echo no\n')
+    make_command(bin_dir, "bluetoothctl", "")
     make_command(bin_dir, "crontab", """\
         if [ "$1" = -l ]; then
           [ -f {crontab} ] || {{ echo "no crontab for user" >&2; exit 1; }}

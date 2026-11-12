@@ -55,6 +55,7 @@ bluetoothctl trust XX:XX:XX:XX:XX:XX
 ```
 
 If more than one speaker is paired, PiPrayer uses one that is already connected, otherwise the first one that connects.
+To always use one speaker, choose it during the setup or set the `speaker` option.
 
 **3. Install PiPrayer**
 
@@ -62,7 +63,8 @@ If more than one speaker is paired, PiPrayer uses one that is already connected,
 ./setup-piprayer.sh        # or ./setup-piprayer.sh 5 to play azaan 5 (choose 1-15)
 ```
 
-The first time, the setup asks for your settings and saves them to `.piprayer`. It suggests a default for each:
+The first time, the setup asks for your settings, including which paired speaker to use, and saves them to
+`.piprayer`. It suggests a default for each:
 the timezone comes from the system, the location from that timezone's main city, and the calculation method from
 the region. Enter your own coordinates for accurate times, e.g. from
 [Google Maps](https://support.google.com/maps/answer/18539). Before saving, it shows the Azaan times:
@@ -126,6 +128,7 @@ All options go in the `[Default]` section of `.piprayer`. Changes are picked up 
 | `fajr-azaan` | A different recording for Fajr | same as `azaan` | `3` |
 | `volume` | Volume in percent. Add `Prayer:percent` to set a prayer's volume | `100` | `80, Fajr:40` |
 | `reminder` | Play a short chime this many minutes before each Azaan, up to 60. `0` turns it off | `0` | `10` |
+| `speaker` | Bluetooth address of the speaker to play on. Other paired devices are not used | any paired speaker | `AA:BB:CC:DD:EE:FF` |
 
 For example, to play azaan 5, a quieter azaan 3 for Fajr, and a chime 10 minutes before each prayer:
 
