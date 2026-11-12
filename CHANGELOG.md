@@ -7,13 +7,13 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.8] - 2026-11-12
+
+### Upgrading from 0.7
+- Run `git pull` and then `./setup-piprayer.sh` to restart the service with the new version.
+- The new settings are optional, so existing configurations work unchanged.
+
 ### Added
-- Automated tests, run by GitHub Actions on every push for Python 3.9, 3.11, 3.13 and 3.14. They cover:
-  - prayer times, compared with the AlAdhan API for 7 methods, 3 locations and both Asr methods
-  - configuration parsing
-  - the service loop, using a simulated clock that includes daylight saving changes
-  - `play-azaan.sh` and `setup-piprayer.sh`
-- ShellCheck linting of the shell scripts in CI.
 - `azaan` option to choose the Azaan recording in `.piprayer`. It takes precedence over the number given to
   `setup-piprayer.sh`, and changes are picked up without running the setup again.
 - `fajr-azaan` option to play a different recording for Fajr.
@@ -26,11 +26,17 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   `fajr-04:21` format for scripts.
 - `piprayer.py play` uses the configured azaan and volume. `-p fajr` plays what is set for a prayer,
   and `-r` plays the reminder chime.
+- Automated tests, run by GitHub Actions on every push for Python 3.9, 3.11, 3.13 and 3.14. They cover:
+  - prayer times, compared with the AlAdhan API for 7 methods, 3 locations and both Asr methods
+  - configuration parsing
+  - the service loop, using a simulated clock that includes daylight saving changes
+  - `play-azaan.sh` and `setup-piprayer.sh`
+- ShellCheck linting of the shell scripts in CI.
 
 ### Changed
-- The README header is now a centered image (`assets/header.svg`).
 - `play-azaan.sh` takes a sound file as well as an Azaan number, and an optional volume. It checks its
   arguments before connecting to the speaker.
+- The README header is now a centered image (`assets/header.svg`).
 
 ### Fixed
 - The `Makkah` method put Isha 90 minutes before Maghrib instead of after it. Maghrib set in minutes
@@ -109,7 +115,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - First release: plays the Azaan on a Bluetooth speaker at calculated prayer times, scheduled with cron.
 - 15 Azaan recordings, selectable with an argument to the setup script.
 
-[Unreleased]: https://github.com/kamranzafar/piprayer/compare/v0.7...HEAD
+[Unreleased]: https://github.com/kamranzafar/piprayer/compare/v0.8...HEAD
+[0.8]: https://github.com/kamranzafar/piprayer/compare/v0.7...v0.8
 [0.7]: https://github.com/kamranzafar/piprayer/compare/v0.6...v0.7
 [0.6]: https://github.com/kamranzafar/piprayer/compare/v0.5...v0.6
 [0.5]: https://github.com/kamranzafar/piprayer/compare/v0.4...v0.5
