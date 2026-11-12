@@ -166,6 +166,9 @@ cython_debug/
 *.bak
 .piprayercron
 
+# PiPrayer configuration, created by setup-piprayer.sh
+.piprayer
+
 # graphify knowledge graph
 graphify-out/
 

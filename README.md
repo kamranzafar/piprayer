@@ -56,25 +56,18 @@ bluetoothctl trust XX:XX:XX:XX:XX:XX
 
 If more than one speaker is paired, PiPrayer uses one that is already connected, otherwise the first one that connects.
 
-**3. Create the configuration file**
+**3. Install PiPrayer**
 
-Create a `.piprayer` file in the `piprayer` folder:
-
-```ini
-[Default]
-lat = -37.909499
-lng = 144.751876
-timezone = Australia/Melbourne
-method = MWL
-asr-time = Hanafi
-prayers = Fajr, Dhuhr, Asr, Maghrib, Isha
+```shell
+./setup-piprayer.sh        # or ./setup-piprayer.sh 5 to play azaan 5 (choose 1-15)
 ```
 
-Get your coordinates from [Google Maps](https://support.google.com/maps/answer/18539) and your timezone from
-the [tz database list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). Check the result with:
+The first time, the setup asks for your settings and saves them to `.piprayer`. It suggests a default for each:
+the timezone comes from the system, the location from that timezone's main city, and the calculation method from
+the region. Enter your own coordinates for accurate times, e.g. from
+[Google Maps](https://support.google.com/maps/answer/18539). Before saving, it shows the Azaan times:
 
 ```console
-$ python3 piprayer.py times
  Thursday 12 November 2026
  Australia/Melbourne (AEDT) · MWL method · Hanafi Asr
 
@@ -87,14 +80,30 @@ $ python3 piprayer.py times
  Isha     21:44  1      100%
 ```
 
-**4. Install the service**
-
-```shell
-./setup-piprayer.sh        # or ./setup-piprayer.sh 5 to play azaan 5 (choose 1-15)
-```
-
 That's it. PiPrayer now runs in the background and starts at boot. The setup may ask for your sudo password
 once, so the service can start without anyone logging in.
+
+To change the settings later, run `python3 piprayer.py config`, or edit `.piprayer` directly. Changes are picked
+up automatically.
+
+<details>
+<summary>Writing <code>.piprayer</code> by hand</summary>
+
+Create a `.piprayer` file in the `piprayer` folder before running the setup:
+
+```ini
+[Default]
+lat = -37.909499
+lng = 144.751876
+timezone = Australia/Melbourne
+method = MWL
+asr-time = Hanafi
+prayers = Fajr, Dhuhr, Asr, Maghrib, Isha
+```
+
+Get your timezone from the [tz database list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones),
+and check the result with `python3 piprayer.py times`. All the options are described below.
+</details>
 
 ## Configuration
 
@@ -161,12 +170,14 @@ dst = 1            # 1 during daylight saving, otherwise 0
 | `python3 piprayer.py times next` | Show the next Azaan and how long until it |
 | `python3 piprayer.py times -d 2026-12-25` | Print the times for another day |
 | `python3 piprayer.py times -f json` | Print the times as JSON, e.g. for a dashboard or Home Assistant. Also works with `next`. `-f plain` prints `fajr-04:21` lines |
+| `python3 piprayer.py config` | Create or change `.piprayer`, asking for each setting |
 | `python3 piprayer.py play` | Play the Azaan now, to test the speaker |
 | `python3 piprayer.py play -p fajr` | Play the Azaan and volume set for a prayer |
 | `python3 piprayer.py play -r` | Play the reminder chime |
 | `systemctl --user status piprayer` | Check the service is running, and when the next Azaan is |
 | `journalctl --user-unit piprayer -f` | Follow the logs |
 | `./setup-piprayer.sh [1-15]` | Set the default Azaan, or apply an update after `git pull`. The `azaan` setting takes precedence |
+| `./setup-piprayer.sh --configure [1-15]` | Ask for each setting, save `.piprayer`, then install |
 | `./setup-piprayer.sh --uninstall` | Remove PiPrayer |
 
 The Azaan recordings and the reminder chime are in the [`media`](media) folder.
@@ -225,9 +236,17 @@ Make sure the speaker is switched on, paired and trusted (`bluetoothctl info XX:
 </details>
 
 <details>
-<summary><b>Upgrading from an older, cron based version</b></summary>
+<summary><b>Upgrading from version 0.8 or earlier</b></summary>
 
-Run `git pull` and then `./setup-piprayer.sh`. The setup removes the old cron jobs and installs the service.
+`.piprayer` used to be part of the repository, so move it aside while pulling. Otherwise git refuses to pull, or
+deletes the file if you never changed it:
+
+```shell
+mv .piprayer .piprayer.bak && git pull && mv .piprayer.bak .piprayer && ./setup-piprayer.sh
+```
+
+When upgrading from a cron based version (before 0.7), the setup also removes the old cron jobs and installs the
+service.
 </details>
 
 ## Development

@@ -21,12 +21,12 @@ def make_command(directory, name, script):
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
-def run(cmd, bin_dir, home=None, cwd=None):
+def run(cmd, bin_dir, home=None, cwd=None, stdin=None):
     env = dict(os.environ, PATH="{}:{}".format(bin_dir, os.environ["PATH"]))
     if home:
         env["HOME"] = str(home)
         env.pop("XDG_CONFIG_HOME", None)
-    return subprocess.run(cmd, env=env, cwd=cwd, capture_output=True, text=True, timeout=30)
+    return subprocess.run(cmd, env=env, cwd=cwd, input=stdin or "", capture_output=True, text=True, timeout=30)
 
 
 # ---------------------------------------------------------------- play-azaan.sh
@@ -180,8 +180,8 @@ def setup(tmp_path):
     class Setup:
         service_file = home / ".config" / "systemd" / "user" / "piprayer.service"
 
-        def run(self, *args):
-            return run([str(project / "setup-piprayer.sh")] + list(args), bin_dir, home=home)
+        def run(self, *args, answers=None):
+            return run([str(project / "setup-piprayer.sh")] + list(args), bin_dir, home=home, stdin=answers)
 
         def log(self):
             return log.read_text().splitlines() if log.exists() else []
@@ -258,6 +258,35 @@ def test_setup_rejects_invalid_config(setup):
     result = setup.run()
     assert result.returncode == 1
     assert "Unknown prayer: Fajir" in result.stderr
+    assert not setup.service_file.exists()
+
+
+def test_setup_configure_asks_for_settings_then_installs(setup):
+    answers = "Europe/London\n51.5\n-0.12\nISNA\n\n\n7\n\n\n\ny\n"
+    result = setup.run("--configure", "5", answers=answers)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    config = (setup.project / ".piprayer").read_text()
+    assert "timezone = Europe/London" in config
+    assert "method = ISNA" in config
+    assert "azaan = 7" in config
+    assert "run --azaan 5" in setup.service_file.read_text()
+    assert "PiPrayer installed." in result.stdout
+
+
+def test_setup_configure_stops_when_not_saved(setup):
+    result = setup.run("--configure", answers="\n" * 10 + "n\n")
+    assert result.returncode == 1
+    assert "Not saved" in result.stdout
+    assert (setup.project / ".piprayer").read_text() == MELBOURNE_CONFIG
+    assert not setup.service_file.exists()
+
+
+def test_setup_without_config_explains_how_to_create_it(setup):
+    (setup.project / ".piprayer").unlink()
+    result = setup.run()
+    assert result.returncode == 1
+    assert "create it with: ./setup-piprayer.sh --configure" in result.stdout
     assert not setup.service_file.exists()
 
 

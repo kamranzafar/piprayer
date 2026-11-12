@@ -19,6 +19,8 @@
 #    Usage:
 #      ./setup-piprayer.sh [1-15]      install (or update) PiPrayer, optionally choosing the azaan
 #                                      (the azaan option in .piprayer takes precedence)
+#      ./setup-piprayer.sh --configure [1-15]
+#                                      ask for each setting, save .piprayer, then install
 #      ./setup-piprayer.sh --uninstall remove PiPrayer
 
 CURR_PATH=$(dirname "$(realpath "$0")")
@@ -28,6 +30,7 @@ SERVICE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_FILE="$SERVICE_DIR/$SERVICE_NAME"
 CRON_BLOCK="## PI PRAYER ##"
 AZAAN=1
+CONFIGURE=0
 
 # systemctl --user needs this, it may be missing when run from cron or sudo
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
@@ -52,6 +55,11 @@ if [ "$1" = "--uninstall" ]; then
   exit 0
 fi
 
+if [ "$1" = "--configure" ]; then
+  CONFIGURE=1
+  shift
+fi
+
 if [ $# -ne 0 ]; then
   AZAAN=$1
 fi
@@ -61,14 +69,20 @@ if [ ! -f "$CURR_PATH/media/azaan-$AZAAN.wav" ]; then
   exit 1
 fi
 
-if [ ! -f "$CONF_FILE" ]; then
-  echo "Configuration file $CONF_FILE not found"
-  exit 1
-fi
-
 PYTHON=$(command -v python3)
 if [ -z "$PYTHON" ]; then
   echo "python3 not found, install it with: sudo apt install python3"
+  exit 1
+fi
+
+# Ask for the settings when asked to, or when there is no configuration yet and someone can answer
+if [ "$CONFIGURE" -eq 1 ] || { [ ! -f "$CONF_FILE" ] && [ -t 0 ]; }; then
+  "$PYTHON" "$CURR_PATH/piprayer.py" -c "$CONF_FILE" config || exit 1
+  echo
+fi
+
+if [ ! -f "$CONF_FILE" ]; then
+  echo "Configuration file $CONF_FILE not found, create it with: ./setup-piprayer.sh --configure"
   exit 1
 fi
 

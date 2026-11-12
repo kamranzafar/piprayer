@@ -515,6 +515,270 @@ def show_times(args):
     return 0
 
 
+# ------------------------------------------------------------------ configuration wizard
+
+PRAYER_NAMES = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
+METHODS = ["MWL", "ISNA", "Egypt", "Makkah", "Karachi", "Tehran", "Jafari"]
+ASR_METHODS = ["Standard", "Hanafi"]
+
+# Usual calculation method by timezone, MWL elsewhere
+REGIONAL_METHODS = [
+    ("America/", "ISNA"),
+    ("Africa/Cairo", "Egypt"),
+    ("Asia/Riyadh", "Makkah"), ("Asia/Aden", "Makkah"), ("Asia/Qatar", "Makkah"), ("Asia/Bahrain", "Makkah"),
+    ("Asia/Kuwait", "Makkah"), ("Asia/Dubai", "Makkah"), ("Asia/Muscat", "Makkah"),
+    ("Asia/Karachi", "Karachi"), ("Asia/Kolkata", "Karachi"), ("Asia/Dhaka", "Karachi"), ("Asia/Kabul", "Karachi"),
+    ("Asia/Tehran", "Tehran"),
+]
+# Hanafi Asr is usual in South Asia
+HANAFI_TIMEZONES = ("Asia/Karachi", "Asia/Kolkata", "Asia/Dhaka", "Asia/Kabul")
+
+
+def valid_timezone(name):
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        ZoneInfo(name)
+        return True
+    except (ZoneInfoNotFoundError, ValueError):
+        return False
+
+
+def system_timezone():
+    """The system's IANA timezone name, or None."""
+    candidates = [os.environ.get("TZ", "").lstrip(":")]
+    try:
+        with open("/etc/timezone") as f:
+            candidates.append(f.read().strip())
+    except OSError:
+        pass
+    # /etc/localtime links to e.g. /usr/share/zoneinfo/Australia/Melbourne
+    link = os.path.realpath("/etc/localtime")
+    if "zoneinfo/" in link:
+        candidates.append(link.rsplit("zoneinfo/", 1)[1])
+
+    for name in candidates:
+        if name and "/" in name and valid_timezone(name):
+            return name
+    return None
+
+
+def parse_zone_coordinate(value, degree_digits):
+    """Parse ISO 6709 "-3749" or "+1445812" (sign, degrees, minutes, optional seconds) into degrees."""
+    sign = -1 if value[0] == "-" else 1
+    digits = value[1:]
+    degrees = int(digits[:degree_digits])
+    minutes = int(digits[degree_digits:degree_digits + 2])
+    seconds = int(digits[degree_digits + 2:] or 0)
+    return round(sign * (degrees + minutes / 60 + seconds / 3600), 4)
+
+
+def timezone_location(name):
+    """(lat, lng, place) of the timezone's main city from the tz database, or None."""
+    from zoneinfo import TZPATH
+
+    for directory in TZPATH:
+        for table in ("zone1970.tab", "zone.tab"):
+            try:
+                with open(os.path.join(directory, table), encoding="utf-8") as f:
+                    for line in f:
+                        fields = line.rstrip("\n").split("\t")
+                        if line.startswith("#") or len(fields) < 3 or fields[2] != name:
+                            continue
+                        coordinates = fields[1]
+                        split = max(coordinates.rfind("+"), coordinates.rfind("-"))
+                        lat = parse_zone_coordinate(coordinates[:split], 2)
+                        lng = parse_zone_coordinate(coordinates[split:], 3)
+                        return lat, lng, name.rsplit("/", 1)[1].replace("_", " ")
+            except (OSError, ValueError, IndexError):
+                continue
+    return None
+
+
+def regional_method(tz_name):
+    for prefix, method in REGIONAL_METHODS:
+        if tz_name.startswith(prefix):
+            return method
+    return "MWL"
+
+
+def choose(options):
+    """Parser for a choice by number or name."""
+
+    def parse(value):
+        if value.isdigit() and 1 <= int(value) <= len(options):
+            return options[int(value) - 1]
+        for option in options:
+            if option.lower() == value.lower():
+                return option
+        raise ConfigError("Choose a number from 1 to {}, or one of: {}".format(len(options), ", ".join(options)))
+
+    return parse
+
+
+def coordinate(what, limit):
+    def parse(value):
+        try:
+            number = float(value)
+        except ValueError:
+            raise ConfigError("Invalid {}: {}, use decimal degrees, e.g. -37.9095".format(what, value))
+        if not -limit <= number <= limit:
+            raise ConfigError("Invalid {}: {}, use a number from {} to {}".format(what, value, -limit, limit))
+        return value
+
+    return parse
+
+
+def timezone_option(value):
+    if not valid_timezone(value):
+        raise ConfigError("Unknown timezone: {}, use a name such as Europe/London".format(value))
+    return value
+
+
+def prayers_option(value):
+    parse_prayers(value)
+    if not value.strip():
+        raise ConfigError("Choose at least one prayer")
+    return ", ".join(item.strip() for item in value.split(",") if item.strip())
+
+
+def volume_option(value):
+    parse_volume(value)
+    return ", ".join(item.strip() for item in value.split(",") if item.strip())
+
+
+def number_option(what, minimum, maximum, blank_ok=False):
+    def parse(value):
+        if blank_ok and value.lower() in ("", "none"):
+            return ""
+        number = check_range(value, what, minimum, maximum)
+        if what.endswith("azaan") and not os.path.isfile(azaan_file(number)):
+            raise ConfigError("Invalid {}: {}, there is no {}".format(
+                what, number, os.path.relpath(azaan_file(number), SCRIPT_DIR)))
+        return str(number)
+
+    return parse
+
+
+class Wizard:
+    def __init__(self, ask=input, say=print):
+        self.ask_input = ask
+        self.say = say
+
+    def ask(self, question, default, parse, hint=None):
+        """Ask until the answer parses. An empty answer takes the default."""
+        if hint:
+            self.say(hint)
+        while True:
+            prompt = "{} [{}]: ".format(question, default) if default != "" else "{}: ".format(question)
+            answer = self.ask_input(prompt).strip()
+            if not answer:
+                answer = default
+            try:
+                return parse(answer)
+            except ConfigError as e:
+                self.say("  " + str(e))
+
+    def confirm(self, question, default=True):
+        answer = self.ask_input("{} [{}]: ".format(question, "Y/n" if default else "y/N")).strip().lower()
+        return default if not answer else answer in ("y", "yes")
+
+
+def read_existing(path):
+    parser = configparser.ConfigParser()
+    try:
+        parser.read(path)
+    except configparser.Error:
+        return configparser.ConfigParser()
+    return parser
+
+
+def configure(path, wizard=None):
+    """Ask for each setting, show the resulting times and save them to path."""
+    wizard = wizard or Wizard()
+    parser = read_existing(path)
+    if not parser.has_section("Default"):
+        parser.add_section("Default")
+    current = parser["Default"]
+
+    wizard.say("PiPrayer configuration: " + path)
+    wizard.say("Press Enter to keep the value in brackets.")
+    wizard.say("")
+
+    detected = system_timezone()
+    hint = None
+    if detected and TIMEZONE not in current:
+        hint = "The timezone is detected from the system."
+    elif detected and detected != current[TIMEZONE]:
+        hint = "The system timezone is " + detected + "."
+    tz_name = wizard.ask("Timezone", current.get(TIMEZONE, detected or ""), timezone_option, hint=hint)
+
+    lat, lng = current.get(LAT, ""), current.get(LNG, "")
+    location = timezone_location(tz_name)
+    if location and (not lat or tz_name != current.get(TIMEZONE)):
+        lat, lng = str(location[0]), str(location[1])
+        wizard.say("")
+        wizard.say("The location defaults to {}. For accurate times, enter your own coordinates,".format(location[2]))
+        wizard.say("e.g. from Google Maps: right-click your home and click the numbers.")
+    lat = wizard.ask("Latitude", lat, coordinate("latitude", 90))
+    lng = wizard.ask("Longitude", lng, coordinate("longitude", 180))
+
+    wizard.say("")
+    for number, method in enumerate(METHODS, 1):
+        wizard.say("  {}. {:8} {}".format(number, method, praytimes.PrayTimes.methods[method]["name"]))
+    method = wizard.ask("Calculation method", current.get(METHOD, regional_method(tz_name)), choose(METHODS))
+
+    asr_default = current.get(ASR_TIME, "Hanafi" if tz_name in HANAFI_TIMEZONES else "Standard")
+    asr = wizard.ask("Asr time (1. Standard, 2. Hanafi)", asr_default, choose(ASR_METHODS))
+
+    prayers = wizard.ask("Prayers", current.get(PRAYERS, ", ".join(PRAYER_NAMES)), prayers_option,
+                         hint="\nPrayers to play the azaan for. Add :minutes to shift a time, e.g. Fajr:-10, Dhuhr:5")
+
+    wizard.say("")
+    wizard.say("Azaan recordings are numbered 1 to 15. Try one with: python3 piprayer.py play -a 5")
+    azaan = wizard.ask("Azaan", current.get(AZAAN, str(installed_azaan())), number_option("azaan", 1, 99))
+    fajr_azaan = wizard.ask("Fajr azaan (none for the same as the others)", current.get(FAJR_AZAAN, ""),
+                            number_option("fajr-azaan", 1, 99, blank_ok=True))
+    volume = wizard.ask("Volume in percent, e.g. 80 or 80, Fajr:40", current.get(VOLUME, str(DEFAULT_VOLUME)),
+                        volume_option)
+    reminder = wizard.ask("Reminder chime, minutes before each azaan (0 for none)", current.get(REMINDER, "0"),
+                          number_option("reminder", 0, 60))
+
+    settings = [(TIMEZONE, tz_name), (LAT, lat), (LNG, lng), (METHOD, method), (ASR_TIME, asr),
+                (PRAYERS, prayers), (AZAAN, azaan), (FAJR_AZAAN, fajr_azaan), (VOLUME, volume),
+                (REMINDER, reminder)]
+
+    # Keep any other options, but timezone replaces the legacy ones
+    result = configparser.ConfigParser()
+    result.add_section("Default")
+    for option, value in settings:
+        if value != "":
+            result["Default"][option] = value
+    for option, value in current.items():
+        if option not in result["Default"] and option not in (GMT_OFFSET, DST, FAJR_AZAAN):
+            result["Default"][option] = value
+
+    preview = path + ".new"
+    with open(preview, "w") as f:
+        result.write(f)
+    try:
+        config = Config(preview)
+        now = datetime.now(config.tz)
+        wizard.say("")
+        wizard.say(format_times(config, now.date(), now, config.azaan or DEFAULT_AZAAN))
+        wizard.say("")
+        if not wizard.confirm("Save to " + path + "?"):
+            wizard.say("Not saved")
+            return 1
+        os.replace(preview, path)
+    finally:
+        if os.path.exists(preview):
+            os.remove(preview)
+
+    wizard.say("Saved " + path)
+    return 0
+
+
 def parse_date(value):
     try:
         return datetime.strptime(value, "%Y-%m-%d").date()
@@ -555,10 +819,14 @@ def main():
                               type=str.lower, help="play the azaan and volume set for this prayer")
     play_command.add_argument("-r", "--reminder", action="store_true", help="play the reminder sound")
 
+    commands.add_parser("config", help="create or change the configuration, asking for each setting")
+
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     try:
+        if args.command == "config":
+            return configure(args.config)
         if args.command == "run":
             run(args.config, args.azaan)
         elif args.command == "play":
@@ -572,7 +840,12 @@ def main():
         print(e, file=sys.stderr)
         return 1
     except KeyboardInterrupt:
-        pass
+        if args.command == "config":
+            print("\nNot saved", file=sys.stderr)
+            return 1
+    except EOFError:
+        print("\nNot saved, no answer to read", file=sys.stderr)
+        return 1
 
     return 0
 

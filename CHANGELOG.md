@@ -7,6 +7,25 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Upgrading from 0.8
+- `.piprayer` is no longer part of the repository, so `git pull` doesn't touch your settings. To upgrade, move it
+  aside while pulling, otherwise git refuses to pull, or deletes the file if you never changed it:
+
+  ```shell
+  mv .piprayer .piprayer.bak && git pull && mv .piprayer.bak .piprayer && ./setup-piprayer.sh
+  ```
+
+### Added
+- `piprayer.py config` creates or changes `.piprayer` by asking for each setting. It suggests the system
+  timezone, that timezone's main city as the location, and the usual calculation method for the region, checks
+  each answer, and shows the Azaan times before saving. Run it again to change the settings.
+- `./setup-piprayer.sh --configure` runs the configuration wizard before installing. The setup also runs it when
+  there is no `.piprayer`.
+
+### Changed
+- `.piprayer` is ignored by git instead of shipping with example settings for Melbourne. The first
+  `./setup-piprayer.sh` creates it by asking for each setting.
+
 ## [0.8] - 2026-11-12
 
 ### Upgrading from 0.7
