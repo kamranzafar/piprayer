@@ -117,7 +117,7 @@ def test_asks_again_after_invalid_answers(tmp_path):
 
     assert piprayer.configure(path, answers.wizard()) == 0
     for message in ["Unknown timezone: Mars/Olympus", "Invalid latitude: 100", "Choose a number from 1 to 7",
-                    "Unknown prayer: Fajir", "there is no media/azaan-16.wav", "Invalid volume: 150",
+                    "Unknown prayer: Fajir", "there is no media/azaan-16.opus", "Invalid volume: 150",
                     "Invalid reminder: 61"]:
         assert any(message in line for line in answers.output), message
     config = saved(path)

@@ -25,7 +25,7 @@ VOLUME=${2:-100}
 SPEAKER=$(echo "$3" | tr "[:lower:]" "[:upper:]")
 
 if [[ "$SOUND" =~ ^[0-9]+$ ]]; then
-  SOUND_FILE="$(dirname "$0")/media/azaan-$SOUND.wav"
+  SOUND_FILE="$(dirname "$0")/media/azaan-$SOUND.opus"
 else
   SOUND_FILE=$SOUND
 fi

@@ -64,7 +64,7 @@ if [ $# -ne 0 ]; then
   AZAAN=$1
 fi
 
-if [ ! -f "$CURR_PATH/media/azaan-$AZAAN.wav" ]; then
+if [ ! -f "$CURR_PATH/media/azaan-$AZAAN.opus" ]; then
   echo "Azaan $AZAAN not found, choose a number between 1 and 15"
   exit 1
 fi

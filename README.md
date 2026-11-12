@@ -39,11 +39,13 @@ Raspberry Pi OS Bookworm and later use [PipeWire](https://pipewire.org) for audi
 includes it, the command above installs it on Raspberry Pi OS Lite.
 
 <details>
-<summary>Older releases (Bullseye and earlier) that use PulseAudio</summary>
+<summary>Bullseye, which uses PulseAudio</summary>
 
 ```shell
 sudo apt install python3 bluez pulseaudio pulseaudio-module-bluetooth
 ```
+
+Buster and earlier can't play the Opus recordings, which need libsndfile 1.0.29 or later.
 </details>
 
 **2. Pair your Bluetooth speaker**
@@ -195,7 +197,8 @@ dst = 1            # 1 during daylight saving, otherwise 0
 | `./setup-piprayer.sh --configure [1-15]` | Ask for each setting, save `.piprayer`, then install |
 | `./setup-piprayer.sh --uninstall` | Remove PiPrayer |
 
-The Azaan recordings and the reminder chime are in the [`media`](media) folder.
+The Azaan recordings and the reminder chime are in the [`media`](media) folder. The recordings are Opus files,
+normalised to the same loudness (-16 LUFS), so they play at a similar level at the same volume.
 
 ## How it works
 
@@ -203,7 +206,7 @@ The Azaan recordings and the reminder chime are in the [`media`](media) folder.
  .piprayer ──► piprayer.py run ──► sleeps until the next prayer time
                      │
                      ▼
-              play-azaan.sh ──► connects the speaker ──► plays media/azaan-N.wav ──► disconnects
+              play-azaan.sh ──► connects the speaker ──► plays media/azaan-N.opus ──► disconnects
 ```
 
 `setup-piprayer.sh` installs `piprayer.py run` as a systemd user service and turns on lingering, so it starts at boot.

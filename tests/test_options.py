@@ -44,10 +44,10 @@ def test_volume_for_one_prayer_only_keeps_default(write_config):
 
 
 @pytest.mark.parametrize("line, message", [
-    ("azaan = 16", "Invalid azaan: 16, there is no media/azaan-16.wav"),
+    ("azaan = 16", "Invalid azaan: 16, there is no media/azaan-16.opus"),
     ("azaan = 0", "Invalid azaan: 0, use a number from 1 to 99"),
     ("azaan = five", "Invalid azaan: five, use a whole number"),
-    ("fajr-azaan = 20", "Invalid fajr-azaan: 20, there is no media/azaan-20.wav"),
+    ("fajr-azaan = 20", "Invalid fajr-azaan: 20, there is no media/azaan-20.opus"),
     ("volume = 120", "Invalid volume: 120, use a number from 0 to 100"),
     ("volume = loud", "Invalid volume: loud, use a whole number"),
     ("volume = 80, Fajir:40", "Unknown prayer: Fajir"),

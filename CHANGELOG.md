@@ -27,6 +27,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   configuration wizard lists the paired speakers to choose from, and can find and pair a new speaker.
 
 ### Changed
+- The Azaan recordings are restored from the original MP3s instead of 8 kHz WAV files, so they sound fuller and
+  take 27 MB instead of 79 MB. They are Opus files (`media/azaan-N.opus`), normalised to the same loudness
+  (-16 LUFS) so they play at a similar level. Their numbers are unchanged, so `azaan` and `fajr-azaan` settings
+  keep working. Recordings 1, 2, 9, 12 and 13 only had low quality sources and still need better ones.
+  Playing Opus needs libsndfile 1.0.29 or later: Raspberry Pi OS Bullseye or later.
 - `play-azaan.sh` takes an optional speaker address after the volume.
 - `.piprayer` is ignored by git instead of shipping with example settings for Melbourne. The first
   `./setup-piprayer.sh` creates it by asking for each setting.

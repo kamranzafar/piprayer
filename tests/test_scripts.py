@@ -79,7 +79,7 @@ def bluetooth(tmp_path):
 
 
 def azaan_file(azaan, volume=65536):
-    return "play --volume={} {}".format(volume, os.path.join(ROOT, "media", "azaan-{}.wav".format(azaan)))
+    return "play --volume={} {}".format(volume, os.path.join(ROOT, "media", "azaan-{}.opus".format(azaan)))
 
 
 def test_connects_plays_and_disconnects(bluetooth):
@@ -176,7 +176,7 @@ def setup(tmp_path):
         shutil.copy2(os.path.join(ROOT, name), project / name)
     (project / "media").mkdir()
     for n in range(1, 16):
-        (project / "media" / "azaan-{}.wav".format(n)).touch()
+        (project / "media" / "azaan-{}.opus".format(n)).touch()
     (project / ".piprayer").write_text(MELBOURNE_CONFIG)
 
     home = tmp_path / "home"

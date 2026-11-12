@@ -206,7 +206,7 @@ def check_range(value, what, minimum, maximum):
 
 
 def azaan_file(azaan):
-    return os.path.join(MEDIA_DIR, "azaan-{}.wav".format(azaan))
+    return os.path.join(MEDIA_DIR, "azaan-{}.opus".format(azaan))
 
 
 def parse_timezone(section):
