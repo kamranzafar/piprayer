@@ -171,3 +171,6 @@ graphify-out/
 
 # Claude
 CLAUDE.md
+
+# macOS
+.DS_Store
