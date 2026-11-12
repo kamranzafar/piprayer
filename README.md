@@ -12,8 +12,7 @@ Run the following commands to install prerequisites and clone project source.
 
 ```shell
 sudo apt install pulseaudio-module-bluetooth 
-sudo apt install python python-pip
-pip install configparser
+sudo apt install python3
 
 pulseaudio --start
 
@@ -49,8 +48,7 @@ The description of each configuration option is given at the end.
 [Default]
 lat = -37.909499
 lng = 144.751876
-dst = 1
-gmt-offset = 10
+timezone = Australia/Melbourne
 method = MWL
 asr-time = Hanafi
 prayers = Fajr:-11, Dhuhr:1, Asr:0, Maghrib:-23, Isha:19
@@ -83,12 +81,18 @@ lat         # Latitude of the place
 
 lng         # Longitude of the place
 
-dst         # Daylight Saving
+timezone    # IANA timezone name of the place, e.g. Australia/Melbourne, Europe/London
+            # Daylight saving is applied automatically (requires Python 3.9+)
+            # Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+            # The Raspberry Pi's system timezone should match, since cron runs
+            # in system time (check with `timedatectl`)
+
+dst         # (Legacy, only used when timezone is not set) Daylight Saving
             # Acceptable values (only one):
             #   0
             #   1
 
-gmt-offset  # Timezone, offset from GMT
+gmt-offset  # (Legacy, only used when timezone is not set) Timezone, offset from GMT
 
 method      # Calculation method 
             # Acceptable values (only one):

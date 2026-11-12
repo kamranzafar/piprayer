@@ -36,7 +36,7 @@ if [ ! -f "$CONF_FILE" ]; then
   exit 1
 fi
 
-PRAYER_TIMES=$(python "$CURR_PATH"/piprayer.py "$CONF_FILE")
+PRAYER_TIMES=$(python3 "$CURR_PATH"/piprayer.py "$CONF_FILE")
 
 if [ "$?" -ne "0" ]; then
   echo "$PRAYER_TIMES"

@@ -18,10 +18,11 @@
 import sys
 import configparser
 import praytimes
-from datetime import date
+from datetime import date, datetime, time
 
 LAT = "lat"
 LNG = "lng"
+TIMEZONE = "timezone"
 DST = "dst"
 GMT_OFFSET = "gmt-offset"
 METHOD = "method"
@@ -67,11 +68,31 @@ if __name__ == "__main__":
     prayTimes = praytimes.PrayTimes(prayerConfig[METHOD], prayerConfig[ASR_TIME])
     prayTimes.tune(offsets)
 
-    times = prayTimes.getTimes(date.today(),
+    today = date.today()
+
+    if TIMEZONE in prayerConfig:
+        # Derive the UTC offset (including daylight saving) from the IANA timezone.
+        # Measured at midday so a DST change in the early hours is already applied.
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        try:
+            tz = ZoneInfo(prayerConfig[TIMEZONE].strip())
+        except (ZoneInfoNotFoundError, ValueError):
+            print('Unknown timezone: ' + prayerConfig[TIMEZONE])
+            exit(1)
+
+        gmtOffset = datetime.combine(today, time(12), tz).utcoffset().total_seconds() / 3600
+        dst = 0
+    else:
+        # Legacy configuration: fixed offset and manual daylight saving flag
+        gmtOffset = int(prayerConfig[GMT_OFFSET])
+        dst = int(prayerConfig[DST])
+
+    times = prayTimes.getTimes(today,
                                (float(prayerConfig[LAT]),
                                 float(prayerConfig[LNG])),
-                               int(prayerConfig[GMT_OFFSET]),
-                               int(prayerConfig[DST]))
+                               gmtOffset,
+                               dst)
 
     for p in prayers:
         print(p + '-' + times[p])
