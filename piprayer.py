@@ -34,17 +34,11 @@ if __name__ == "__main__":
         print('Require configuration file as argument')
         exit(1)
 
-    try:
-        f = open(sys.argv[1])
-    except IOError:
+    config = configparser.ConfigParser()
+
+    if not config.read(sys.argv[1]):
         print('File not found or is inaccessible')
         exit(1)
-    finally:
-        f.close()
-
-    config = configparser.ConfigParser()
-    config.sections()
-    config.read(sys.argv[1])
 
     if not config.has_section('Default'):
         print("Prayer configuration is missing")
@@ -52,17 +46,27 @@ if __name__ == "__main__":
 
     prayerConfig = config['Default']
 
-    # for key in prayerConfig:
-    # 	print(key + ': '+prayerConfig[key])
-
     offsets = {}
     prayers = []
 
+    # Each entry is "Name" or "Name:offset", offset in minutes (default 0)
     for p in prayerConfig[PRAYERS].split(","):
-        prayer = p.strip().split(":")[0].lower()
-        offset = p.strip().split(":")[1]
+        if not p.strip():
+            continue
 
-        offsets[prayer] = int(offset)
+        name, _, offset = p.partition(":")
+        prayer = name.strip().lower()
+
+        if prayer not in praytimes.PrayTimes.timeNames:
+            print('Unknown prayer: ' + name.strip())
+            exit(1)
+
+        try:
+            offsets[prayer] = int(offset) if offset.strip() else 0
+        except ValueError:
+            print('Invalid offset for ' + name.strip() + ': ' + offset.strip())
+            exit(1)
+
         prayers.append(prayer)
 
     prayTimes = praytimes.PrayTimes(prayerConfig[METHOD], prayerConfig[ASR_TIME])

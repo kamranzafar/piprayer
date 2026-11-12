@@ -133,8 +133,12 @@ class PrayTimes():
     # ---------------------- Initialization -----------------------
 
     def __init__(self, method="MWL", asrMethod="Standard"):
+        # per-instance copies, so instances don't share state through the class
+        self.settings = dict(self.settings)
+        self.offsets = {}
+
         # set methods defaults
-        for method, config in self.methods.items():
+        for config in self.methods.values():
             for name, value in self.defaultParams.items():
                 if not name in config['params'] or config['params'][name] is None:
                     config['params'][name] = value
@@ -156,7 +160,7 @@ class PrayTimes():
 
     def setMethod(self, method):
         if method in self.methods:
-            self.adjust(self.methods[method].params)
+            self.adjust(self.methods[method]['params'])
             self.calcMethod = method
 
     def adjust(self, params):

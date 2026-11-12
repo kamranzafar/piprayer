@@ -165,3 +165,9 @@ cython_debug/
 
 *.bak
 .piprayercron
+
+# graphify knowledge graph
+graphify-out/
+
+# Claude
+CLAUDE.md
