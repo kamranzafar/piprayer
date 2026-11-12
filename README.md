@@ -38,6 +38,8 @@ git clone https://github.com/kamranzafar/piprayer.git
 cd piprayer
 ```
 
+Or download the [latest release](https://github.com/kamranzafar/piprayer/releases/latest). See the [changelog](CHANGELOG.md) for what's new.
+
 Raspberry Pi OS Bookworm and later use [PipeWire](https://pipewire.org) for audio. The desktop image already
 includes it, the command above installs it on Raspberry Pi OS Lite.
 
