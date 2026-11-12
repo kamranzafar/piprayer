@@ -20,7 +20,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `volume` option, in percent, with optional per-prayer volumes, e.g. `volume = 80, Fajr:40`.
 - `reminder` option to play a short chime (`media/reminder.wav`) a number of minutes before each Azaan.
 - `piprayer.py times` prints a table with each prayer's azaan, volume and reminder, and marks the next azaan.
-  `-d YYYY-MM-DD` shows another day, and `--plain` prints the previous `fajr-04:21` format for scripts.
+  `-d YYYY-MM-DD` shows another day.
+- `piprayer.py times next` shows the next azaan and how long until it.
+- `-f json` output for `times` and `times next`, with ISO 8601 times. `-f plain` prints the previous
+  `fajr-04:21` format for scripts.
 - `piprayer.py play` uses the configured azaan and volume. `-p fajr` plays what is set for a prayer,
   and `-r` plays the reminder chime.
 

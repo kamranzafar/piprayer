@@ -17,6 +17,7 @@
 """
 import argparse
 import configparser
+import json
 import logging
 import os
 import subprocess
@@ -366,19 +367,60 @@ def timezone_name(config, day):
     return "{} ({})".format(name, abbreviation) if name else abbreviation
 
 
+class Entry:
+    """A prayer in the schedule, with what will be played for it."""
+
+    def __init__(self, config, prayer, at, default_azaan):
+        self.prayer = prayer
+        self.at = at
+        self.azaan = config.azaan_for(prayer, default_azaan)
+        self.volume = config.volume_for(prayer)
+        self.reminder = at - timedelta(minutes=config.reminder) if config.reminder else None
+
+    def to_json(self):
+        return {
+            "prayer": self.prayer,
+            "time": self.at.isoformat(),
+            "azaan": self.azaan,
+            "volume": self.volume,
+            "reminder": self.reminder.isoformat() if self.reminder else None,
+        }
+
+
+def schedule(config, day, default_azaan):
+    return [Entry(config, prayer, at, default_azaan) for prayer, at in prayer_times(config, day)]
+
+
+def next_azaan(config, now, default_azaan):
+    """The first azaan after now, today or tomorrow, or None."""
+    for day in (now.date(), now.date() + timedelta(days=1)):
+        for entry in schedule(config, day, default_azaan):
+            if entry.at > now:
+                return entry
+    return None
+
+
+def format_duration(delta):
+    """Time until something, rounded up to the minute, e.g. "3 h 12 min"."""
+    minutes = max(1, -(-int(delta.total_seconds()) // 60))
+    hours, minutes = divmod(minutes, 60)
+    if hours and minutes:
+        return "{} h {} min".format(hours, minutes)
+    return "{} h".format(hours) if hours else "{} min".format(minutes)
+
+
 def format_times(config, day, now, default_azaan):
-    """Today's schedule as a table, marking the next azaan."""
-    times = prayer_times(config, day)
-    upcoming = next((prayer for prayer, at in times if at > now), None) if day == now.date() else None
+    """The day's schedule as a table, marking the next azaan."""
+    entries = schedule(config, day, default_azaan)
+    upcoming = next((e for e in entries if e.at > now), None) if day == now.date() else None
 
     header = ["Prayer", "Time", "Azaan", "Volume"] + (["Reminder"] if config.reminder else [])
     rows = []
-    for prayer, at in times:
-        row = [prayer.capitalize(), at.strftime("%H:%M"),
-               str(config.azaan_for(prayer, default_azaan)), "{}%".format(config.volume_for(prayer))]
-        if config.reminder:
-            row.append((at - timedelta(minutes=config.reminder)).strftime("%H:%M"))
-        rows.append((row, prayer == upcoming))
+    for entry in entries:
+        row = [entry.prayer.capitalize(), entry.at.strftime("%H:%M"), str(entry.azaan), "{}%".format(entry.volume)]
+        if entry.reminder:
+            row.append(entry.reminder.strftime("%H:%M"))
+        rows.append((row, entry is upcoming))
 
     widths = [max([len(heading)] + [len(row[i]) for row, _ in rows]) for i, heading in enumerate(header)]
 
@@ -397,7 +439,80 @@ def format_times(config, day, now, default_azaan):
     if not rows:
         lines.append("No prayer times on this day")
 
-    return "\n".join(" " + l if l else l for l in lines)
+    return indent(lines)
+
+
+def format_next(config, entry, now):
+    """The next azaan, e.g. "Next azaan: Asr at 18:03 today, in 3 h 12 min"."""
+    if entry is None:
+        return indent(["No azaan in the next two days"])
+
+    when = "today" if entry.at.date() == now.date() else "tomorrow"
+    details = "Azaan {} · {}% volume".format(entry.azaan, entry.volume)
+    if entry.reminder:
+        details += " · reminder at " + entry.reminder.strftime("%H:%M")
+
+    return indent([
+        "Next azaan: {} at {} {}, in {}".format(entry.prayer.capitalize(), entry.at.strftime("%H:%M"), when,
+                                                 format_duration(entry.at - now)),
+        details,
+        timezone_name(config, entry.at.date()),
+    ])
+
+
+def indent(lines):
+    return "\n".join(" " + line if line else line for line in lines)
+
+
+def times_json(config, day, now, default_azaan):
+    entries = schedule(config, day, default_azaan)
+    upcoming = next((e for e in entries if e.at > now), None) if day == now.date() else None
+    return {
+        "date": day.isoformat(),
+        "timezone": getattr(config.tz, "key", None) or datetime.combine(day, time(12), config.tz).tzname(),
+        "method": config.method,
+        "asr": config.asr_time,
+        "next": upcoming.prayer if upcoming else None,
+        "prayers": [entry.to_json() for entry in entries],
+    }
+
+
+def next_json(config, entry, now):
+    if entry is None:
+        return None
+    result = entry.to_json()
+    result["timezone"] = getattr(config.tz, "key", None) or entry.at.tzname()
+    result["seconds_until"] = int((entry.at - now).total_seconds())
+    return result
+
+
+def show_times(args):
+    config = Config(args.config)
+    now = datetime.now(config.tz)
+    default_azaan = args.azaan or installed_azaan()
+
+    if args.which == "next":
+        if args.date:
+            raise ConfigError("--date can't be used with next")
+        entry = next_azaan(config, now, default_azaan)
+        if args.format == "json":
+            print(json.dumps(next_json(config, entry, now), indent=2))
+        elif args.format == "plain":
+            if entry:
+                print(entry.prayer + "-" + entry.at.strftime("%H:%M"))
+        else:
+            print(format_next(config, entry, now))
+        return 0
+
+    day = args.date or now.date()
+    if args.format == "json":
+        print(json.dumps(times_json(config, day, now, default_azaan), indent=2))
+    elif args.format == "plain":
+        for prayer, at in prayer_times(config, day):
+            print(prayer + "-" + at.strftime("%H:%M"))
+    else:
+        print(format_times(config, day, now, default_azaan))
+    return 0
 
 
 def parse_date(value):
@@ -421,12 +536,13 @@ def main():
     commands = parser.add_subparsers(dest="command")
 
     times_command = commands.add_parser("times", help="print today's azaan times (default)")
+    times_command.add_argument("which", nargs="?", choices=["next"], help="show only the next azaan")
     times_command.add_argument("-d", "--date", type=parse_date, help="show another day, as YYYY-MM-DD")
+    times_command.add_argument("-f", "--format", choices=["table", "json", "plain"], default="table",
+                               help="output format: table (default), json, or plain prayer-HH:MM lines")
     times_command.add_argument("-a", "--azaan", type=azaan_number, metavar="1-15",
                                help="azaan to show when the configuration doesn't set one "
                                     "(default: the one the service was set up with)")
-    times_command.add_argument("--plain", action="store_true",
-                               help="print one prayer-HH:MM line per prayer, for scripts")
 
     run_command = commands.add_parser("run", help="run as a service, playing the azaan at each prayer time")
     run_command.add_argument("-a", "--azaan", type=azaan_number, default=DEFAULT_AZAAN, metavar="1-15",
@@ -448,15 +564,10 @@ def main():
         elif args.command == "play":
             return test_play(args)
         else:
-            config = Config(args.config)
-            now = datetime.now(config.tz)
-            day = getattr(args, "date", None) or now.date()
-
-            if getattr(args, "plain", False):
-                for prayer, at in prayer_times(config, day):
-                    print(prayer + "-" + at.strftime("%H:%M"))
-            else:
-                print(format_times(config, day, now, getattr(args, "azaan", None) or installed_azaan()))
+            if args.command is None:
+                # "piprayer.py" on its own is the same as "piprayer.py times"
+                args = parser.parse_args(sys.argv[1:] + ["times"])
+            return show_times(args)
     except ConfigError as e:
         print(e, file=sys.stderr)
         return 1

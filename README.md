@@ -158,7 +158,9 @@ dst = 1            # 1 during daylight saving, otherwise 0
 | Command | What it does |
 |---|---|
 | `python3 piprayer.py times` | Print today's Azaan times, with the azaan, volume and reminder for each |
-| `python3 piprayer.py times -d 2026-12-25` | Print the times for another day. `--plain` prints `fajr-04:21` lines for scripts |
+| `python3 piprayer.py times next` | Show the next Azaan and how long until it |
+| `python3 piprayer.py times -d 2026-12-25` | Print the times for another day |
+| `python3 piprayer.py times -f json` | Print the times as JSON, e.g. for a dashboard or Home Assistant. Also works with `next`. `-f plain` prints `fajr-04:21` lines |
 | `python3 piprayer.py play` | Play the Azaan now, to test the speaker |
 | `python3 piprayer.py play -p fajr` | Play the Azaan and volume set for a prayer |
 | `python3 piprayer.py play -r` | Play the reminder chime |

@@ -75,7 +75,7 @@ def test_next_prayer_skips_one_starting_now(write_config):
 
 
 def test_times_command_plain_output(write_config, monkeypatch, capsys):
-    monkeypatch.setattr("sys.argv", ["piprayer.py", "-c", write_config(), "times", "--plain", "-d", "2026-11-12"])
+    monkeypatch.setattr("sys.argv", ["piprayer.py", "-c", write_config(), "times", "-f", "plain", "-d", "2026-11-12"])
     assert piprayer.main() == 0
     assert capsys.readouterr().out.split() == [
         "fajr-04:23", "dhuhr-13:06", "asr-18:03", "maghrib-20:02", "isha-21:43"]
