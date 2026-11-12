@@ -7,7 +7,7 @@
   <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white">
   <img alt="Raspberry Pi" src="https://img.shields.io/badge/Raspberry%20Pi-any-C51A4A?logo=raspberrypi&logoColor=white">
   <img alt="systemd service" src="https://img.shields.io/badge/runs%20as-systemd%20service-30D475">
-  <img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue">
+  <a href="LICENSE"><img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue"></a>
 </p>
 
 PiPrayer turns a Raspberry Pi and a Bluetooth speaker into an Azaan (Adhan) player. Tell it where you
@@ -283,5 +283,5 @@ Notable changes are recorded in the [changelog](CHANGELOG.md).
 
 ## License
 
-PiPrayer is released under the [GNU GPL v3](https://www.gnu.org/licenses/gpl-3.0.html).
-`praytimes.py` is from [PrayTimes.org](http://praytimes.org) and is licensed under the GNU LGPL v3.
+PiPrayer is released under the [GNU GPL v3](LICENSE) or any later version.
+`praytimes.py` is from [PrayTimes.org](http://praytimes.org) and is licensed under the [GNU LGPL v3](COPYING.LESSER).

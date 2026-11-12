@@ -16,6 +16,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   ```
 
 ### Added
+- `LICENSE` with the full GNU GPL v3 text, and `COPYING.LESSER` with the GNU LGPL v3 text for `praytimes.py`.
 - `piprayer.py config` creates or changes `.piprayer` by asking for each setting. It suggests the system
   timezone, that timezone's main city as the location, and the usual calculation method for the region, checks
   each answer, and shows the Azaan times before saving. Run it again to change the settings: the running service
