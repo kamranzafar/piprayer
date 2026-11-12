@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/kamranzafar/piprayer/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/kamranzafar/piprayer/actions/workflows/tests.yml/badge.svg"></a>
+  <a href="https://github.com/kamranzafar/piprayer/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/kamranzafar/piprayer/actions/workflows/tests.yml/badge.svg?branch=main"></a>
   <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white">
   <img alt="Raspberry Pi" src="https://img.shields.io/badge/Raspberry%20Pi-any-C51A4A?logo=raspberrypi&logoColor=white">
   <img alt="systemd service" src="https://img.shields.io/badge/runs%20as-systemd%20service-30D475">
