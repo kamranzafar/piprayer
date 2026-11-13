@@ -61,6 +61,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   It needs `paho-mqtt` (`sudo apt install python3-paho-mqtt`), version 1 or 2, only when MQTT is on. The
   configuration wizard asks for the broker and login, and keeps `.piprayer` readable only by its owner when it
   holds the password.
+  When the broker can't be reached, the log says why: the name isn't found, the port is refused, or there is no
+  answer.
 - The service restarts itself within a minute of `git pull` updating PiPrayer, so updates apply without running
   `./setup-piprayer.sh`.
 - Unknown options in `.piprayer`, e.g. `status_port` for `status-port`, are logged by the service and shown by

@@ -308,3 +308,53 @@ def test_service_connects_and_disconnects(monkeypatch, write_config, fake_clock)
     assert clients[0].connected_to == ("homeassistant.local", 1883)
     assert clients[0].calls[-2:] == ["disconnect", "loop_stop"]
     assert [sound for _, sound, _ in clock.played] == ["1"]  # the azaan still plays
+
+
+# ------------------------------------------------------------------ connection failures
+
+@pytest.mark.parametrize("failure, message", [
+    ("resolve", "can't find homeassistant.local on the network. Check the name, or use its IP address"),
+    (ConnectionRefusedError(), "homeassistant.local refused port 1883. Check the broker is running, and the port"),
+    (mqtt_module.socket.timeout(), "no answer from homeassistant.local on port 1883. Check the address"),
+    (OSError(113, "No route to host"), "homeassistant.local on port 1883: No route to host"),
+    (None, "the connection to homeassistant.local:1883 was closed. Check the broker's log"),
+])
+def test_connection_problem(monkeypatch, failure, message):
+    def getaddrinfo(*args, **kwargs):
+        if failure == "resolve":
+            raise mqtt_module.socket.gaierror("Name or service not known")
+        return []
+
+    class Connection:
+        def close(self):
+            pass
+
+    def create_connection(address, timeout):
+        if isinstance(failure, Exception):
+            raise failure
+        return Connection()
+
+    monkeypatch.setattr(mqtt_module.socket, "getaddrinfo", getaddrinfo)
+    monkeypatch.setattr(mqtt_module.socket, "create_connection", create_connection)
+    assert message in mqtt_module.connection_problem("homeassistant.local", 1883)
+
+
+def test_failures_are_logged_once_an_hour(monkeypatch, write_config, caplog):
+    caplog.set_level(logging.INFO)
+    fake_paho(monkeypatch, 2)
+    monkeypatch.setattr(mqtt_module, "connection_problem", lambda host, port: "no answer")
+    seconds = [0]
+    monkeypatch.setattr(mqtt_module.clock, "monotonic", lambda: seconds[0])
+    path = write_config(MQTT_CONFIG)
+    bridge = MqttBridge(path, 1)
+    bridge.configure(Config(path).mqtt)
+
+    for seconds[0] in (0, 30, 90, 3599, 3600, 3700):
+        bridge.on_connect_fail(bridge.client, None)
+    logged = [r.message for r in caplog.records if "can't connect" in r.message]
+    assert logged == ["MQTT: can't connect to the broker (attempt 1), retrying: no answer",
+                      "MQTT: can't connect to the broker (attempt 5), retrying: no answer"]
+
+    bridge.on_connect(bridge.client, None, {}, 0, None)
+    assert "MQTT: connected, after 6 failed attempts" in caplog.text
+    bridge.configure(None)

@@ -10,3 +10,8 @@ def now(tz):
 
 def sleep(seconds):
     time.sleep(seconds)
+
+
+def monotonic():
+    """Seconds from an arbitrary start, for measuring how long since something, unaffected by clock changes."""
+    return time.monotonic()

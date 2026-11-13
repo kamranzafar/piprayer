@@ -27,6 +27,9 @@ REFRESH_SECONDS = 30
 
 INSTALL_HINT = "sudo apt install python3-paho-mqtt"
 
+# While the broker can't be reached, paho-mqtt keeps retrying. The first failure is logged, then one an hour
+FAILURE_LOG_SECONDS = 3600
+
 
 # ------------------------------------------------------------------ messages
 
@@ -112,6 +115,23 @@ def handle_command(text, config_path, default_azaan):
 
 # ------------------------------------------------------------------ connection
 
+def connection_problem(host, port, timeout=5):
+    """Why connecting to the broker fails, worked out by trying the steps paho-mqtt doesn't report."""
+    try:
+        socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        return "can't find {} on the network. Check the name, or use its IP address".format(host)
+    try:
+        socket.create_connection((host, port), timeout=timeout).close()
+    except ConnectionRefusedError:
+        return "{} refused port {}. Check the broker is running, and the port".format(host, port)
+    except socket.timeout:
+        return "no answer from {} on port {}. Check the address, and that no firewall is in the way".format(host, port)
+    except OSError as e:
+        return "{} on port {}: {}".format(host, port, e.strerror or e)
+    return "the connection to {}:{} was closed. Check the broker's log".format(host, port)
+
+
 def load_paho():
     """The paho-mqtt client module, or None when it isn't installed."""
     try:
@@ -135,6 +155,8 @@ class MqttBridge:
         self.refresher = None
         self.lock = threading.Lock()
         self.last_state = None
+        self.failures = 0
+        self.last_failure_log = None
 
     def configure(self, settings):
         """Connect, reconnect or disconnect to match the configuration. None disconnects."""
@@ -163,6 +185,7 @@ class MqttBridge:
         client.will_set(self.topics.availability, "offline", retain=True)
         client.reconnect_delay_set(1, 60)
         client.on_connect = self.on_connect
+        client.on_connect_fail = self.on_connect_fail
         client.on_message = self.on_message
         client.on_disconnect = self.on_disconnect
 
@@ -198,9 +221,24 @@ class MqttBridge:
         if getattr(reason_code, "is_failure", reason_code != 0):
             log.error("MQTT broker refused the connection: %s", reason_code)
             return
-        log.info("MQTT: connected")
+        if self.failures:
+            log.info("MQTT: connected, after %d failed attempts", self.failures)
+        else:
+            log.info("MQTT: connected")
+        self.failures = 0
+        self.last_failure_log = None
         client.subscribe([(self.topics.command, 0), (HOME_ASSISTANT_STATUS, 0)])
         self.announce()
+
+    def on_connect_fail(self, client, userdata):
+        self.failures += 1
+        now = clock.monotonic()
+        if self.last_failure_log is not None and now - self.last_failure_log < FAILURE_LOG_SECONDS:
+            return
+        self.last_failure_log = now
+        settings = self.settings
+        log.error("MQTT: can't connect to the broker (attempt %d), retrying: %s", self.failures,
+                  connection_problem(settings.host, settings.port))
 
     def on_disconnect(self, client, userdata, *args):
         if not self.stopping.is_set():
