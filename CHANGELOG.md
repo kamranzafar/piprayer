@@ -46,10 +46,12 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   `skipped`, `muted` and `muted_until` fields.
 - Optional status page, turned on with `status-port = 8080`. It shows the next Azaan and today's times, with
   buttons to skip, mute and resume, and serves the times as JSON at `/api/next` and `/api/times`, with
-  `POST /api/skip`, `/api/mute` and `/api/resume`. It uses only the Python standard library.
+  `POST /api/skip`, `/api/mute` and `/api/resume`. It uses only the Python standard library. The configuration
+  wizard asks for the port and shows the page's address.
 - 15 more calculation methods, matching AlAdhan's: `Gulf`, `Kuwait`, `Qatar`, `Dubai`, `Singapore`, `Malaysia`,
   `Indonesia`, `Turkey`, `France`, `Russia`, `Morocco`, `Algeria`, `Tunisia`, `Jordan` and `Portugal`, with the
-  minutes some of them add to Dhuhr, Asr and Maghrib. The configuration wizard suggests them for their timezones.
+  minutes some of them add to Dhuhr, Asr and Maghrib. The configuration wizard suggests them for their timezones,
+  and lists the original seven and the suggested one, with the rest on request.
 - `high-latitude` option to choose how Fajr and Isha are set when summer nights are too short for their angles:
   `NightMiddle` (the default, as before), `AngleBased`, `OneSeventh` or `None`. The configuration wizard asks for
   it from 45° north or south.

@@ -188,7 +188,8 @@ The volume is that of the Raspberry Pi's audio output, so the speaker's own volu
 The methods match those of [AlAdhan](https://aladhan.com/calculation-methods), including the minutes some of them
 add as a precaution: Turkey adds 5 to Dhuhr, 4 to Asr and 7 to Maghrib, Dubai 3 to Dhuhr and Maghrib, Morocco 5 to
 Dhuhr and Maghrib, Portugal 5 to Dhuhr and 3 to Maghrib, and Jordan 5 to Maghrib. Offsets in `prayers` add to these.
-The configuration wizard suggests the usual method for your timezone.
+The configuration wizard lists the first seven and suggests the usual method for your timezone. Enter `m`
+to list them all, or a method's name or number.
 
 ### Short summer nights
 
@@ -251,7 +252,7 @@ of Marrakesh, and are used under Creative Commons licences, see [media/CREDITS.m
 ## Status page
 
 Turn on the status page to see the times and skip or mute from a phone or computer, without logging in to the
-Raspberry Pi. Add a port to `.piprayer`:
+Raspberry Pi. `python3 piprayer.py config` asks for a port, or add one to `.piprayer`:
 
 ```ini
 status-port = 8080

@@ -2,23 +2,27 @@
 """piprayer.py config: asks for each setting, shows the resulting times and saves .piprayer."""
 import configparser
 import os
+import socket
 
 import praytimes
 
 from . import bluetooth, clock
 from .bluetooth import SCAN_SECONDS
 from .config import (AZAAN, ASR_TIME, DEFAULT_HIGH_LATITUDE, DEFAULT_VOLUME, DST, FAJR_AZAAN, GMT_OFFSET,
-                     HIGH_LATITUDE, LAT, LNG, MAC_ADDRESS, METHOD, PRAYERS, REMINDER, SPEAKER, TIMEZONE, VOLUME, Config,
-                     ConfigError, check_azaan_file, check_range, parse_prayers, parse_volume)
+                     HIGH_LATITUDE, LAT, LNG, MAC_ADDRESS, METHOD, PRAYERS, REMINDER, SPEAKER, STATUS_PORT, TIMEZONE,
+                     VOLUME, Config, ConfigError, check_azaan_file, check_range, parse_prayers, parse_volume)
 from .output import format_times
 from .service import installed_azaan, service_file
 
-# Answers in the speaker menus
+# Answers in the speaker and method menus
 PAIR = "pair"
 SCAN_AGAIN = "scan"
+MORE = "more"
 
 PRAYER_NAMES = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
-# The first seven keep their numbers from before more methods were added
+# The first seven keep their numbers from before more methods were added, and are always listed. The others are
+# listed on request, except the one suggested for the timezone.
+SHORT_METHOD_LIST = 7
 METHODS = ["MWL", "ISNA", "Egypt", "Makkah", "Karachi", "Tehran", "Jafari", "Gulf", "Kuwait", "Qatar", "Dubai",
            "Singapore", "Malaysia", "Indonesia", "Turkey", "France", "Russia", "Morocco", "Algeria", "Tunisia",
            "Jordan", "Portugal"]
@@ -310,6 +314,33 @@ def choose_speaker(wizard, current):
         wizard.say("")
 
 
+def choose_method(wizard, default):
+    """Ask for the calculation method. Lists the first few and the default, and the rest on request."""
+    shown = METHODS[:SHORT_METHOD_LIST] + ([default] if default in METHODS[SHORT_METHOD_LIST:] else [])
+    parse_method = choose(METHODS)
+
+    def parse(value):
+        return MORE if value.lower() == "m" and len(shown) < len(METHODS) else parse_method(value)
+
+    while True:
+        wizard.say("")
+        for method in shown:
+            wizard.say("  {:>2}. {:10} {}".format(METHODS.index(method) + 1, method,
+                                                 praytimes.PrayTimes.methods[method]["name"]))
+        if len(shown) < len(METHODS):
+            wizard.say("   m. More methods: the Gulf, Southeast Asia, Turkey, France, Russia, North Africa and more")
+        choice = wizard.ask("Calculation method", default, parse)
+        if choice != MORE:
+            return choice
+        shown = METHODS
+
+
+def status_page_address(port):
+    """e.g. http://raspberrypi.local:8080, using the name the Raspberry Pi announces on the local network."""
+    host = socket.gethostname().split(".")[0] or "raspberrypi"
+    return "http://{}.local:{}".format(host, port)
+
+
 def read_existing(path):
     parser = configparser.ConfigParser()
     try:
@@ -349,10 +380,7 @@ def configure(path, wizard=None, next_step=True):
     lat = wizard.ask("Latitude", lat, coordinate("latitude", 90))
     lng = wizard.ask("Longitude", lng, coordinate("longitude", 180))
 
-    wizard.say("")
-    for number, method in enumerate(METHODS, 1):
-        wizard.say("  {:>2}. {:10} {}".format(number, method, praytimes.PrayTimes.methods[method]["name"]))
-    method = wizard.ask("Calculation method", current.get(METHOD, regional_method(tz_name)), choose(METHODS))
+    method = choose_method(wizard, current.get(METHOD, regional_method(tz_name)))
 
     asr_default = current.get(ASR_TIME, "Hanafi" if tz_name in HANAFI_TIMEZONES else "Standard")
     asr = wizard.ask("Asr time (1. Standard, 2. Hanafi)", asr_default, choose(ASR_METHODS))
@@ -384,9 +412,16 @@ def configure(path, wizard=None, next_step=True):
     reminder = wizard.ask("Reminder chime, minutes before each azaan (0 for none)", current.get(REMINDER, "0"),
                           number_option("reminder", 0, 60))
 
+    wizard.say("")
+    wizard.say("The status page shows the times in a browser, with buttons to skip or mute the azaan.")
+    wizard.say("It has no password, so anyone on your network can use it.")
+    status_port = wizard.ask("Status page port, e.g. 8080 (none for off)", current.get(STATUS_PORT, ""),
+                             number_option(STATUS_PORT, 1, 65535, blank_ok=True))
+
     settings = [(TIMEZONE, tz_name), (LAT, lat), (LNG, lng), (METHOD, method), (ASR_TIME, asr),
                 (PRAYERS, prayers), (AZAAN, azaan), (FAJR_AZAAN, fajr_azaan), (VOLUME, volume),
-                (REMINDER, reminder), (SPEAKER, speaker), (HIGH_LATITUDE, high_latitude)]
+                (REMINDER, reminder), (SPEAKER, speaker), (HIGH_LATITUDE, high_latitude),
+                (STATUS_PORT, status_port)]
 
     # Keep any other options, but timezone replaces the legacy ones
     result = configparser.ConfigParser()
@@ -395,7 +430,7 @@ def configure(path, wizard=None, next_step=True):
         if value != "":
             result["Default"][option] = value
     for option, value in current.items():
-        if option not in result["Default"] and option not in (GMT_OFFSET, DST, FAJR_AZAAN, SPEAKER):
+        if option not in result["Default"] and option not in (GMT_OFFSET, DST, FAJR_AZAAN, SPEAKER, STATUS_PORT):
             result["Default"][option] = value
 
     preview = path + ".new"
@@ -416,6 +451,8 @@ def configure(path, wizard=None, next_step=True):
             os.remove(preview)
 
     wizard.say("Saved " + path)
+    if status_port:
+        wizard.say("Status page: {} from another device on your network".format(status_page_address(status_port)))
     if next_step:
         if os.path.exists(service_file()):
             wizard.say("The PiPrayer service will use the new settings within a minute.")
