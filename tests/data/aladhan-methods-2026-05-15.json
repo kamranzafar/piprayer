@@ -1,0 +1,727 @@
+{
+ "source": "https://api.aladhan.com/v1/timings (school=0, latitudeAdjustmentMethod=1, middle of the night)",
+ "retrieved": "2026-11-13",
+ "date": "2026-05-15",
+ "cases": [
+  {
+   "location": "abu-dhabi",
+   "lat": 24.4539,
+   "lng": 54.3773,
+   "timezone": "Asia/Dubai",
+   "method": "Gulf",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:07",
+    "sunrise": "05:39",
+    "dhuhr": "12:19",
+    "asr": "15:43",
+    "maghrib": "18:59",
+    "isha": "20:29"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Gulf",
+   "asr": "Standard",
+   "times": {
+    "fajr": "01:16",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "22:16"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Gulf",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:14",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "20:22"
+   }
+  },
+  {
+   "location": "kuwait-city",
+   "lat": 29.3759,
+   "lng": 47.9774,
+   "timezone": "Asia/Kuwait",
+   "method": "Kuwait",
+   "asr": "Standard",
+   "times": {
+    "fajr": "03:26",
+    "sunrise": "04:56",
+    "dhuhr": "11:44",
+    "asr": "15:19",
+    "maghrib": "18:33",
+    "isha": "20:00"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Kuwait",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:06",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "23:40"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Kuwait",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:21",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "20:11"
+   }
+  },
+  {
+   "location": "doha",
+   "lat": 25.2854,
+   "lng": 51.531,
+   "timezone": "Asia/Qatar",
+   "method": "Qatar",
+   "asr": "Standard",
+   "times": {
+    "fajr": "03:24",
+    "sunrise": "04:49",
+    "dhuhr": "11:30",
+    "asr": "14:56",
+    "maghrib": "18:12",
+    "isha": "19:42"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Qatar",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:06",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "22:16"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Qatar",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:21",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "20:22"
+   }
+  },
+  {
+   "location": "singapore",
+   "lat": 1.3521,
+   "lng": 103.8198,
+   "timezone": "Asia/Singapore",
+   "method": "Singapore",
+   "asr": "Standard",
+   "times": {
+    "fajr": "05:34",
+    "sunrise": "06:56",
+    "dhuhr": "13:01",
+    "asr": "16:25",
+    "maghrib": "19:06",
+    "isha": "20:19"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Singapore",
+   "asr": "Standard",
+   "times": {
+    "fajr": "00:57",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "23:50"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Singapore",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:11",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "20:13"
+   }
+  },
+  {
+   "location": "paris",
+   "lat": 48.8566,
+   "lng": 2.3522,
+   "timezone": "Europe/Paris",
+   "method": "France",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:41",
+    "sunrise": "06:09",
+    "dhuhr": "13:47",
+    "asr": "17:55",
+    "maghrib": "21:26",
+    "isha": "22:54"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "France",
+   "asr": "Standard",
+   "times": {
+    "fajr": "03:31",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "22:24"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "France",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:50",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "19:44"
+   }
+  },
+  {
+   "location": "istanbul",
+   "lat": 41.0082,
+   "lng": 28.9784,
+   "timezone": "Europe/Istanbul",
+   "method": "Turkey",
+   "asr": "Standard",
+   "times": {
+    "fajr": "03:53",
+    "sunrise": "05:39",
+    "dhuhr": "13:05",
+    "asr": "17:00",
+    "maghrib": "20:22",
+    "isha": "22:01"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Turkey",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:06",
+    "sunrise": "05:02",
+    "dhuhr": "13:02",
+    "asr": "17:12",
+    "maghrib": "20:53",
+    "isha": "23:30"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Turkey",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:21",
+    "sunrise": "05:35",
+    "dhuhr": "12:22",
+    "asr": "15:38",
+    "maghrib": "18:59",
+    "isha": "20:08"
+   }
+  },
+  {
+   "location": "moscow",
+   "lat": 55.7558,
+   "lng": 37.6173,
+   "timezone": "Europe/Moscow",
+   "method": "Russia",
+   "asr": "Standard",
+   "times": {
+    "fajr": "00:26",
+    "sunrise": "04:18",
+    "dhuhr": "12:26",
+    "asr": "16:43",
+    "maghrib": "20:35",
+    "isha": "23:56"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Russia",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:41",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "23:00"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Russia",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:31",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "19:59"
+   }
+  },
+  {
+   "location": "dubai",
+   "lat": 25.2048,
+   "lng": 55.2708,
+   "timezone": "Asia/Dubai",
+   "method": "Dubai",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:09",
+    "sunrise": "05:34",
+    "dhuhr": "12:18",
+    "asr": "15:41",
+    "maghrib": "18:59",
+    "isha": "20:22"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Dubai",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:02",
+    "sunrise": "05:09",
+    "dhuhr": "13:00",
+    "asr": "17:08",
+    "maghrib": "20:49",
+    "isha": "23:55"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Dubai",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:20",
+    "sunrise": "05:42",
+    "dhuhr": "12:20",
+    "asr": "15:34",
+    "maghrib": "18:55",
+    "isha": "20:14"
+   }
+  },
+  {
+   "location": "kuala-lumpur",
+   "lat": 3.139,
+   "lng": 101.6869,
+   "timezone": "Asia/Kuala_Lumpur",
+   "method": "Malaysia",
+   "asr": "Standard",
+   "times": {
+    "fajr": "05:40",
+    "sunrise": "07:02",
+    "dhuhr": "13:10",
+    "asr": "16:33",
+    "maghrib": "19:17",
+    "isha": "20:31"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Malaysia",
+   "asr": "Standard",
+   "times": {
+    "fajr": "00:57",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "23:50"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Malaysia",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:11",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "20:13"
+   }
+  },
+  {
+   "location": "tunis",
+   "lat": 36.8065,
+   "lng": 10.1815,
+   "timezone": "Africa/Tunis",
+   "method": "Tunisia",
+   "asr": "Standard",
+   "times": {
+    "fajr": "03:29",
+    "sunrise": "05:12",
+    "dhuhr": "12:16",
+    "asr": "16:04",
+    "maghrib": "19:20",
+    "isha": "21:03"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Tunisia",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:06",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "23:50"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Tunisia",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:21",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "20:13"
+   }
+  },
+  {
+   "location": "algiers",
+   "lat": 36.7538,
+   "lng": 3.0588,
+   "timezone": "Africa/Algiers",
+   "method": "Algeria",
+   "asr": "Standard",
+   "times": {
+    "fajr": "03:58",
+    "sunrise": "05:40",
+    "dhuhr": "12:44",
+    "asr": "16:33",
+    "maghrib": "19:48",
+    "isha": "21:24"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Algeria",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:06",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "23:30"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Algeria",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:21",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "20:08"
+   }
+  },
+  {
+   "location": "jakarta",
+   "lat": -6.2088,
+   "lng": 106.8456,
+   "timezone": "Asia/Jakarta",
+   "method": "Indonesia",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:33",
+    "sunrise": "05:54",
+    "dhuhr": "11:49",
+    "asr": "15:12",
+    "maghrib": "17:44",
+    "isha": "18:57"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Indonesia",
+   "asr": "Standard",
+   "times": {
+    "fajr": "00:57",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:46",
+    "isha": "23:50"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Indonesia",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:11",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:52",
+    "isha": "20:13"
+   }
+  },
+  {
+   "location": "casablanca",
+   "lat": 33.5731,
+   "lng": -7.5898,
+   "timezone": "Africa/Casablanca",
+   "method": "Morocco",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:48",
+    "sunrise": "06:30",
+    "dhuhr": "13:32",
+    "asr": "17:10",
+    "maghrib": "20:29",
+    "isha": "21:54"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Morocco",
+   "asr": "Standard",
+   "times": {
+    "fajr": "01:40",
+    "sunrise": "05:09",
+    "dhuhr": "13:02",
+    "asr": "17:08",
+    "maghrib": "20:51",
+    "isha": "23:30"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Morocco",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:16",
+    "sunrise": "05:42",
+    "dhuhr": "12:22",
+    "asr": "15:34",
+    "maghrib": "18:57",
+    "isha": "20:08"
+   }
+  },
+  {
+   "location": "lisbon",
+   "lat": 38.7223,
+   "lng": -9.1393,
+   "timezone": "Europe/Lisbon",
+   "method": "Portugal",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:38",
+    "sunrise": "06:25",
+    "dhuhr": "13:38",
+    "asr": "17:25",
+    "maghrib": "20:45",
+    "isha": "22:02"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Portugal",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:06",
+    "sunrise": "05:09",
+    "dhuhr": "13:02",
+    "asr": "17:08",
+    "maghrib": "20:49",
+    "isha": "22:06"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Portugal",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:21",
+    "sunrise": "05:42",
+    "dhuhr": "12:22",
+    "asr": "15:34",
+    "maghrib": "18:55",
+    "isha": "20:12"
+   }
+  },
+  {
+   "location": "amman",
+   "lat": 31.9454,
+   "lng": 35.9284,
+   "timezone": "Asia/Amman",
+   "method": "Jordan",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:06",
+    "sunrise": "05:39",
+    "dhuhr": "12:33",
+    "asr": "16:13",
+    "maghrib": "19:31",
+    "isha": "21:00"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "Jordan",
+   "asr": "Standard",
+   "times": {
+    "fajr": "02:06",
+    "sunrise": "05:09",
+    "dhuhr": "12:57",
+    "asr": "17:08",
+    "maghrib": "20:51",
+    "isha": "23:50"
+   }
+  },
+  {
+   "location": "makkah",
+   "lat": 21.4225,
+   "lng": 39.8262,
+   "timezone": "Asia/Riyadh",
+   "method": "Jordan",
+   "asr": "Standard",
+   "times": {
+    "fajr": "04:21",
+    "sunrise": "05:42",
+    "dhuhr": "12:17",
+    "asr": "15:34",
+    "maghrib": "18:57",
+    "isha": "20:13"
+   }
+  }
+ ]
+}

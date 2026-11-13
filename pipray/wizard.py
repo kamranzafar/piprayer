@@ -7,9 +7,9 @@ import praytimes
 
 from . import bluetooth, clock
 from .bluetooth import SCAN_SECONDS
-from .config import (AZAAN, ASR_TIME, DEFAULT_VOLUME, DST, FAJR_AZAAN, GMT_OFFSET, LAT, LNG, MAC_ADDRESS, METHOD,
-                     PRAYERS, REMINDER, SPEAKER, TIMEZONE, VOLUME, Config, ConfigError, check_azaan_file, check_range,
-                     parse_prayers, parse_volume)
+from .config import (AZAAN, ASR_TIME, DEFAULT_HIGH_LATITUDE, DEFAULT_VOLUME, DST, FAJR_AZAAN, GMT_OFFSET,
+                     HIGH_LATITUDE, LAT, LNG, MAC_ADDRESS, METHOD, PRAYERS, REMINDER, SPEAKER, TIMEZONE, VOLUME, Config,
+                     ConfigError, check_azaan_file, check_range, parse_prayers, parse_volume)
 from .output import format_times
 from .service import installed_azaan, service_file
 
@@ -18,17 +18,43 @@ PAIR = "pair"
 SCAN_AGAIN = "scan"
 
 PRAYER_NAMES = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
-METHODS = ["MWL", "ISNA", "Egypt", "Makkah", "Karachi", "Tehran", "Jafari"]
+# The first seven keep their numbers from before more methods were added
+METHODS = ["MWL", "ISNA", "Egypt", "Makkah", "Karachi", "Tehran", "Jafari", "Gulf", "Kuwait", "Qatar", "Dubai",
+           "Singapore", "Malaysia", "Indonesia", "Turkey", "France", "Russia", "Morocco", "Algeria", "Tunisia",
+           "Jordan", "Portugal"]
 ASR_METHODS = ["Standard", "Hanafi"]
 
 # Usual calculation method by timezone, MWL elsewhere
 REGIONAL_METHODS = [
     ("America/", "ISNA"),
     ("Africa/Cairo", "Egypt"),
-    ("Asia/Riyadh", "Makkah"), ("Asia/Aden", "Makkah"), ("Asia/Qatar", "Makkah"), ("Asia/Bahrain", "Makkah"),
-    ("Asia/Kuwait", "Makkah"), ("Asia/Dubai", "Makkah"), ("Asia/Muscat", "Makkah"),
+    ("Asia/Riyadh", "Makkah"), ("Asia/Aden", "Makkah"),
+    ("Asia/Bahrain", "Gulf"), ("Asia/Muscat", "Gulf"),
+    ("Asia/Kuwait", "Kuwait"), ("Asia/Qatar", "Qatar"), ("Asia/Dubai", "Dubai"),
     ("Asia/Karachi", "Karachi"), ("Asia/Kolkata", "Karachi"), ("Asia/Dhaka", "Karachi"), ("Asia/Kabul", "Karachi"),
     ("Asia/Tehran", "Tehran"),
+    ("Asia/Singapore", "Singapore"),
+    ("Asia/Kuala_Lumpur", "Malaysia"), ("Asia/Kuching", "Malaysia"),
+    ("Asia/Jakarta", "Indonesia"), ("Asia/Pontianak", "Indonesia"), ("Asia/Makassar", "Indonesia"),
+    ("Asia/Jayapura", "Indonesia"),
+    ("Europe/Istanbul", "Turkey"),
+    ("Europe/Paris", "France"),
+    ("Europe/Moscow", "Russia"), ("Europe/Samara", "Russia"), ("Europe/Volgograd", "Russia"),
+    ("Europe/Ulyanovsk", "Russia"), ("Europe/Saratov", "Russia"), ("Europe/Astrakhan", "Russia"),
+    ("Europe/Kirov", "Russia"), ("Asia/Yekaterinburg", "Russia"), ("Asia/Omsk", "Russia"),
+    ("Africa/Casablanca", "Morocco"), ("Africa/Algiers", "Algeria"), ("Africa/Tunis", "Tunisia"),
+    ("Asia/Amman", "Jordan"),
+    ("Europe/Lisbon", "Portugal"),
+]
+
+# Ask how to set Fajr and Isha on short summer nights from this latitude, north or south. The usual angles
+# (15 to 20 degrees) stop being reached at some point in summer from about 46.5 to 51.5 degrees.
+HIGH_LATITUDE_FROM = 45
+HIGH_LATITUDE_CHOICES = [
+    ("NightMiddle", "Middle of the night: Isha and Fajr at the midpoint between sunset and sunrise"),
+    ("AngleBased", "Angle based: a part of the night set by the angle, e.g. 18/60 of it for 18 degrees"),
+    ("OneSeventh", "One seventh of the night after sunset and before sunrise"),
+    ("None", "No adjustment: no Fajr or Isha when the sun doesn't reach the angle"),
 ]
 # Hanafi Asr is usual in South Asia
 HANAFI_TIMEZONES = ("Asia/Karachi", "Asia/Kolkata", "Asia/Dhaka", "Asia/Kabul")
@@ -325,11 +351,22 @@ def configure(path, wizard=None, next_step=True):
 
     wizard.say("")
     for number, method in enumerate(METHODS, 1):
-        wizard.say("  {}. {:8} {}".format(number, method, praytimes.PrayTimes.methods[method]["name"]))
+        wizard.say("  {:>2}. {:10} {}".format(number, method, praytimes.PrayTimes.methods[method]["name"]))
     method = wizard.ask("Calculation method", current.get(METHOD, regional_method(tz_name)), choose(METHODS))
 
     asr_default = current.get(ASR_TIME, "Hanafi" if tz_name in HANAFI_TIMEZONES else "Standard")
     asr = wizard.ask("Asr time (1. Standard, 2. Hanafi)", asr_default, choose(ASR_METHODS))
+
+    # Far from the equator, summer nights can be too short for the Fajr and Isha angles
+    high_latitude = ""
+    if abs(float(lat)) >= HIGH_LATITUDE_FROM or HIGH_LATITUDE in current:
+        wizard.say("")
+        wizard.say("Some summer nights here are too short for Fajr and Isha by their angles. Instead, use:")
+        for number, (rule, description) in enumerate(HIGH_LATITUDE_CHOICES, 1):
+            wizard.say("  {}. {}".format(number, description))
+        high_latitude = wizard.ask("Fajr and Isha on short nights",
+                                   current.get(HIGH_LATITUDE, DEFAULT_HIGH_LATITUDE),
+                                   choose([rule for rule, _ in HIGH_LATITUDE_CHOICES]))
 
     prayers = wizard.ask("Prayers", current.get(PRAYERS, ", ".join(PRAYER_NAMES)), prayers_option,
                          hint="\nPrayers to play the azaan for. Add :minutes to shift a time, e.g. Fajr:-10, Dhuhr:5")
@@ -349,7 +386,7 @@ def configure(path, wizard=None, next_step=True):
 
     settings = [(TIMEZONE, tz_name), (LAT, lat), (LNG, lng), (METHOD, method), (ASR_TIME, asr),
                 (PRAYERS, prayers), (AZAAN, azaan), (FAJR_AZAAN, fajr_azaan), (VOLUME, volume),
-                (REMINDER, reminder), (SPEAKER, speaker)]
+                (REMINDER, reminder), (SPEAKER, speaker), (HIGH_LATITUDE, high_latitude)]
 
     # Keep any other options, but timezone replaces the legacy ones
     result = configparser.ConfigParser()

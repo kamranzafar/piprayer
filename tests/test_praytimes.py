@@ -8,10 +8,19 @@ import pytest
 
 import praytimes
 
-REFERENCE_FILE = os.path.join(os.path.dirname(__file__), "data", "aladhan-2026-05-15.json")
+DATA = os.path.join(os.path.dirname(__file__), "data")
 
-with open(REFERENCE_FILE) as f:
-    REFERENCE = json.load(f)
+
+def load_reference(name):
+    """Reference times from AlAdhan, each case with the date of its file."""
+    with open(os.path.join(DATA, name)) as f:
+        reference = json.load(f)
+    return [dict(case, date=reference["date"]) for case in reference["cases"]]
+
+
+# The original 7 methods, the methods added since with AlAdhan's minute adjustments, and the high latitude rules
+REFERENCE = (load_reference("aladhan-2026-05-15.json") + load_reference("aladhan-methods-2026-05-15.json") +
+             load_reference("aladhan-high-latitude-2026-06-21.json"))
 
 
 def minutes(hhmm):
@@ -19,20 +28,25 @@ def minutes(hhmm):
     return int(hours) * 60 + int(mins)
 
 
-@pytest.mark.parametrize(
-    "case", REFERENCE["cases"],
-    ids=lambda c: "{}-{}-{}".format(c["location"], c["method"], c["asr"]))
+def case_id(case):
+    return "-".join([case["location"], case["method"], case["asr"], case.get("high_latitude", "")]).rstrip("-")
+
+
+@pytest.mark.parametrize("case", REFERENCE, ids=case_id)
 def test_matches_aladhan_reference(case):
-    day = date.fromisoformat(REFERENCE["date"])
+    day = date.fromisoformat(case["date"])
     tz = ZoneInfo(case["timezone"])
     utc_offset = datetime.combine(day, time(12), tz).utcoffset().total_seconds() / 3600
 
     calc = praytimes.PrayTimes(case["method"], case["asr"])
+    if "high_latitude" in case:
+        calc.adjust({"highLats": case["high_latitude"]})
     times = calc.getTimes(day, (case["lat"], case["lng"]), utc_offset)
 
     for prayer, expected in case["times"].items():
-        # Allow a minute for rounding differences between the implementations
-        assert abs(minutes(times[prayer]) - minutes(expected)) <= 1, \
+        # Allow a minute for rounding differences between the implementations. Clock times wrap at midnight
+        difference = abs(minutes(times[prayer]) - minutes(expected)) % (24 * 60)
+        assert min(difference, 24 * 60 - difference) <= 1, \
             "{} is {}, expected {}".format(prayer, times[prayer], expected)
 
 
@@ -105,3 +119,31 @@ def test_minute_settings_are_after_base_time(setting, base, expected_gap):
     calc.adjust({setting: "{} min".format(expected_gap)})
     times = calc.getTimes((2026, 5, 15), (21.4225, 39.8262), 3)
     assert minutes(times[setting]) - minutes(times[base]) == expected_gap
+
+
+def test_method_offsets_add_to_tuned_offsets():
+    coords, day = (41.0082, 28.9784), (2026, 5, 15)
+    plain = praytimes.PrayTimes("Turkey").getTimes(day, coords, 3)
+
+    tuned = praytimes.PrayTimes("Turkey")
+    tuned.tune({"asr": 2, "sunrise": 1})
+    times = tuned.getTimes(day, coords, 3)
+
+    # Turkey's own +4 minutes for Asr and -7 for sunrise still apply
+    assert minutes(times["asr"]) == minutes(plain["asr"]) + 2
+    assert minutes(times["sunrise"]) == minutes(plain["sunrise"]) + 1
+
+
+def test_changing_method_drops_the_previous_adjustments():
+    coords, day = (41.0082, 28.9784), (2026, 5, 15)
+    calc = praytimes.PrayTimes("Turkey")
+    calc.setMethod("MWL")
+    assert calc.getTimes(day, coords, 3) == praytimes.PrayTimes("MWL").getTimes(day, coords, 3)
+
+
+def test_times_as_hours_continue_past_midnight():
+    # London on the longest day: with the middle of the night rule, Isha is just after midnight UTC
+    calc = praytimes.PrayTimes("MWL")
+    times = calc.getTimes((2026, 6, 21), (51.5074, -0.1278), 0, format="Float")
+    assert 23.9 < times["isha"] < 24.1
+    assert times["isha"] > times["maghrib"]

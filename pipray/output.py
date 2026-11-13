@@ -48,7 +48,8 @@ def format_times(config, day, now, state=None):
         row = [entry.prayer.capitalize(), entry.at.strftime("%H:%M"), str(entry.azaan), "{}%".format(entry.volume)]
         if entry.reminder:
             row.append(entry.reminder.strftime("%H:%M"))
-        notes = (["◀ next"] if entry is upcoming else []) + ([entry.silenced] if entry.silenced else [])
+        notes = (["◀ next"] if entry is upcoming else []) + ([entry.silenced] if entry.silenced else []) + \
+                (["after midnight"] if entry.at.date() != day else [])
         rows.append((row, " · ".join(notes)))
 
     widths = [max([len(heading)] + [len(row[i]) for row, _ in rows]) for i, heading in enumerate(header)]

@@ -106,21 +106,25 @@ def test_new_timezone_suggests_its_location_and_method(write_config):
     ("Asia/Karachi", "Karachi", "Hanafi"),
     ("Asia/Riyadh", "Makkah", "Standard"),
     ("Europe/London", "MWL", "Standard"),
+    ("Asia/Dubai", "Dubai", "Standard"),
+    ("Europe/Istanbul", "Turkey", "Standard"),
+    ("Asia/Jakarta", "Indonesia", "Standard"),
+    ("Asia/Kuala_Lumpur", "Malaysia", "Standard"),
 ])
 def test_suggests_regional_method(tmp_path, tz, method, asr):
     path = str(tmp_path / ".piprayer")
-    answers = Answers(tz, *[""] * 10)
+    answers = Answers(tz, *[""] * 11)
     assert configure(path, answers.wizard()) == 0
     assert (saved(path)["method"], saved(path)["asr-time"]) == (method, asr)
 
 
 def test_asks_again_after_invalid_answers(tmp_path):
     path = str(tmp_path / ".piprayer")
-    answers = Answers("Mars/Olympus", "", "100", "", "", "9", "", "", "Fajir", "", "18", "", "", "150", "",
+    answers = Answers("Mars/Olympus", "", "100", "", "", "99", "", "", "Fajir", "", "18", "", "", "150", "",
                       "61", "", "")
 
     assert configure(path, answers.wizard()) == 0
-    for message in ["Unknown timezone: Mars/Olympus", "Invalid latitude: 100", "Choose a number from 1 to 7",
+    for message in ["Unknown timezone: Mars/Olympus", "Invalid latitude: 100", "Choose a number from 1 to 22",
                     "Unknown prayer: Fajir", "there is no media/azaan-18.opus", "Invalid volume: 150",
                     "Invalid reminder: 61"]:
         assert any(message in line for line in answers.output), message
@@ -394,3 +398,21 @@ def test_no_next_step_when_run_by_the_setup(tmp_path):
     path = str(tmp_path / ".piprayer")
     assert configure(path, answers.wizard(), next_step=False) == 0
     assert answers.output[-1] == "Saved " + path
+
+
+def test_asks_about_short_nights_far_from_the_equator(tmp_path):
+    path = str(tmp_path / ".piprayer")
+    # timezone, latitude, longitude, method, Asr, then the rule for short nights: 2 is angle based
+    answers = Answers("Europe/London", "51.5", "-0.12", "", "", "2", *[""] * 6)
+
+    assert configure(path, answers.wizard()) == 0
+    assert saved(path)["high-latitude"] == "AngleBased"
+    assert any("too short for Fajr and Isha" in line for line in answers.output)
+
+
+def test_doesnt_ask_about_short_nights_near_the_equator(write_config):
+    path = write_config()
+    answers = Answers(*[""] * 11)
+    assert configure(path, answers.wizard()) == 0
+    assert "high-latitude" not in saved(path)
+    assert not any("too short for Fajr and Isha" in line for line in answers.output)

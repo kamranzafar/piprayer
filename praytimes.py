@@ -101,14 +101,61 @@ class PrayTimes():
         # isha is not explicitly specified in this method
         'Jafari': {
             'name': 'Shia Ithna-Ashari, Leva Institute, Qum',
-            'params': {'fajr': 16, 'isha': 14, 'maghrib': 4, 'midnight': 'Jafari'}}
+            'params': {'fajr': 16, 'isha': 14, 'maghrib': 4, 'midnight': 'Jafari'}},
+        # Added for PiPrayer, with the parameters and minute adjustments used by AlAdhan (api.aladhan.com)
+        'Gulf': {
+            'name': 'Gulf Region',
+            'params': {'fajr': 19.5, 'isha': '90 min'}},
+        'Kuwait': {
+            'name': 'Kuwait',
+            'params': {'fajr': 18, 'isha': 17.5}},
+        'Qatar': {
+            'name': 'Qatar',
+            'params': {'fajr': 18, 'isha': '90 min'}},
+        'Singapore': {
+            'name': 'Majlis Ugama Islam Singapura, Singapore',
+            'params': {'fajr': 20, 'isha': 18}},
+        'France': {
+            'name': 'Union des Organisations Islamiques de France',
+            'params': {'fajr': 12, 'isha': 12}},
+        'Turkey': {
+            'name': 'Diyanet Isleri Baskanligi, Turkey',
+            'params': {'fajr': 18, 'isha': 17, 'dhuhr': '5 min', 'maghrib': '7 min'},
+            'offsets': {'sunrise': -7, 'asr': 4}},
+        'Russia': {
+            'name': 'Spiritual Administration of Muslims of Russia',
+            'params': {'fajr': 16, 'isha': 15}},
+        'Dubai': {
+            'name': 'Dubai',
+            'params': {'fajr': 18.2, 'isha': 18.2, 'dhuhr': '3 min', 'maghrib': '3 min'}},
+        'Malaysia': {
+            'name': 'Jabatan Kemajuan Islam Malaysia (JAKIM)',
+            'params': {'fajr': 20, 'isha': 18}},
+        'Indonesia': {
+            'name': 'Kementerian Agama Republik Indonesia (Kemenag)',
+            'params': {'fajr': 20, 'isha': 18}},
+        'Tunisia': {
+            'name': 'Tunisia',
+            'params': {'fajr': 18, 'isha': 18}},
+        'Algeria': {
+            'name': 'Algeria',
+            'params': {'fajr': 18, 'isha': 17}},
+        'Morocco': {
+            'name': 'Morocco',
+            'params': {'fajr': 19, 'isha': 17, 'dhuhr': '5 min', 'maghrib': '5 min'}},
+        'Portugal': {
+            'name': 'Comunidade Islamica de Lisboa, Portugal',
+            'params': {'fajr': 18, 'isha': '77 min', 'dhuhr': '5 min', 'maghrib': '3 min'}},
+        'Jordan': {
+            'name': 'Ministry of Awqaf, Islamic Affairs and Holy Places, Jordan',
+            'params': {'fajr': 18, 'isha': 18, 'maghrib': '5 min'}},
     }
 
     asrMethods = {'Standard': 1, 'Hanafi': 2}
 
     # Default Parameters in Calculation Methods
     defaultParams = {
-        'maghrib': '0 min', 'midnight': 'Standard'
+        'maghrib': '0 min', 'midnight': 'Standard', 'dhuhr': '0 min'
     }
 
     # ---------------------- Default Settings --------------------
@@ -146,15 +193,13 @@ class PrayTimes():
         if asrMethod in self.asrMethods:
             self.settings['asr'] = asrMethod
 
-        # initialize settings
-        self.calcMethod = method if method in self.methods else 'MWL'
-        params = self.methods[self.calcMethod]['params']
-        for name, value in params.items():
-            self.settings[name] = value
-
         # init time offsets
         for name in self.timeNames:
             self.offsets[name] = 0
+
+        # initialize settings
+        self.methodOffsets = {}
+        self.setMethod(method if method in self.methods else 'MWL')
 
     # -------------------- Interface Functions --------------------
 
@@ -162,6 +207,8 @@ class PrayTimes():
         if method in self.methods:
             self.adjust(self.methods[method]['params'])
             self.calcMethod = method
+            # minutes some methods add to the calculated times, on top of those given to tune()
+            self.methodOffsets = dict(self.methods[method].get('offsets', {}))
 
     def adjust(self, params):
         self.settings.update(params)
@@ -337,7 +384,7 @@ class PrayTimes():
     # apply offsets to the times
     def tuneTimes(self, times):
         for name, value in times.items():
-            times[name] += self.offsets[name] / 60.0
+            times[name] += (self.offsets[name] + self.methodOffsets.get(name, 0)) / 60.0
         return times
 
     # convert times to given time format

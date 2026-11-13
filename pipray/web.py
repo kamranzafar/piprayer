@@ -223,8 +223,11 @@ def times_table(entries, upcoming, now):
             tag, cls = '<span class="tag next">next</span>', "next"
         else:
             tag, cls = "", ""
+        when = entry.at.strftime("%H:%M")
+        if entry.at.date() != now.date():
+            when += ' <span class="label">after midnight</span>'
         rows.append('<tr class="{}"><td>{}</td><td>{}</td><td>{}</td><td>{}%</td><td>{}</td></tr>'.format(
-            cls, escape(entry.prayer.capitalize()), entry.at.strftime("%H:%M"), entry.azaan, entry.volume, tag))
+            cls, escape(entry.prayer.capitalize()), when, entry.azaan, entry.volume, tag))
     return ('<table><thead><tr><th>Prayer</th><th>Time</th><th>Azaan</th><th>Volume</th><th></th></tr></thead>'
             '<tbody>{}</tbody></table>'.format("".join(rows)))
 

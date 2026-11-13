@@ -21,6 +21,12 @@ VOLUME = "volume"
 REMINDER = "reminder"
 SPEAKER = "speaker"
 STATUS_PORT = "status-port"
+HIGH_LATITUDE = "high-latitude"
+
+# How Fajr and Isha are set when the night is too short for their angles, as named by praytimes.py:
+# the middle of the night, a portion of the night given by the angle, or one seventh of the night
+HIGH_LATITUDE_RULES = ["NightMiddle", "AngleBased", "OneSeventh", "None"]
+DEFAULT_HIGH_LATITUDE = "NightMiddle"
 
 MAC_ADDRESS = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
 
@@ -74,6 +80,7 @@ class Config:
         self.reminder = parse_number(section, REMINDER, 0, 0, 60)
         self.speaker = parse_speaker(section.get(SPEAKER, ""))
         self.status_port = parse_number(section, STATUS_PORT, None, 1, 65535)
+        self.high_latitude = parse_high_latitude(section.get(HIGH_LATITUDE, DEFAULT_HIGH_LATITUDE))
         self.default_azaan = default_azaan
 
     def azaan_for(self, prayer):
@@ -168,6 +175,13 @@ def parse_speaker(value):
     if not MAC_ADDRESS.match(value):
         raise ConfigError("Invalid speaker: {}, use the Bluetooth address, e.g. AA:BB:CC:DD:EE:FF".format(value))
     return value
+
+
+def parse_high_latitude(value):
+    for rule in HIGH_LATITUDE_RULES:
+        if rule.lower() == value.strip().lower():
+            return rule
+    raise ConfigError("Invalid {}: {}, use one of: {}".format(HIGH_LATITUDE, value, ", ".join(HIGH_LATITUDE_RULES)))
 
 
 def parse_number(section, option, default, minimum, maximum):

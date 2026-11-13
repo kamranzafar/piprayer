@@ -26,28 +26,35 @@ def run(config_path, default_azaan):
     log.info("PiPrayer started with configuration %s", config_path)
     state_path = state_file(config_path)
     status_page = StatusPage(config_path, default_azaan)
+    started = None
+    # Events already played or passed over. Another may fall due while one plays, e.g. Fajr at the same minute
+    # as Isha on a short summer night, so the next event is looked for from a little before now.
+    handled = set()
 
     try:
         while True:
             mtime = config_mtime(config_path)
             config = Config(config_path, default_azaan)
+            now = clock.now(config.tz)
+            started = started or now
             status_page.serve(config.status_port)
-            tidy_state(state_path, clock.now(config.tz))
-            if not wait_and_play(config_path, config, mtime, state_path):
+            tidy_state(state_path, now)
+
+            handled = {key for key in handled if key[0] > now - timedelta(days=1)}
+            event = next_event(config, max(started, now - MAX_LATENESS), exclude=handled)
+            if event is None:
+                log.warning("No prayer times found for today or tomorrow, checking again in an hour")
+                clock.sleep(3600)
+            elif wait_and_play(config_path, config, mtime, state_path, event):
+                handled.add(event.key)
+            else:
                 log.info("Configuration changed, reloading")
     finally:
         status_page.serve(None)
 
 
-def wait_and_play(config_path, config, mtime, state_path):
-    """Wait for the next event and play it. Returns False if the configuration changed while waiting."""
-    event = next_event(config, clock.now(config.tz))
-
-    if event is None:
-        log.warning("No prayer times found for today or tomorrow, checking again in an hour")
-        clock.sleep(3600)
-        return True
-
+def wait_and_play(config_path, config, mtime, state_path, event):
+    """Wait for the event and play it. Returns False if the configuration changed while waiting."""
     log.info("Next: %s", event)
 
     while True:

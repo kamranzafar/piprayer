@@ -47,6 +47,12 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Optional status page, turned on with `status-port = 8080`. It shows the next Azaan and today's times, with
   buttons to skip, mute and resume, and serves the times as JSON at `/api/next` and `/api/times`, with
   `POST /api/skip`, `/api/mute` and `/api/resume`. It uses only the Python standard library.
+- 15 more calculation methods, matching AlAdhan's: `Gulf`, `Kuwait`, `Qatar`, `Dubai`, `Singapore`, `Malaysia`,
+  `Indonesia`, `Turkey`, `France`, `Russia`, `Morocco`, `Algeria`, `Tunisia`, `Jordan` and `Portugal`, with the
+  minutes some of them add to Dhuhr, Asr and Maghrib. The configuration wizard suggests them for their timezones.
+- `high-latitude` option to choose how Fajr and Isha are set when summer nights are too short for their angles:
+  `NightMiddle` (the default, as before), `AngleBased`, `OneSeventh` or `None`. The configuration wizard asks for
+  it from 45° north or south.
 - The README explains how to show the next Azaan in Home Assistant and skip or mute from it, with the status page
   or over SSH.
 
@@ -67,6 +73,14 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   command to run, and nothing changes in how PiPrayer behaves.
 - `.piprayer` is ignored by git instead of shipping with example settings for Melbourne. The first
   `./setup-piprayer.sh` creates it by asking for each setting.
+
+### Fixed
+- An Isha after midnight, e.g. in the UK in summer, was put on the morning of the same day, nearly a day early and
+  before Fajr. It now plays after midnight, and the times say so.
+- An Azaan due while another was playing was missed, e.g. Fajr at the same minute as Isha on short summer nights.
+  It now plays straight afterwards, if that is within 5 minutes of its time.
+- Times on the day daylight saving starts or ends use the UTC offset in force at each time, and places whose
+  clocks are a day off from the sun, such as the Chatham Islands, get the right day's times.
 
 ## [0.8] - 2026-11-12
 

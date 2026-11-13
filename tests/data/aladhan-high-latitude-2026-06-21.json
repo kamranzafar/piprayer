@@ -1,0 +1,109 @@
+{
+ "source": "https://api.aladhan.com/v1/timings (method=3 MWL, school=0, latitudeAdjustmentMethod 1, 2 and 3)",
+ "retrieved": "2026-11-13",
+ "date": "2026-06-21",
+ "cases": [
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "MWL",
+   "asr": "Standard",
+   "high_latitude": "NightMiddle",
+   "times": {
+    "fajr": "01:02",
+    "sunrise": "04:43",
+    "dhuhr": "13:02",
+    "asr": "17:25",
+    "maghrib": "21:22",
+    "isha": "01:02"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "MWL",
+   "asr": "Standard",
+   "high_latitude": "OneSeventh",
+   "times": {
+    "fajr": "03:40",
+    "sunrise": "04:43",
+    "dhuhr": "13:02",
+    "asr": "17:25",
+    "maghrib": "21:22",
+    "isha": "22:25"
+   }
+  },
+  {
+   "location": "london",
+   "lat": 51.5074,
+   "lng": -0.1278,
+   "timezone": "Europe/London",
+   "method": "MWL",
+   "asr": "Standard",
+   "high_latitude": "AngleBased",
+   "times": {
+    "fajr": "02:31",
+    "sunrise": "04:43",
+    "dhuhr": "13:02",
+    "asr": "17:25",
+    "maghrib": "21:22",
+    "isha": "23:27"
+   }
+  },
+  {
+   "location": "oslo",
+   "lat": 59.9139,
+   "lng": 10.7522,
+   "timezone": "Europe/Oslo",
+   "method": "MWL",
+   "asr": "Standard",
+   "high_latitude": "NightMiddle",
+   "times": {
+    "fajr": "01:19",
+    "sunrise": "03:54",
+    "dhuhr": "13:19",
+    "asr": "18:00",
+    "maghrib": "22:44",
+    "isha": "01:19"
+   }
+  },
+  {
+   "location": "oslo",
+   "lat": 59.9139,
+   "lng": 10.7522,
+   "timezone": "Europe/Oslo",
+   "method": "MWL",
+   "asr": "Standard",
+   "high_latitude": "OneSeventh",
+   "times": {
+    "fajr": "03:10",
+    "sunrise": "03:54",
+    "dhuhr": "13:19",
+    "asr": "18:00",
+    "maghrib": "22:44",
+    "isha": "23:28"
+   }
+  },
+  {
+   "location": "oslo",
+   "lat": 59.9139,
+   "lng": 10.7522,
+   "timezone": "Europe/Oslo",
+   "method": "MWL",
+   "asr": "Standard",
+   "high_latitude": "AngleBased",
+   "times": {
+    "fajr": "02:21",
+    "sunrise": "03:54",
+    "dhuhr": "13:19",
+    "asr": "18:00",
+    "maghrib": "22:44",
+    "isha": "00:12"
+   }
+  }
+ ]
+}

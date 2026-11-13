@@ -13,7 +13,7 @@
 PiPrayer turns a Raspberry Pi and a Bluetooth speaker into an Azaan (Adhan) player. Tell it where you
 are, and it calculates each day's prayer times and plays the Azaan when they arrive.
 
-- 🕌 **Accurate prayer times** from your coordinates, with 7 calculation methods and Standard or Hanafi Asr
+- 🕌 **Accurate prayer times** from your coordinates, with 22 calculation methods and Standard or Hanafi Asr
 - ⏱️ **Per-prayer offsets** in minutes, to match your local mosque's timetable
 - 🔔 **Optional reminder chime** a few minutes before each Azaan
 - 🌍 **Daylight saving handled automatically** from your timezone
@@ -145,6 +145,7 @@ the file directly. The running service picks up changes within a minute, no rest
 | `reminder` | Play a short chime this many minutes before each Azaan, up to 60. `0` turns it off | `0` | `10` |
 | `speaker` | Bluetooth address of the speaker to play on. Other paired devices are not used | any paired speaker | `AA:BB:CC:DD:EE:FF` |
 | `status-port` | Serve the [status page](#status-page) on this port | off | `8080` |
+| `high-latitude` | How to set Fajr and Isha when summer nights are too short for their angles, see [below](#short-summer-nights) | `NightMiddle` | `AngleBased` |
 
 For example, to play azaan 5, a quieter azaan 14 for Fajr, and a chime 10 minutes before each prayer:
 
@@ -168,6 +169,42 @@ The volume is that of the Raspberry Pi's audio output, so the speaker's own volu
 | `Karachi` | University of Islamic Sciences, Karachi | 18° | 18° |
 | `Tehran` | Institute of Geophysics, University of Tehran | 17.7° | 14° |
 | `Jafari` | Shia Ithna-Ashari, Leva Institute, Qum | 16° | 14° |
+| `Gulf` | Gulf Region | 19.5° | 90 min after Maghrib |
+| `Kuwait` | Kuwait | 18° | 17.5° |
+| `Qatar` | Qatar | 18° | 90 min after Maghrib |
+| `Dubai` | Dubai | 18.2° | 18.2° |
+| `Singapore` | Majlis Ugama Islam Singapura | 20° | 18° |
+| `Malaysia` | Jabatan Kemajuan Islam Malaysia (JAKIM) | 20° | 18° |
+| `Indonesia` | Kementerian Agama Republik Indonesia (Kemenag) | 20° | 18° |
+| `Turkey` | Diyanet İşleri Başkanlığı | 18° | 17° |
+| `France` | Union des Organisations Islamiques de France | 12° | 12° |
+| `Russia` | Spiritual Administration of Muslims of Russia | 16° | 15° |
+| `Morocco` | Morocco | 19° | 17° |
+| `Algeria` | Algeria | 18° | 17° |
+| `Tunisia` | Tunisia | 18° | 18° |
+| `Jordan` | Ministry of Awqaf, Jordan | 18° | 18° |
+| `Portugal` | Comunidade Islâmica de Lisboa | 18° | 77 min after Maghrib |
+
+The methods match those of [AlAdhan](https://aladhan.com/calculation-methods), including the minutes some of them
+add as a precaution: Turkey adds 5 to Dhuhr, 4 to Asr and 7 to Maghrib, Dubai 3 to Dhuhr and Maghrib, Morocco 5 to
+Dhuhr and Maghrib, Portugal 5 to Dhuhr and 3 to Maghrib, and Jordan 5 to Maghrib. Offsets in `prayers` add to these.
+The configuration wizard suggests the usual method for your timezone.
+
+### Short summer nights
+
+From about 46° north or south, summer nights can be too short for the sun to reach the Fajr and Isha angles,
+e.g. 18° for MWL. `high-latitude` sets them another way on those nights:
+
+| `high-latitude` | Fajr and Isha |
+|---|---|
+| `NightMiddle` | At the middle of the night, between sunset and sunrise. Both can be at the same minute |
+| `AngleBased` | A part of the night set by the angle, e.g. 18/60 of the night before sunrise for 18° |
+| `OneSeventh` | One seventh of the night before sunrise and after sunset |
+| `None` | Not played on nights the sun doesn't reach the angle |
+
+In London on 21 June, MWL gives Isha and Fajr at 01:02 with `NightMiddle`, Isha at 23:27 and Fajr at 02:31 with
+`AngleBased`, and Isha at 22:25 and Fajr at 03:40 with `OneSeventh`. Check which your mosque uses. The configuration
+wizard asks from 45° north or south. An Isha after midnight plays then, and the times show it as after midnight.
 
 <details>
 <summary>Legacy options: <code>gmt-offset</code> and <code>dst</code></summary>
