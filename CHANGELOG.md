@@ -8,12 +8,18 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Upgrading from 0.8
-- `.piprayer` is no longer part of the repository, so `git pull` doesn't touch your settings. To upgrade, move it
-  aside while pulling, otherwise git refuses to pull, or deletes the file if you never changed it:
+- The repository history was rewritten to remove old audio files, so `git pull` can't update an existing clone.
+  Clone again and copy your settings across, from the folder that contains `piprayer`:
 
   ```shell
-  mv .piprayer .piprayer.bak && git pull && mv .piprayer.bak .piprayer && ./setup-piprayer.sh
+  mv piprayer piprayer.old
+  git clone https://github.com/kamranzafar/piprayer.git
+  cp piprayer.old/.piprayer piprayer/
+  cd piprayer && ./setup-piprayer.sh
   ```
+
+  Then remove `piprayer.old` once the Azaan plays as before.
+- `.piprayer` is no longer part of the repository, so future updates with `git pull` don't touch your settings.
 - The Azaan recordings are renumbered so that the Fajr azaans come last, as 14 to 17. If `.piprayer` sets `azaan`
   or `fajr-azaan`, or you installed with `./setup-piprayer.sh <number>`, change the number to keep the same
   recording:
@@ -44,6 +50,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   keep working. Recordings 1, 2, 9, 12 and 13 only had low quality sources and still need better ones.
   Playing Opus needs libsndfile 1.0.29 or later: Raspberry Pi OS Bullseye or later.
 - `play-azaan.sh` takes an optional speaker address after the volume.
+- The repository history no longer contains the old WAV and MP3 recordings, so a clone downloads about 30 MB
+  instead of about 430 MB. Every commit and tag has a new hash. The original MP3s are kept as
+  [`original-mp3s.zip`](https://github.com/kamranzafar/piprayer/releases/download/v0.1/original-mp3s.zip) on the
+  v0.1 release.
 - `.piprayer` is ignored by git instead of shipping with example settings for Melbourne. The first
   `./setup-piprayer.sh` creates it by asking for each setting.
 

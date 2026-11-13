@@ -264,12 +264,18 @@ Make sure the speaker is switched on, paired and trusted (`bluetoothctl info XX:
 <details>
 <summary><b>Upgrading from version 0.8 or earlier</b></summary>
 
-`.piprayer` used to be part of the repository, so move it aside while pulling. Otherwise git refuses to pull, or
-deletes the file if you never changed it:
+The repository history was rewritten to remove old audio files, which brought a clone down from about 430 MB to
+about 30 MB. `git pull` can't update a clone made before that, so clone again and copy your settings across.
+Run this in the folder that contains `piprayer`:
 
 ```shell
-mv .piprayer .piprayer.bak && git pull && mv .piprayer.bak .piprayer && ./setup-piprayer.sh
+mv piprayer piprayer.old
+git clone https://github.com/kamranzafar/piprayer.git
+cp piprayer.old/.piprayer piprayer/
+cd piprayer && ./setup-piprayer.sh
 ```
+
+Once the Azaan plays as before, remove the old copy with `rm -rf ../piprayer.old`.
 
 The recordings are renumbered so that the Fajr azaans come last. If `.piprayer` sets `azaan` or `fajr-azaan`,
 change the numbers to keep the same recordings, or run `python3 piprayer.py config`:
