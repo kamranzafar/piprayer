@@ -68,6 +68,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Unknown options in `.piprayer`, e.g. `status_port` for `status-port`, are logged by the service and shown by
   `piprayer.py times` and the setup, with the option they were probably meant to be.
 - `./setup-piprayer.sh` shows the status page's address when it is turned on.
+- The status page is designed for phones and can be added to the home screen as an app, with its own icon. The
+  countdown to the next Azaan ticks, and the page reloads when it is opened again, so it stays up to date.
 - The README explains how to show the next Azaan in Home Assistant and skip or mute from it, with the status page
   or over SSH.
 

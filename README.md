@@ -275,7 +275,13 @@ status-port = 8080
 ```
 
 Within a minute, the page is at `http://raspberrypi.local:8080` (use your Raspberry Pi's hostname or address). It
-shows the next Azaan and today's times, with buttons to skip the next Azaan, mute today, or resume.
+shows the next Azaan with a countdown and today's times, with buttons to skip the next Azaan, mute today, or resume.
+
+**On your phone**, add it to the home screen to use it like an app, full screen with its own icon:
+- iPhone: open the page in Safari, tap **Share**, then **Add to Home Screen**
+- Android: open the page in Chrome, tap **⋮**, then **Add to Home screen** or **Install app**
+
+It stays up to date by itself, and reloads when you open it again.
 
 The page has no password: anyone on your network can see the times, and skip or mute the Azaan. Don't make the
 port reachable from the internet.

@@ -11,14 +11,38 @@ from urllib.parse import parse_qs, urlsplit
 
 from . import clock
 from .config import Config, ConfigError
-from .output import describe_azaan, describe_day, describe_mute, format_duration, next_json, times_json
+from .output import describe_day, describe_mute, format_duration, next_json, times_json
 from .schedule import next_azaan, schedule, timezone_name
 from .state import State, mute_days, next_playing, resume, skip_next, state_file
 
 log = logging.getLogger("piprayer")
 
-with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "status.css")) as _css:
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+with open(os.path.join(STATIC_DIR, "status.css")) as _css:
     STATUS_STYLE = _css.read()
+
+# Files served as they are, for adding the page to a phone's home screen
+STATIC_FILES = {
+    "/icon-180.png": ("icon-180.png", "image/png"),  # iOS home screen
+    "/icon-192.png": ("icon-192.png", "image/png"),
+    "/icon-512.png": ("icon-512.png", "image/png"),
+    "/favicon.ico": ("icon-192.png", "image/png"),
+}
+
+# Android and desktop browsers read this when the page is added to the home screen or installed
+MANIFEST = {
+    "name": "PiPrayer",
+    "short_name": "PiPrayer",
+    "description": "The next azaan, today's times, and buttons to skip or mute",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#f6f5f1",
+    "theme_color": "#1f7a4d",
+    "icons": [{"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
+              {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"}],
+}
 
 
 class StatusPage:
@@ -59,8 +83,9 @@ class StatusPage:
 class Response:
     status: int
     content_type: str = "text/plain"
-    body: str = ""
+    body: object = ""  # text, or bytes for an image
     location: str = None
+    cache_seconds: int = 0  # the page and the API are never cached, so they're always up to date
 
     @classmethod
     def json(cls, data):
@@ -69,6 +94,12 @@ class Response:
     @classmethod
     def html(cls, page):
         return cls(200, "text/html; charset=utf-8", page)
+
+    @classmethod
+    def static(cls, path):
+        name, content_type = STATIC_FILES[path]
+        with open(os.path.join(STATIC_DIR, name), "rb") as f:
+            return cls(200, content_type, f.read(), cache_seconds=24 * 3600)
 
     @classmethod
     def back_to_page(cls):
@@ -87,6 +118,10 @@ class StatusRoutes:
         self.default_azaan = default_azaan
 
     def get(self, path):
+        if path in STATIC_FILES:
+            return Response.static(path)
+        if path == "/manifest.webmanifest":
+            return Response(200, "application/manifest+json", json.dumps(MANIFEST, indent=2), cache_seconds=3600)
         config, now = self.load()
         state = State.load(self.state_path)
         if path == "/":
@@ -157,13 +192,14 @@ def status_handler(config_path, default_azaan):
             self.send(response)
 
         def send(self, response):
-            data = response.body.encode("utf-8")
+            data = response.body if isinstance(response.body, bytes) else response.body.encode("utf-8")
             self.send_response(response.status)
             if response.location:
                 self.send_header("Location", response.location)
             self.send_header("Content-Type", response.content_type)
             self.send_header("Content-Length", str(len(data)))
-            self.send_header("Cache-Control", "no-store")
+            self.send_header("Cache-Control",
+                             "max-age={}".format(response.cache_seconds) if response.cache_seconds else "no-store")
             self.end_headers()
             self.wfile.write(data)
 
@@ -177,79 +213,124 @@ def status_html(config, now, state):
     muted = state.muted_at(now)
 
     if upcoming:
-        next_card = ('<div class="label">Next azaan</div><div class="next">{} {}</div>'
-                     '<div class="label">{}, in {}</div>').format(
-            escape(upcoming.prayer.capitalize()), upcoming.at.strftime("%H:%M"),
+        hero = ('<p class="label">Next azaan</p>'
+                '<div class="hero-row"><span class="hero-prayer">{}</span><span class="hero-time">{}</span></div>'
+                '<div class="countdown" data-at="{}">{}, in <span class="in">{}</span></div>').format(
+            escape(upcoming.prayer.capitalize()), upcoming.at.strftime("%H:%M"), upcoming.at.isoformat(),
             describe_day(upcoming.at.date(), now.date()).capitalize(), format_duration(upcoming.at - now))
     else:
-        next_card = '<div class="next">No azaan in the next two days</div>'
+        hero = '<p class="label">Next azaan</p><div class="hero-row">None in the next two days</div>'
 
     if muted:
-        next_card += '<div class="notice">{}.</div>'.format(escape(describe_mute(config, muted, now)))
+        hero += '<div class="notice">{}.</div>'.format(escape(describe_mute(config, muted, now)))
     elif upcoming and upcoming.silenced == "skipped":
-        next_card += '<div class="notice">This azaan will be skipped.</div>'
+        hero += '<div class="notice">This azaan will be skipped.</div>'
 
     buttons = []
     if playing:
-        buttons.append(("/skip", "primary", "Skip " + describe_azaan(playing, now)))
+        when = "{} {}".format(playing.at.strftime("%H:%M"), describe_day(playing.at.date(), now.date()))
+        buttons.append(('/skip', "primary", "wide", 'Skip {}<span class="sub">{}</span>'.format(
+            escape(playing.prayer.capitalize()), escape(when))))
     if not muted:
-        buttons.append(("/mute", "", "Mute today"))
+        buttons.append(("/mute", "", "secondary", "Mute today"))
     if muted or state.skip:
-        buttons.append(("/resume", "", "Resume"))
-    next_card += '<div class="actions">{}</div>'.format("".join(
-        '<form method="post" action="{}"><button class="{}">{}</button></form>'.format(action, cls, escape(text))
-        for action, cls, text in buttons))
+        buttons.append(("/resume", "", "secondary", "Resume"))
+    hero += '<div class="actions">{}</div>'.format("".join(
+        '<form method="post" action="{}" class="{}"><button class="{}">{}</button></form>'.format(
+            action, form_class, button_class, label)
+        for action, button_class, form_class, label in buttons))
 
-    return PAGE.format(style=STATUS_STYLE, next_card=next_card,
-                       table=times_table(schedule(config, now.date(), state), upcoming, now),
-                       date="{:%A} {} {:%B %Y}".format(now, now.day, now),
-                       details=escape("{} · {} method · {} Asr".format(
-                           timezone_name(config, now.date()), config.method, config.asr_time)),
+    return PAGE.format(style=STATUS_STYLE, hero=hero,
+                       times=times_list(schedule(config, now.date(), state), upcoming, now),
+                       date="{:%A} {} {:%B}".format(now, now.day, now),
+                       details=escape(timezone_name(config, now.date())) + "<br>" +
+                       escape("{} method · {} Asr".format(config.method, config.asr_time)),
                        updated=now.strftime("%H:%M"))
 
 
-def times_table(entries, upcoming, now):
+def times_list(entries, upcoming, now):
+    """Today's prayers, with the azaan and volume for each, and which is next or won't play."""
     if not entries:
-        return "No prayer times today"
+        return '<p class="countdown">No prayer times today</p>'
 
     rows = []
     for entry in entries:
+        pill = ""
         if entry.at <= now:
-            tag, cls = "", "past"
-        elif entry.silenced:
-            tag, cls = '<span class="tag">{}</span>'.format(entry.silenced), ""
+            cls = "is-past"
         elif upcoming and entry.at == upcoming.at:
-            tag, cls = '<span class="tag next">next</span>', "next"
+            cls = "is-next"
+            pill = '<span class="pill">{}</span>'.format(entry.silenced) if entry.silenced else \
+                '<span class="pill next">next</span>'
         else:
-            tag, cls = "", ""
-        when = entry.at.strftime("%H:%M")
+            cls = ""
+            if entry.silenced:
+                pill = '<span class="pill">{}</span>'.format(entry.silenced)
+        detail = '<span class="detail">Azaan {} · {}%</span>'.format(entry.azaan, entry.volume)
         if entry.at.date() != now.date():
-            when += ' <span class="label">after midnight</span>'
-        rows.append('<tr class="{}"><td>{}</td><td>{}</td><td>{}</td><td>{}%</td><td>{}</td></tr>'.format(
-            cls, escape(entry.prayer.capitalize()), when, entry.azaan, entry.volume, tag))
-    return ('<table><thead><tr><th>Prayer</th><th>Time</th><th>Azaan</th><th>Volume</th><th></th></tr></thead>'
-            '<tbody>{}</tbody></table>'.format("".join(rows)))
+            detail += '<span class="detail">After midnight</span>'
+        rows.append('<li class="{}"><span class="name">{}{}</span>'
+                    '<span class="right">{}<time datetime="{}">{}</time></span></li>'.format(
+                        cls, escape(entry.prayer.capitalize()), detail, pill,
+                        entry.at.isoformat(), entry.at.strftime("%H:%M")))
+    return '<ol class="times">{}</ol>'.format("".join(rows))
 
+
+# Keeps the page current: the countdown ticks, and the page reloads once the azaan is due, every ten minutes, and
+# when reopened from the home screen, as phones keep a page open in the background without reloading it.
+SCRIPT = """
+(function () {
+  var loaded = Date.now();
+  var countdown = document.querySelector("[data-at]");
+  function duration(ms) {
+    var minutes = Math.max(1, Math.ceil(ms / 60000)), hours = Math.floor(minutes / 60);
+    minutes = minutes % 60;
+    return hours && minutes ? hours + " h " + minutes + " min" : hours ? hours + " h" : minutes + " min";
+  }
+  function tick() {
+    if (!countdown) return;
+    var left = new Date(countdown.getAttribute("data-at")) - Date.now();
+    if (left <= 0) { location.reload(); return; }
+    countdown.querySelector(".in").textContent = duration(left);
+  }
+  setInterval(tick, 30000);
+  setTimeout(function () { location.reload(); }, 600000);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && Date.now() - loaded > 60000) location.reload();
+  });
+})();
+"""
 
 PAGE = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="60">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151614" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PiPrayer">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<noscript><meta http-equiv="refresh" content="60"></noscript>
 <title>PiPrayer</title>
 <style>{style}</style>
 </head>
 <body>
 <main>
-<h1>PiPrayer</h1>
-<section class="card">{next_card}</section>
+<header class="top"><span class="brand">PiPrayer</span><span class="date">{date}</span></header>
+<section class="card">{hero}</section>
 <section class="card">
-<div class="label" style="margin-bottom:12px">{date}</div>
-{table}
+<h2 class="label">Today</h2>
+{times}
 </section>
 <footer>{details} · updated {updated}</footer>
 </main>
+<script>{script}</script>
 </body>
 </html>
-"""
+""".replace("{script}", SCRIPT.replace("{", "{{").replace("}", "}}"))

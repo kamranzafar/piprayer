@@ -16,8 +16,8 @@ MELBOURNE = ZoneInfo("Australia/Melbourne")
 @pytest.fixture
 def code(tmp_path, monkeypatch):
     """A copy of PiPrayer's files for the service to watch, returning a function that changes one."""
-    (tmp_path / "pipray").mkdir()
-    for name in ("piprayer.py", "praytimes.py", "pipray/service.py", "pipray/status.css"):
+    (tmp_path / "pipray" / "static").mkdir(parents=True)
+    for name in ("piprayer.py", "praytimes.py", "pipray/service.py", "pipray/static/status.css"):
         (tmp_path / name).write_text("# version 1\n")
     monkeypatch.setattr(service, "SCRIPT_DIR", str(tmp_path))
 

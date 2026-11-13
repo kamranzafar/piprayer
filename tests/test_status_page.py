@@ -55,12 +55,14 @@ def test_page_shows_the_next_azaan_and_todays_times(page):
 
     assert status == 200
     assert headers["Content-Type"] == "text/html; charset=utf-8"
-    assert '<div class="next">Asr 18:03</div>' in body
-    assert "Today, in 4 h 3 min" in body
-    assert "Skip Asr at 18:03 today" in body
+    assert '<span class="hero-prayer">Asr</span><span class="hero-time">18:03</span>' in body
+    assert 'data-at="2026-11-12T18:03:00+11:00">Today, in <span class="in">4 h 3 min</span>' in body
+    assert 'Skip Asr<span class="sub">18:03 today</span>' in body
     assert "Mute today" in body
     assert "Resume" not in body
-    assert body.count("<tr class=") == 5
+    assert body.count("<li class=") == 5
+    assert body.count('<li class="is-past">') == 2  # Fajr and Dhuhr
+    assert '<li class="is-next">' in body
 
 
 def test_api_next_and_times(page):
@@ -95,7 +97,7 @@ def test_buttons_post_and_return_to_the_page(page):
 
     body = request(page, "/")[2]
     assert "This azaan will be skipped." in body
-    assert "Skip Maghrib at 20:02 today" in body
+    assert 'Skip Maghrib<span class="sub">20:02 today</span>' in body
     assert "Resume" in body
 
     request(page, "/mute", "POST", data=b"days=1")
@@ -167,3 +169,45 @@ def test_service_serves_the_page_while_it_runs(write_config, fake_clock):
     assert seen == ["asr"]
     with pytest.raises(OSError):  # stopped with the service
         urllib.request.urlopen("http://127.0.0.1:{}/".format(port), timeout=2)
+
+
+def test_page_works_as_a_home_screen_app(page):
+    body = request(page, "/")[2]
+    for tag in ['<meta name="apple-mobile-web-app-capable" content="yes">',
+                '<link rel="apple-touch-icon" href="/icon-180.png">',
+                '<link rel="manifest" href="/manifest.webmanifest">',
+                'content="width=device-width, initial-scale=1, viewport-fit=cover"']:
+        assert tag in body
+
+    status, headers, manifest = request(page, "/manifest.webmanifest")
+    assert headers["Content-Type"] == "application/manifest+json"
+    manifest = json.loads(manifest)
+    assert (manifest["display"], manifest["start_url"]) == ("standalone", "/")
+    assert [icon["src"] for icon in manifest["icons"]] == ["/icon-192.png", "/icon-512.png"]
+
+
+@pytest.mark.parametrize("path, size", [("/icon-180.png", 180), ("/icon-192.png", 192), ("/icon-512.png", 512),
+                                        ("/favicon.ico", 192)])
+def test_icons(page, path, size):
+    url = "http://127.0.0.1:{}{}".format(page.port, path)
+    with urllib.request.urlopen(url, timeout=5) as response:
+        data = response.read()
+        assert response.headers["Content-Type"] == "image/png"
+        assert response.headers["Cache-Control"] == "max-age=86400"
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    assert (int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")) == (size, size)
+
+
+def test_page_is_never_cached(page):
+    assert request(page, "/")[1]["Cache-Control"] == "no-store"
+
+
+def test_after_midnight_is_shown(tmp_path, at_time):
+    from pipray.web import status_html
+    path = tmp_path / "london.ini"
+    path.write_text("[Default]\nlat = 51.5074\nlng = -0.1278\ntimezone = Europe/London\nmethod = MWL\n"
+                    "asr-time = Standard\nprayers = Fajr, Dhuhr, Asr, Maghrib, Isha\n")
+    london = ZoneInfo("Europe/London")
+    body = status_html(Config(str(path)), datetime(2026, 6, 21, 22, 30, tzinfo=london), State())
+    assert 'Isha<span class="detail">Azaan 1 · 100%</span><span class="detail">After midnight</span>' in body
+    assert "Tomorrow, in" in body

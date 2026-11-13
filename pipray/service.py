@@ -34,7 +34,7 @@ def code_version():
     """The size and modification time of each of PiPrayer's Python files, which change when it is updated."""
     paths = [os.path.join(SCRIPT_DIR, "piprayer.py"), os.path.join(SCRIPT_DIR, "praytimes.py")] + \
         sorted(glob.glob(os.path.join(SCRIPT_DIR, "pipray", "*.py"))) + \
-        sorted(glob.glob(os.path.join(SCRIPT_DIR, "pipray", "*.css")))
+        sorted(glob.glob(os.path.join(SCRIPT_DIR, "pipray", "static", "*")))
     version = []
     for path in paths:
         try:
