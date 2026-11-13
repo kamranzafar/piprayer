@@ -13,7 +13,7 @@ from .output import (RESUME_HINT, describe_azaan, describe_mute, format_next, fo
                      next_json, times_json)
 from .player import REMINDER_SOUND, play
 from .schedule import next_azaan
-from .service import installed_azaan, run
+from .service import Updated, installed_azaan, run
 from .state import MAX_MUTE_DAYS, State, mute, resume, skip_next, state_file
 from .wizard import configure
 
@@ -24,6 +24,8 @@ PRAYERS = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
 
 def times_command(args):
     config = Config(args.config, args.azaan or installed_azaan())
+    for warning in config.warnings:
+        print(warning, file=sys.stderr)
     now = clock.now(config.tz)
     state = State.load(state_file(args.config))
 
@@ -51,8 +53,18 @@ def times_command(args):
 
 
 def run_command(args):
-    run(args.config, args.azaan)
+    try:
+        run(args.config, args.azaan)
+    except Updated:
+        # The status page and MQTT are stopped by now. Start again in this process, with the same arguments, so the
+        # new code runs straight away without waiting for systemd
+        logging.getLogger("piprayer").info("PiPrayer was updated, restarting")
+        restart()
     return 0
+
+
+def restart():
+    os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
 def play_command(args):

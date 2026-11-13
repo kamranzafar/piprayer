@@ -100,7 +100,19 @@ python3 piprayer.py config
 
 Or edit `.piprayer` directly. Either way, the running service picks up the new settings within a minute, with no
 restart or setup needed. The wizard says so when it saves, or tells you to run `./setup-piprayer.sh` if the service
-isn't installed yet. Run the setup again only to apply an update after `git pull`.
+isn't installed yet.
+
+**Updating**
+
+```shell
+git pull
+```
+
+The running service notices the new version within a minute and restarts itself. If the
+[changelog](CHANGELOG.md) says an update changes how the service is installed, also run `./setup-piprayer.sh`.
+Options in `.piprayer` that
+PiPrayer doesn't recognise, e.g. a typo like `status_port`, are logged and shown by `piprayer.py times`, with the
+option you probably meant.
 
 <details>
 <summary>Writing <code>.piprayer</code> by hand</summary>
@@ -240,7 +252,7 @@ dst = 1            # 1 during daylight saving, otherwise 0
 | `python3 piprayer.py resume` | Clear skip and mute, so every Azaan plays again |
 | `systemctl --user status piprayer` | Check the service is running, and when the next Azaan is |
 | `journalctl --user-unit piprayer -f` | Follow the logs |
-| `./setup-piprayer.sh [1-17]` | Set the default Azaan, or apply an update after `git pull`. The `azaan` setting takes precedence |
+| `./setup-piprayer.sh [1-17]` | Set the default Azaan, and show the status page's address. The `azaan` setting takes precedence |
 | `./setup-piprayer.sh --configure [1-17]` | Ask for each setting, save `.piprayer`, then install |
 | `./setup-piprayer.sh --uninstall` | Remove PiPrayer |
 

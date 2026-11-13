@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The service: wait for each azaan and reminder, and play it. setup-piprayer.sh installs it with systemd."""
+import glob
 import logging
 import os
 from datetime import timedelta
 
 from . import clock
-from .config import DEFAULT_AZAAN, Config
+from .config import DEFAULT_AZAAN, SCRIPT_DIR, Config
 from .player import play_event
 from .schedule import next_event
-from .state import State, state_file, tidy_state
 from .mqtt import MqttBridge
+from .state import State, state_file, tidy_state
 from .web import StatusPage
 
 log = logging.getLogger("piprayer")
@@ -21,10 +22,44 @@ MAX_LATENESS = timedelta(minutes=5)
 # Longest single sleep while waiting, so clock changes and config edits are noticed
 MAX_SLEEP_SECONDS = 60
 
+# After an update, wait until the code has stayed the same this long before restarting, so a git pull has finished
+UPDATE_SETTLE_SECONDS = 5
+
+
+class Updated(Exception):
+    """PiPrayer's code changed, e.g. after git pull, so the service should restart to run it."""
+
+
+def code_version():
+    """The size and modification time of each of PiPrayer's Python files, which change when it is updated."""
+    paths = [os.path.join(SCRIPT_DIR, "piprayer.py"), os.path.join(SCRIPT_DIR, "praytimes.py")] + \
+        sorted(glob.glob(os.path.join(SCRIPT_DIR, "pipray", "*.py"))) + \
+        sorted(glob.glob(os.path.join(SCRIPT_DIR, "pipray", "*.css")))
+    version = []
+    for path in paths:
+        try:
+            stat = os.stat(path)
+            version.append((path, stat.st_size, stat.st_mtime_ns))
+        except OSError:
+            version.append((path, None, None))
+    return tuple(version)
+
+
+def check_for_update(started_version):
+    """Raise Updated once the code differs from the version that is running and has stopped changing."""
+    if code_version() == started_version:
+        return
+    while True:
+        version = code_version()
+        clock.sleep(UPDATE_SETTLE_SECONDS)
+        if code_version() == version:
+            raise Updated
+
 
 def run(config_path, default_azaan):
-    """Wait for each event and play it. Runs until stopped."""
+    """Wait for each event and play it. Runs until stopped, or raises Updated when PiPrayer has been updated."""
     log.info("PiPrayer started with configuration %s", config_path)
+    version = code_version()
     state_path = state_file(config_path)
     status_page = StatusPage(config_path, default_azaan)
     mqtt = MqttBridge(config_path, default_azaan)
@@ -37,6 +72,8 @@ def run(config_path, default_azaan):
         while True:
             mtime = config_mtime(config_path)
             config = Config(config_path, default_azaan)
+            for warning in config.warnings:
+                log.warning("%s", warning)
             now = clock.now(config.tz)
             started = started or now
             status_page.serve(config.status_port)
@@ -48,7 +85,7 @@ def run(config_path, default_azaan):
             if event is None:
                 log.warning("No prayer times found for today or tomorrow, checking again in an hour")
                 clock.sleep(3600)
-            elif wait_and_play(config_path, config, mtime, state_path, event):
+            elif wait_and_play(config_path, config, mtime, state_path, event, version):
                 handled.add(event.key)
             else:
                 log.info("Configuration changed, reloading")
@@ -57,8 +94,11 @@ def run(config_path, default_azaan):
         mqtt.configure(None)
 
 
-def wait_and_play(config_path, config, mtime, state_path, event):
-    """Wait for the event and play it. Returns False if the configuration changed while waiting."""
+def wait_and_play(config_path, config, mtime, state_path, event, version=None):
+    """Wait for the event and play it. Returns False if the configuration changed while waiting.
+
+    Raises Updated if PiPrayer's code changed from the given version while waiting.
+    """
     log.info("Next: %s", event)
 
     while True:
@@ -67,6 +107,8 @@ def wait_and_play(config_path, config, mtime, state_path, event):
             break
         if config_mtime(config_path) != mtime:
             return False
+        if version:
+            check_for_update(version)
         clock.sleep(min(remaining, MAX_SLEEP_SECONDS))
 
     late = clock.now(config.tz) - event.at

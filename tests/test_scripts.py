@@ -192,6 +192,7 @@ def setup(tmp_path):
     make_command(bin_dir, "sudo", 'echo "sudo $*" >> {}\n'.format(log))
     make_command(bin_dir, "loginctl", '[ "$1" = show-user ] && echo no\n')
     make_command(bin_dir, "bluetoothctl", "")
+    make_command(bin_dir, "hostname", "echo pi-prayer\n")
     make_command(bin_dir, "crontab", """\
         if [ "$1" = -l ]; then
           [ -f {crontab} ] || {{ echo "no crontab for user" >&2; exit 1; }}
@@ -237,6 +238,26 @@ def test_setup_installs_and_starts_service(setup):
     ]
     assert "Fajr     04:" in result.stdout
     assert "Azaan" in result.stdout
+
+
+def test_setup_shows_the_status_page_address(setup):
+    with open(setup.project / ".piprayer", "a") as f:
+        f.write("status-port = 8080\n")
+    result = setup.run()
+    assert "Page:   http://pi-prayer.local:8080" in result.stdout
+
+
+def test_setup_without_status_page_shows_no_address(setup):
+    assert "Page:" not in setup.run().stdout
+
+
+def test_setup_warns_about_unknown_options(setup):
+    with open(setup.project / ".piprayer", "a") as f:
+        f.write("status_port = 8080\n")
+    result = setup.run()
+    assert result.returncode == 0
+    assert "Unknown option status_port in" in result.stderr
+    assert "Did you mean status-port?" in result.stderr
 
 
 def test_setup_removes_only_old_piprayer_cron_jobs(setup):

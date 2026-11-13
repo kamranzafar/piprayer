@@ -130,3 +130,10 @@ echo "$PRAYER_TIMES"
 echo
 echo "Status: systemctl --user status piprayer"
 echo "Logs:   journalctl --user-unit piprayer -f"
+
+# The status page, if .piprayer turns it on
+STATUS_PORT=$(sed -n 's/^[[:space:]]*status-port[[:space:]]*[=:][[:space:]]*\([0-9][0-9]*\)[[:space:]]*$/\1/p' \
+  "$CONF_FILE" | tail -n 1)
+if [ -n "$STATUS_PORT" ]; then
+  echo "Page:   http://$(hostname).local:$STATUS_PORT (ready a few seconds after the service starts)"
+fi

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Reading and checking the configuration file, .piprayer."""
 import configparser
+import difflib
 import os
 import re
 from datetime import timedelta, timezone
@@ -27,6 +28,9 @@ MQTT_PORT = "mqtt-port"
 MQTT_USERNAME = "mqtt-username"
 MQTT_PASSWORD = "mqtt-password"
 MQTT_TOPIC = "mqtt-topic"
+
+OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, REMINDER,
+           SPEAKER, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD, MQTT_TOPIC)
 
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_MQTT_TOPIC = "piprayer"
@@ -91,6 +95,8 @@ class Config:
         self.status_port = parse_number(section, STATUS_PORT, None, 1, 65535)
         self.high_latitude = parse_high_latitude(section.get(HIGH_LATITUDE, DEFAULT_HIGH_LATITUDE))
         self.mqtt = parse_mqtt(section)
+        # Not errors, as PiPrayer still works, but e.g. status_port for status-port would silently do nothing
+        self.warnings = [unknown_option(option, path) for option in section if option not in OPTIONS]
         self.default_azaan = default_azaan
 
     def azaan_for(self, prayer):
@@ -185,6 +191,12 @@ def parse_speaker(value):
     if not MAC_ADDRESS.match(value):
         raise ConfigError("Invalid speaker: {}, use the Bluetooth address, e.g. AA:BB:CC:DD:EE:FF".format(value))
     return value
+
+
+def unknown_option(option, path):
+    message = "Unknown option {} in {}, it is ignored".format(option, path)
+    close = difflib.get_close_matches(option.replace("_", "-"), OPTIONS, n=1)
+    return message + (". Did you mean {}?".format(close[0]) if close else "")
 
 
 class MqttSettings:

@@ -8,6 +8,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Upgrading from 0.8
+- Run `./setup-piprayer.sh` once after this update. From then on, the service restarts itself after `git pull`.
 - The repository history was rewritten to remove old audio files, so `git pull` can't update an existing clone.
   Clone again and copy your settings across, from the folder that contains `piprayer`:
 
@@ -60,6 +61,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   It needs `paho-mqtt` (`sudo apt install python3-paho-mqtt`), version 1 or 2, only when MQTT is on. The
   configuration wizard asks for the broker and login, and keeps `.piprayer` readable only by its owner when it
   holds the password.
+- The service restarts itself within a minute of `git pull` updating PiPrayer, so updates apply without running
+  `./setup-piprayer.sh`.
+- Unknown options in `.piprayer`, e.g. `status_port` for `status-port`, are logged by the service and shown by
+  `piprayer.py times` and the setup, with the option they were probably meant to be.
+- `./setup-piprayer.sh` shows the status page's address when it is turned on.
 - The README explains how to show the next Azaan in Home Assistant and skip or mute from it, with the status page
   or over SSH.
 
