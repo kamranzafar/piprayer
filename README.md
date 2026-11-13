@@ -19,10 +19,12 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 - 🌍 **Daylight saving handled automatically** from your timezone
 - 🔊 **17 Azaan recordings** to choose from, including 4 Fajr azaans to play at Fajr, and per-prayer volume
 - 🔁 **Runs as a background service** that starts at boot and picks up configuration changes on its own
-- 📶 **Connects to your Bluetooth speaker** just before the Azaan and disconnects afterwards
+- 📶 **Connects to your Bluetooth speaker**, e.g. an Amazon Echo or Google Home, just before the Azaan and
+  disconnects afterwards
 - ⏸️ **Skip the next Azaan or mute for a few days**, from the command line, an optional status page or Home Assistant
 
-Tested on a **Raspberry Pi 3** with an **Amazon Echo Pop** speaker.
+Tested on a **Raspberry Pi 3** with an **Amazon Echo Pop** speaker. Google Home and Nest speakers work as
+Bluetooth speakers too.
 
 ## Quick start
 
@@ -50,6 +52,12 @@ Buster and earlier can't play the Opus recordings, which need libsndfile 1.0.29 
 </details>
 
 **2. Pair your Bluetooth speaker**
+
+Put the speaker in pairing mode first. For a smart speaker, use its app:
+- **Amazon Echo:** say "Alexa, pair Bluetooth", or in the Alexa app open the Echo's settings, then
+  **Bluetooth Devices → Pair a new device**
+- **Google Home or Nest:** in the Google Home app, open the speaker's settings, then **Audio → Paired Bluetooth
+  devices → Enable pairing mode**
 
 The setup in the next step can find and pair the speaker for you. To pair it yourself:
 
