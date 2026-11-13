@@ -17,7 +17,7 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 - ⏱️ **Per-prayer offsets** in minutes, to match your local mosque's timetable
 - 🔔 **Optional reminder chime** a few minutes before each Azaan
 - 🌍 **Daylight saving handled automatically** from your timezone
-- 🔊 **15 Azaan recordings** to choose from, with a separate one for Fajr if you like, and per-prayer volume
+- 🔊 **17 Azaan recordings** to choose from, including 4 Fajr azaans to play at Fajr, and per-prayer volume
 - 🔁 **Runs as a background service** that starts at boot and picks up configuration changes on its own
 - 📶 **Connects to your Bluetooth speaker** just before the Azaan and disconnects afterwards
 
@@ -64,7 +64,7 @@ To always use one speaker, choose it during the setup or set the `speaker` optio
 **3. Install PiPrayer**
 
 ```shell
-./setup-piprayer.sh        # or ./setup-piprayer.sh 5 to play azaan 5 (choose 1-15)
+./setup-piprayer.sh        # or ./setup-piprayer.sh 5 to play azaan 5 (choose 1-17)
 ```
 
 The first time, the setup asks for your settings and saves them to `.piprayer`. It lists the paired speakers to
@@ -138,17 +138,17 @@ the file directly. The running service picks up changes within a minute, no rest
 
 | Option | Description | Default | Example |
 |---|---|---|---|
-| `azaan` | Azaan recording to play, from 1 to 15 | 1, or the number given to `setup-piprayer.sh` | `5` |
-| `fajr-azaan` | A different recording for Fajr | same as `azaan` | `3` |
+| `azaan` | Azaan recording to play, from 1 to 17 | 1, or the number given to `setup-piprayer.sh` | `5` |
+| `fajr-azaan` | A different recording for Fajr, e.g. one of the [Fajr azaans](#azaan-recordings) | same as `azaan` | `14` |
 | `volume` | Volume in percent. Add `Prayer:percent` to set a prayer's volume | `100` | `80, Fajr:40` |
 | `reminder` | Play a short chime this many minutes before each Azaan, up to 60. `0` turns it off | `0` | `10` |
 | `speaker` | Bluetooth address of the speaker to play on. Other paired devices are not used | any paired speaker | `AA:BB:CC:DD:EE:FF` |
 
-For example, to play azaan 5, a quieter azaan 3 for Fajr, and a chime 10 minutes before each prayer:
+For example, to play azaan 5, a quieter azaan 14 for Fajr, and a chime 10 minutes before each prayer:
 
 ```ini
 azaan = 5
-fajr-azaan = 3
+fajr-azaan = 14
 volume = 80, Fajr:40
 reminder = 10
 ```
@@ -193,12 +193,18 @@ dst = 1            # 1 during daylight saving, otherwise 0
 | `python3 piprayer.py play -r` | Play the reminder chime |
 | `systemctl --user status piprayer` | Check the service is running, and when the next Azaan is |
 | `journalctl --user-unit piprayer -f` | Follow the logs |
-| `./setup-piprayer.sh [1-15]` | Set the default Azaan, or apply an update after `git pull`. The `azaan` setting takes precedence |
-| `./setup-piprayer.sh --configure [1-15]` | Ask for each setting, save `.piprayer`, then install |
+| `./setup-piprayer.sh [1-17]` | Set the default Azaan, or apply an update after `git pull`. The `azaan` setting takes precedence |
+| `./setup-piprayer.sh --configure [1-17]` | Ask for each setting, save `.piprayer`, then install |
 | `./setup-piprayer.sh --uninstall` | Remove PiPrayer |
+
+### Azaan recordings
 
 The Azaan recordings and the reminder chime are in the [`media`](media) folder. The recordings are Opus files,
 normalised to the same loudness (-16 LUFS), so they play at a similar level at the same volume.
+
+Azaans **14 to 17 are Fajr azaans**: they include *as-salatu khayrun min an-nawm* ("prayer is better than
+sleep"), so use them as the `fajr-azaan` only. Azaans 16 and 17 are recorded at the Malmö Mosque and in the medina
+of Marrakesh, and are used under Creative Commons licences, see [media/CREDITS.md](media/CREDITS.md).
 
 ## How it works
 
@@ -264,6 +270,16 @@ deletes the file if you never changed it:
 ```shell
 mv .piprayer .piprayer.bak && git pull && mv .piprayer.bak .piprayer && ./setup-piprayer.sh
 ```
+
+The recordings are renumbered so that the Fajr azaans come last. If `.piprayer` sets `azaan` or `fajr-azaan`,
+change the numbers to keep the same recordings, or run `python3 piprayer.py config`:
+
+| Before | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Now | 1 | 2 | **14** | 3 | 4 | 5 | 6 | 7 | 8 | **15** | 9 | 10 | 11 | 12 | 13 |
+
+Also run `./setup-piprayer.sh` with the new number if you installed with one, e.g. `./setup-piprayer.sh 4`
+instead of `./setup-piprayer.sh 5`.
 
 When upgrading from a cron based version (before 0.7), the setup also removes the old cron jobs and installs the
 service.

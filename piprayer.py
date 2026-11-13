@@ -923,7 +923,8 @@ def configure(path, wizard=None, next_step=True):
     speaker = choose_speaker(wizard, current.get(SPEAKER, ""))
 
     wizard.say("")
-    wizard.say("Azaan recordings are numbered 1 to 15. Try one with: python3 piprayer.py play -a 5")
+    wizard.say("Azaan recordings are numbered 1 to 17. Try one with: python3 piprayer.py play -a 5")
+    wizard.say("14 to 17 are Fajr azaans, with as-salatu khayrun min an-nawm. Use them for Fajr only.")
     azaan = wizard.ask("Azaan", current.get(AZAAN, str(installed_azaan())), number_option("azaan", 1, 99))
     fajr_azaan = wizard.ask("Fajr azaan (none for the same as the others)", current.get(FAJR_AZAAN, ""),
                             number_option("fajr-azaan", 1, 99, blank_ok=True))
@@ -982,7 +983,7 @@ def parse_date(value):
 def azaan_number(value):
     azaan = int(value)
     if not os.path.isfile(azaan_file(azaan)):
-        raise argparse.ArgumentTypeError("no azaan {}, choose from 1 to 15".format(value))
+        raise argparse.ArgumentTypeError("no azaan {}, choose from 1 to 17".format(value))
     return azaan
 
 
@@ -997,16 +998,16 @@ def main():
     times_command.add_argument("-d", "--date", type=parse_date, help="show another day, as YYYY-MM-DD")
     times_command.add_argument("-f", "--format", choices=["table", "json", "plain"], default="table",
                                help="output format: table (default), json, or plain prayer-HH:MM lines")
-    times_command.add_argument("-a", "--azaan", type=azaan_number, metavar="1-15",
+    times_command.add_argument("-a", "--azaan", type=azaan_number, metavar="1-17",
                                help="azaan to show when the configuration doesn't set one "
                                     "(default: the one the service was set up with)")
 
     run_command = commands.add_parser("run", help="run as a service, playing the azaan at each prayer time")
-    run_command.add_argument("-a", "--azaan", type=azaan_number, default=DEFAULT_AZAAN, metavar="1-15",
+    run_command.add_argument("-a", "--azaan", type=azaan_number, default=DEFAULT_AZAAN, metavar="1-17",
                              help="azaan to play when the configuration doesn't set one (default: %(default)s)")
 
     play_command = commands.add_parser("play", help="play the azaan now, to test the speaker")
-    play_command.add_argument("-a", "--azaan", type=azaan_number, metavar="1-15",
+    play_command.add_argument("-a", "--azaan", type=azaan_number, metavar="1-17",
                               help="azaan to play (default: the one in the configuration)")
     play_command.add_argument("-p", "--prayer", choices=["fajr", "dhuhr", "asr", "maghrib", "isha"],
                               type=str.lower, help="play the azaan and volume set for this prayer")

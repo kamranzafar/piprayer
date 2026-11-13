@@ -17,9 +17,9 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #    Usage:
-#      ./setup-piprayer.sh [1-15]      install (or update) PiPrayer, optionally choosing the azaan
+#      ./setup-piprayer.sh [1-17]      install (or update) PiPrayer, optionally choosing the azaan
 #                                      (the azaan option in .piprayer takes precedence)
-#      ./setup-piprayer.sh --configure [1-15]
+#      ./setup-piprayer.sh --configure [1-17]
 #                                      ask for each setting, save .piprayer, then install
 #      ./setup-piprayer.sh --uninstall remove PiPrayer
 
@@ -65,7 +65,7 @@ if [ $# -ne 0 ]; then
 fi
 
 if [ ! -f "$CURR_PATH/media/azaan-$AZAAN.opus" ]; then
-  echo "Azaan $AZAAN not found, choose a number between 1 and 15"
+  echo "Azaan $AZAAN not found, choose a number between 1 and 17"
   exit 1
 fi
 

@@ -14,6 +14,13 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   ```shell
   mv .piprayer .piprayer.bak && git pull && mv .piprayer.bak .piprayer && ./setup-piprayer.sh
   ```
+- The Azaan recordings are renumbered so that the Fajr azaans come last, as 14 to 17. If `.piprayer` sets `azaan`
+  or `fajr-azaan`, or you installed with `./setup-piprayer.sh <number>`, change the number to keep the same
+  recording:
+
+  | Before | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | Now | 1 | 2 | **14** | 3 | 4 | 5 | 6 | 7 | 8 | **15** | 9 | 10 | 11 | 12 | 13 |
 
 ### Added
 - `LICENSE` with the full GNU GPL v3 text, and `COPYING.LESSER` with the GNU LGPL v3 text for `praytimes.py`.
@@ -25,8 +32,12 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   there is no `.piprayer`.
 - `speaker` option to play on one Bluetooth speaker, by its address, instead of any paired speaker. The
   configuration wizard lists the paired speakers to choose from, and can find and pair a new speaker.
+- Azaans 16 and 17, Fajr azaans recorded at the Malmö Mosque and in the medina of Marrakesh, under CC BY 3.0.
+  `media/CREDITS.md` credits the recordings.
 
 ### Changed
+- The Azaan recordings are renumbered so that the Fajr azaans are 14 to 17: the old 3 and 10 are now 14 and 15.
+  The README and the configuration wizard say which azaans are Fajr azaans.
 - The Azaan recordings are restored from the original MP3s instead of 8 kHz WAV files, so they sound fuller and
   take 27 MB instead of 79 MB. They are Opus files (`media/azaan-N.opus`), normalised to the same loudness
   (-16 LUFS) so they play at a similar level. Their numbers are unchanged, so `azaan` and `fajr-azaan` settings

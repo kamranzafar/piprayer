@@ -175,7 +175,7 @@ def setup(tmp_path):
     for name in ("piprayer.py", "praytimes.py", "play-azaan.sh", "setup-piprayer.sh"):
         shutil.copy2(os.path.join(ROOT, name), project / name)
     (project / "media").mkdir()
-    for n in range(1, 16):
+    for n in range(1, 18):
         (project / "media" / "azaan-{}.opus".format(n)).touch()
     (project / ".piprayer").write_text(MELBOURNE_CONFIG)
 
@@ -267,11 +267,11 @@ def test_setup_works_without_a_crontab(setup):
     assert setup.crontab() is None
 
 
-@pytest.mark.parametrize("azaan", ["0", "16", "abc"])
+@pytest.mark.parametrize("azaan", ["0", "18", "abc"])
 def test_setup_rejects_unknown_azaan(setup, azaan):
     result = setup.run(azaan)
     assert result.returncode == 1
-    assert "choose a number between 1 and 15" in result.stdout
+    assert "choose a number between 1 and 17" in result.stdout
     assert not setup.service_file.exists()
 
 

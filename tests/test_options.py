@@ -44,7 +44,7 @@ def test_volume_for_one_prayer_only_keeps_default(write_config):
 
 
 @pytest.mark.parametrize("line, message", [
-    ("azaan = 16", "Invalid azaan: 16, there is no media/azaan-16.opus"),
+    ("azaan = 18", "Invalid azaan: 18, there is no media/azaan-18.opus"),
     ("azaan = 0", "Invalid azaan: 0, use a number from 1 to 99"),
     ("azaan = five", "Invalid azaan: five, use a whole number"),
     ("fajr-azaan = 20", "Invalid fajr-azaan: 20, there is no media/azaan-20.opus"),
@@ -204,8 +204,8 @@ def test_play_command_works_without_config(tmp_path, monkeypatch, played_command
 
 def test_play_command_rejects_unknown_azaan(monkeypatch, capsys):
     with pytest.raises(SystemExit):
-        run_main(monkeypatch, "play", "-a", "16")
-    assert "no azaan 16" in capsys.readouterr().err
+        run_main(monkeypatch, "play", "-a", "18")
+    assert "no azaan 18" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------- speaker
