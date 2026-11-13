@@ -166,8 +166,9 @@ cython_debug/
 *.bak
 .piprayercron
 
-# PiPrayer configuration, created by setup-piprayer.sh
+# PiPrayer configuration, created by setup-piprayer.sh, and skip and mute state
 .piprayer
+.piprayer-state*
 
 # graphify knowledge graph
 graphify-out/

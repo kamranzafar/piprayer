@@ -40,6 +40,15 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   configuration wizard lists the paired speakers to choose from, and can find and pair a new speaker.
 - Azaans 16 and 17, Fajr azaans recorded at the Malmö Mosque and in the medina of Marrakesh, under CC BY 3.0.
   `media/CREDITS.md` credits the recordings.
+- `piprayer.py skip` skips the next Azaan and its reminder, `piprayer.py mute` mutes until the end of today, or for
+  up to 30 days with `--days` or `--until`, and `piprayer.py resume` clears both. They are saved in
+  `.piprayer-state`, so they survive a restart, and `times` shows which Azaans won't play. The JSON output has
+  `skipped`, `muted` and `muted_until` fields.
+- Optional status page, turned on with `status-port = 8080`. It shows the next Azaan and today's times, with
+  buttons to skip, mute and resume, and serves the times as JSON at `/api/next` and `/api/times`, with
+  `POST /api/skip`, `/api/mute` and `/api/resume`. It uses only the Python standard library.
+- The README explains how to show the next Azaan in Home Assistant and skip or mute from it, with the status page
+  or over SSH.
 
 ### Changed
 - The Azaan recordings are renumbered so that the Fajr azaans are 14 to 17: the old 3 and 10 are now 14 and 15.

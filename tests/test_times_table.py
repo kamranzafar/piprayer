@@ -99,21 +99,6 @@ def run_times(monkeypatch, capsys, *args):
     return code, capsys.readouterr()
 
 
-@pytest.fixture
-def at_time(monkeypatch):
-    """Fix the current time seen by piprayer."""
-
-    def set_now(now):
-        class FixedDatetime(datetime):
-            @classmethod
-            def now(cls, tz=None):
-                return now.astimezone(tz)
-
-        monkeypatch.setattr(piprayer, "datetime", FixedDatetime)
-
-    return set_now
-
-
 def test_next_later_today(write_config):
     config = Config(write_config(MELBOURNE_CONFIG + "azaan = 5\nvolume = 80\nreminder = 10\n"))
     now = datetime(2026, 11, 12, 14, 50, 30, tzinfo=MELBOURNE)
@@ -181,10 +166,11 @@ def test_times_json(write_config, monkeypatch, capsys, at_time):
     data = json.loads(out.out)
     assert {k: v for k, v in data.items() if k != "prayers"} == {
         "date": "2026-11-12", "timezone": "Australia/Melbourne", "method": "Jafari", "asr": "Hanafi", "next": "asr",
+        "muted_until": None,
     }
     assert data["prayers"][0] == {
         "prayer": "fajr", "time": "2026-11-12T04:23:00+11:00", "azaan": 3, "volume": 40,
-        "reminder": "2026-11-12T04:13:00+11:00",
+        "reminder": "2026-11-12T04:13:00+11:00", "skipped": False, "muted": False,
     }
     assert [(p["prayer"], p["time"][11:16], p["azaan"], p["volume"]) for p in data["prayers"][1:]] == [
         ("dhuhr", "13:06", 5, 80), ("asr", "18:03", 5, 80), ("maghrib", "20:02", 5, 80), ("isha", "21:43", 5, 80),
@@ -209,5 +195,5 @@ def test_times_next_json(write_config, monkeypatch, capsys, at_time):
     code, out = run_times(monkeypatch, capsys, "-c", write_config(), "times", "next", "--format", "json")
     assert json.loads(out.out) == {
         "prayer": "fajr", "time": "2026-11-13T04:22:00+11:00", "azaan": 1, "volume": 100, "reminder": None,
-        "timezone": "Australia/Melbourne", "seconds_until": 22920,
+        "skipped": False, "muted": False, "timezone": "Australia/Melbourne", "seconds_until": 22920, "muted_until": None,
     }

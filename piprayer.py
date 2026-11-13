@@ -23,7 +23,10 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time as systime
+from html import escape
+from urllib.parse import parse_qs, urlsplit
 from datetime import datetime, time, timedelta, timezone
 
 import praytimes
@@ -41,6 +44,10 @@ FAJR_AZAAN = "fajr-azaan"
 VOLUME = "volume"
 REMINDER = "reminder"
 SPEAKER = "speaker"
+STATUS_PORT = "status-port"
+
+# Longest mute, in days
+MAX_MUTE_DAYS = 30
 
 MAC_ADDRESS = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
 
@@ -98,6 +105,7 @@ class Config:
         self.volume, self.volumes = parse_volume(section.get(VOLUME, ""))
         self.reminder = parse_number(section, REMINDER, 0, 0, 60)
         self.speaker = parse_speaker(section.get(SPEAKER, ""))
+        self.status_port = parse_number(section, STATUS_PORT, None, 1, 65535)
 
     def azaan_for(self, prayer, default=DEFAULT_AZAAN):
         """The azaan to play for a prayer. default is used when the configuration doesn't set one."""
@@ -255,10 +263,11 @@ def prayer_times(config, day):
 class Event:
     """Something to play: the azaan for a prayer, or the reminder before it."""
 
-    def __init__(self, at, prayer, reminder=False):
+    def __init__(self, at, prayer, reminder=False, azaan_at=None):
         self.at = at
         self.prayer = prayer
         self.reminder = reminder
+        self.azaan_at = azaan_at or at  # the time of the azaan, also for its reminder
 
     def __repr__(self):
         return "{} for {} at {}".format("Reminder" if self.reminder else "Azaan", self.prayer,
@@ -270,7 +279,7 @@ def events(config, day):
     result = []
     for prayer, at in prayer_times(config, day):
         if config.reminder:
-            result.append(Event(at - timedelta(minutes=config.reminder), prayer, reminder=True))
+            result.append(Event(at - timedelta(minutes=config.reminder), prayer, reminder=True, azaan_at=at))
         result.append(Event(at, prayer))
     return sorted(result, key=lambda event: event.at)
 
@@ -312,40 +321,54 @@ def play_event(config, event, default_azaan):
 def run(config_path, default_azaan):
     """Wait for each event and play it. Runs until stopped."""
     log.info("PiPrayer started with configuration %s", config_path)
+    state_path = state_file(config_path)
+    status_page = StatusPage(config_path, default_azaan)
+
+    try:
+        while True:
+            mtime = config_mtime(config_path)
+            config = Config(config_path)
+            status_page.serve(config.status_port)
+            tidy_state(state_path, datetime.now(config.tz))
+            if not wait_and_play(config_path, config, mtime, state_path, default_azaan):
+                log.info("Configuration changed, reloading")
+    finally:
+        status_page.serve(None)
+
+
+def wait_and_play(config_path, config, mtime, state_path, default_azaan):
+    """Wait for the next event and play it. Returns False if the configuration changed while waiting."""
+    event = next_event(config, datetime.now(config.tz))
+
+    if event is None:
+        log.warning("No prayer times found for today or tomorrow, checking again in an hour")
+        systime.sleep(3600)
+        return True
+
+    log.info("Next: %s", event)
 
     while True:
-        mtime = config_mtime(config_path)
-        config = Config(config_path)
-        event = next_event(config, datetime.now(config.tz))
+        remaining = (event.at - datetime.now(config.tz)).total_seconds()
+        if remaining <= 0:
+            break
+        if config_mtime(config_path) != mtime:
+            return False
+        systime.sleep(min(remaining, MAX_SLEEP_SECONDS))
 
-        if event is None:
-            log.warning("No prayer times found for today or tomorrow, checking again in an hour")
-            systime.sleep(3600)
-            continue
+    late = datetime.now(config.tz) - event.at
+    if late > MAX_LATENESS:
+        log.warning("Skipping %s, noticed %d minutes late (clock changed?)",
+                    event, late.total_seconds() // 60)
+        return True
 
-        log.info("Next: %s", event)
+    # Read just before playing, so skip and mute apply however recently they were set
+    silenced = State.load(state_path).silenced(event.azaan_at)
+    if silenced:
+        log.info("Not playing %s, it is %s", event, silenced)
+        return True
 
-        config_changed = False
-        while True:
-            remaining = (event.at - datetime.now(config.tz)).total_seconds()
-            if remaining <= 0:
-                break
-            if config_mtime(config_path) != mtime:
-                config_changed = True
-                break
-            systime.sleep(min(remaining, MAX_SLEEP_SECONDS))
-
-        if config_changed:
-            log.info("Configuration changed, reloading")
-            continue
-
-        late = datetime.now(config.tz) - event.at
-        if late > MAX_LATENESS:
-            log.warning("Skipping %s, noticed %d minutes late (clock changed?)",
-                        event, late.total_seconds() // 60)
-            continue
-
-        play_event(config, event, default_azaan)
+    play_event(config, event, default_azaan)
+    return True
 
 
 def test_play(args):
@@ -391,12 +414,14 @@ def timezone_name(config, day):
 class Entry:
     """A prayer in the schedule, with what will be played for it."""
 
-    def __init__(self, config, prayer, at, default_azaan):
+    def __init__(self, config, prayer, at, default_azaan, state=None):
         self.prayer = prayer
         self.at = at
         self.azaan = config.azaan_for(prayer, default_azaan)
         self.volume = config.volume_for(prayer)
         self.reminder = at - timedelta(minutes=config.reminder) if config.reminder else None
+        # "skipped" or "muted" when it won't play
+        self.silenced = state.silenced(at) if state else None
 
     def to_json(self):
         return {
@@ -405,20 +430,143 @@ class Entry:
             "azaan": self.azaan,
             "volume": self.volume,
             "reminder": self.reminder.isoformat() if self.reminder else None,
+            "skipped": self.silenced == "skipped",
+            "muted": self.silenced == "muted",
         }
 
 
-def schedule(config, day, default_azaan):
-    return [Entry(config, prayer, at, default_azaan) for prayer, at in prayer_times(config, day)]
+def schedule(config, day, default_azaan, state=None):
+    return [Entry(config, prayer, at, default_azaan, state) for prayer, at in prayer_times(config, day)]
 
 
-def next_azaan(config, now, default_azaan):
-    """The first azaan after now, today or tomorrow, or None."""
-    for day in (now.date(), now.date() + timedelta(days=1)):
-        for entry in schedule(config, day, default_azaan):
+def upcoming_azaans(config, now, default_azaan, state=None, days=2):
+    """The azaans after now, over the given number of days starting today."""
+    for offset in range(days):
+        for entry in schedule(config, now.date() + timedelta(days=offset), default_azaan, state):
             if entry.at > now:
-                return entry
-    return None
+                yield entry
+
+
+def next_azaan(config, now, default_azaan, state=None):
+    """The first azaan after now, today or tomorrow, or None."""
+    return next(upcoming_azaans(config, now, default_azaan, state), None)
+
+
+# ------------------------------------------------------------------ skip and mute
+
+def state_file(config_path):
+    """Skip and mute are saved next to the configuration, e.g. .piprayer-state, so they survive restarts."""
+    return config_path + "-state"
+
+
+class State:
+    """Azaans to skip, and the time until which every azaan is muted."""
+
+    def __init__(self, skip=(), mute_until=None):
+        self.skip = sorted(skip)
+        self.mute_until = mute_until
+
+    @classmethod
+    def load(cls, path):
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            mute_until = data.get("mute_until")
+            return cls([datetime.fromisoformat(at) for at in data.get("skip", [])],
+                       datetime.fromisoformat(mute_until) if mute_until else None)
+        except FileNotFoundError:
+            return cls()
+        except (OSError, ValueError, TypeError, AttributeError) as e:
+            log.warning("Ignoring %s, it can't be read: %s", path, e)
+            return cls()
+
+    def save(self, path):
+        """Write the state, or remove the file when nothing is skipped or muted."""
+        if not self.skip and not self.mute_until:
+            if os.path.exists(path):
+                os.remove(path)
+            return
+        data = {
+            "skip": [at.isoformat() for at in sorted(self.skip)],
+            "mute_until": self.mute_until.isoformat() if self.mute_until else None,
+        }
+        # Write then rename, so the service never reads a half written file
+        with open(path + ".new", "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(path + ".new", path)
+
+    def silenced(self, azaan_at):
+        """Why the azaan at this time won't play: "muted", "skipped", or None if it will."""
+        if self.mute_until and azaan_at < self.mute_until:
+            return "muted"
+        if azaan_at in self.skip:
+            return "skipped"
+        return None
+
+    def tidy(self, now):
+        """Forget skips and mutes that are over. Returns True if anything changed."""
+        skip = [at for at in self.skip if at > now]
+        mute_until = self.mute_until if self.mute_until and self.mute_until > now else None
+        changed = skip != self.skip or mute_until != self.mute_until
+        self.skip, self.mute_until = skip, mute_until
+        return changed
+
+
+def tidy_state(path, now):
+    state = State.load(path)
+    if state.tidy(now):
+        state.save(path)
+
+
+def next_playing(config, now, default_azaan, state):
+    """The next azaan that isn't skipped or muted, or None."""
+    days = (state.mute_until.date() - now.date()).days + 2 if state.mute_until else 2
+    return next((e for e in upcoming_azaans(config, now, default_azaan, state, days) if not e.silenced), None)
+
+
+def skip_next(config, path, now, default_azaan):
+    """Skip the next azaan that would play, with its reminder. Returns its Entry, or None if there is none."""
+    state = State.load(path)
+    state.tidy(now)
+    entry = next_playing(config, now, default_azaan, state)
+    if entry:
+        state.skip.append(entry.at)
+        state.save(path)
+    return entry
+
+
+def mute(config, path, now, last_day):
+    """Mute every azaan and reminder up to the end of last_day. Returns when the mute ends."""
+    state = State.load(path)
+    state.tidy(now)
+    state.mute_until = datetime.combine(last_day + timedelta(days=1), time(0), config.tz)
+    state.save(path)
+    return state.mute_until
+
+
+def resume(path):
+    """Clear every skip and mute."""
+    State().save(path)
+
+
+def describe_day(day, today):
+    if day == today:
+        return "today"
+    if day == today + timedelta(days=1):
+        return "tomorrow"
+    return "{:%A} {} {:%B}".format(day, day.day, day)
+
+
+def describe_azaan(entry, now):
+    """e.g. "Asr at 18:03 today"."""
+    return "{} at {} {}".format(entry.prayer.capitalize(), entry.at.strftime("%H:%M"),
+                                describe_day(entry.at.date(), now.date()))
+
+
+def describe_mute(config, mute_until, now):
+    """e.g. "Muted until the end of today"."""
+    last_day = (mute_until.astimezone(config.tz) - timedelta(seconds=1)).date()
+    return "Muted until the end of " + describe_day(last_day, now.date())
 
 
 def format_duration(delta):
@@ -430,9 +578,9 @@ def format_duration(delta):
     return "{} h".format(hours) if hours else "{} min".format(minutes)
 
 
-def format_times(config, day, now, default_azaan):
-    """The day's schedule as a table, marking the next azaan."""
-    entries = schedule(config, day, default_azaan)
+def format_times(config, day, now, default_azaan, state=None):
+    """The day's schedule as a table, marking the next azaan and any that won't play."""
+    entries = schedule(config, day, default_azaan, state)
     upcoming = next((e for e in entries if e.at > now), None) if day == now.date() else None
 
     header = ["Prayer", "Time", "Azaan", "Volume"] + (["Reminder"] if config.reminder else [])
@@ -441,7 +589,8 @@ def format_times(config, day, now, default_azaan):
         row = [entry.prayer.capitalize(), entry.at.strftime("%H:%M"), str(entry.azaan), "{}%".format(entry.volume)]
         if entry.reminder:
             row.append(entry.reminder.strftime("%H:%M"))
-        rows.append((row, entry is upcoming))
+        notes = (["◀ next"] if entry is upcoming else []) + ([entry.silenced] if entry.silenced else [])
+        rows.append((row, " · ".join(notes)))
 
     widths = [max([len(heading)] + [len(row[i]) for row, _ in rows]) for i, heading in enumerate(header)]
 
@@ -455,38 +604,47 @@ def format_times(config, day, now, default_azaan):
         line(header).rstrip(),
         "─" * len(line(header)),
     ]
-    for row, is_next in rows:
-        lines.append(line(row) + "  ◀ next" if is_next else line(row).rstrip())
+    for row, notes in rows:
+        lines.append(line(row) + "  " + notes if notes else line(row).rstrip())
     if not rows:
         lines.append("No prayer times on this day")
+    if state and state.mute_until and state.mute_until > now:
+        lines += ["", describe_mute(config, state.mute_until, now) + ". Run piprayer.py resume to play again."]
 
     return indent(lines)
 
 
-def format_next(config, entry, now):
+def format_next(config, entry, now, state=None):
     """The next azaan, e.g. "Next azaan: Asr at 18:03 today, in 3 h 12 min"."""
     if entry is None:
         return indent(["No azaan in the next two days"])
 
-    when = "today" if entry.at.date() == now.date() else "tomorrow"
     details = "Azaan {} · {}% volume".format(entry.azaan, entry.volume)
     if entry.reminder:
         details += " · reminder at " + entry.reminder.strftime("%H:%M")
 
-    return indent([
-        "Next azaan: {} at {} {}, in {}".format(entry.prayer.capitalize(), entry.at.strftime("%H:%M"), when,
-                                                 format_duration(entry.at - now)),
+    lines = [
+        "Next azaan: {}, in {}".format(describe_azaan(entry, now), format_duration(entry.at - now)),
         details,
         timezone_name(config, entry.at.date()),
-    ])
+    ]
+    if entry.silenced == "muted":
+        lines.append(describe_mute(config, state.mute_until, now) + ". Run piprayer.py resume to play again.")
+    elif entry.silenced == "skipped":
+        lines.append("Skipped. Run piprayer.py resume to play it.")
+    return indent(lines)
 
 
 def indent(lines):
     return "\n".join(" " + line if line else line for line in lines)
 
 
-def times_json(config, day, now, default_azaan):
-    entries = schedule(config, day, default_azaan)
+def muted_until_json(state, now):
+    return state.mute_until.isoformat() if state and state.mute_until and state.mute_until > now else None
+
+
+def times_json(config, day, now, default_azaan, state=None):
+    entries = schedule(config, day, default_azaan, state)
     upcoming = next((e for e in entries if e.at > now), None) if day == now.date() else None
     return {
         "date": day.isoformat(),
@@ -494,16 +652,18 @@ def times_json(config, day, now, default_azaan):
         "method": config.method,
         "asr": config.asr_time,
         "next": upcoming.prayer if upcoming else None,
+        "muted_until": muted_until_json(state, now),
         "prayers": [entry.to_json() for entry in entries],
     }
 
 
-def next_json(config, entry, now):
+def next_json(config, entry, now, state=None):
     if entry is None:
         return None
     result = entry.to_json()
     result["timezone"] = getattr(config.tz, "key", None) or entry.at.tzname()
     result["seconds_until"] = int((entry.at - now).total_seconds())
+    result["muted_until"] = muted_until_json(state, now)
     return result
 
 
@@ -511,29 +671,301 @@ def show_times(args):
     config = Config(args.config)
     now = datetime.now(config.tz)
     default_azaan = args.azaan or installed_azaan()
+    state = State.load(state_file(args.config))
 
     if args.which == "next":
         if args.date:
             raise ConfigError("--date can't be used with next")
-        entry = next_azaan(config, now, default_azaan)
+        entry = next_azaan(config, now, default_azaan, state)
         if args.format == "json":
-            print(json.dumps(next_json(config, entry, now), indent=2))
+            print(json.dumps(next_json(config, entry, now, state), indent=2))
         elif args.format == "plain":
             if entry:
                 print(entry.prayer + "-" + entry.at.strftime("%H:%M"))
         else:
-            print(format_next(config, entry, now))
+            print(format_next(config, entry, now, state))
         return 0
 
     day = args.date or now.date()
     if args.format == "json":
-        print(json.dumps(times_json(config, day, now, default_azaan), indent=2))
+        print(json.dumps(times_json(config, day, now, default_azaan, state), indent=2))
     elif args.format == "plain":
         for prayer, at in prayer_times(config, day):
             print(prayer + "-" + at.strftime("%H:%M"))
     else:
-        print(format_times(config, day, now, default_azaan))
+        print(format_times(config, day, now, default_azaan, state))
     return 0
+
+
+def skip_command(args):
+    config = Config(args.config)
+    now = datetime.now(config.tz)
+    entry = skip_next(config, state_file(args.config), now, installed_azaan())
+    if entry is None:
+        print("No azaan to skip")
+        return 1
+    print("Skipping the azaan for {}{}. Run piprayer.py resume to play it after all."
+          .format(describe_azaan(entry, now), " and its reminder" if entry.reminder else ""))
+    return 0
+
+
+def mute_command(args):
+    config = Config(args.config)
+    now = datetime.now(config.tz)
+    today = now.date()
+    if args.until:
+        last_day = args.until
+        if not today <= last_day <= today + timedelta(days=MAX_MUTE_DAYS - 1):
+            raise ConfigError("--until must be from today to {} days ahead".format(MAX_MUTE_DAYS - 1))
+    else:
+        last_day = today + timedelta(days=args.days - 1)
+    mute_until = mute(config, state_file(args.config), now, last_day)
+    print(describe_mute(config, mute_until, now) + ". Run piprayer.py resume to play again.")
+    return 0
+
+
+def resume_command(args):
+    config = Config(args.config)
+    now = datetime.now(config.tz)
+    resume(state_file(args.config))
+    entry = next_azaan(config, now, installed_azaan())
+    print("Skip and mute cleared." + (" Next azaan: " + describe_azaan(entry, now) + "." if entry else ""))
+    return 0
+
+
+# ------------------------------------------------------------------ status page
+
+class StatusPage:
+    """The status page and its JSON API, served from a background thread while the service runs."""
+
+    def __init__(self, config_path, default_azaan):
+        self.config_path = config_path
+        self.default_azaan = default_azaan
+        self.port = None
+        self.server = None
+
+    def serve(self, port):
+        """Start, move or stop the page to match the configuration. None stops it."""
+        if port == self.port:
+            return
+        if self.server:
+            self.server.shutdown()
+            self.server.server_close()
+            self.server = None
+            log.info("Status page stopped")
+
+        # Remembered even if starting fails, so the error is logged once rather than every minute
+        self.port = port
+        if not port:
+            return
+
+        from http.server import ThreadingHTTPServer
+        try:
+            self.server = ThreadingHTTPServer(("", port), status_handler(self.config_path, self.default_azaan))
+        except OSError as e:
+            log.error("Can't start the status page on port %d: %s", port, e.strerror or e)
+            return
+        self.server.daemon_threads = True
+        threading.Thread(target=self.server.serve_forever, name="status-page", daemon=True).start()
+        log.info("Status page on port %d", port)
+
+
+def status_handler(config_path, default_azaan):
+    """A request handler class for the status page of this configuration."""
+    from http.server import BaseHTTPRequestHandler
+
+    state_path = state_file(config_path)
+
+    class Handler(BaseHTTPRequestHandler):
+        server_version = "PiPrayer"
+
+        def log_message(self, format, *args):
+            log.debug("Status page: " + format, *args)
+
+        def do_GET(self):
+            self.handle_request(post=False)
+
+        def do_POST(self):
+            # Refuse forms submitted from other sites. Home Assistant and curl don't send Origin
+            origin = self.headers.get("Origin")
+            if origin and urlsplit(origin).netloc != self.headers.get("Host"):
+                return self.send(403, "text/plain", "Forbidden")
+            self.handle_request(post=True)
+
+        def handle_request(self, post):
+            url = urlsplit(self.path)
+            query = parse_qs(url.query)
+            if post:
+                length = int(self.headers.get("Content-Length") or 0)
+                query.update(parse_qs(self.rfile.read(length).decode("utf-8", "replace")))
+
+            try:
+                config = Config(config_path)
+                now = datetime.now(config.tz)
+                result = self.route(url.path, post, query, config, now)
+            except ConfigError as e:
+                return self.send(500, "text/plain", "PiPrayer configuration error: {}".format(e))
+            except ValueError as e:
+                return self.send(400, "text/plain", str(e))
+
+            if result is None:
+                self.send(404, "text/plain", "Not found")
+            elif result == "redirect":
+                self.send_response(303)
+                self.send_header("Location", "/")
+                self.end_headers()
+            elif isinstance(result, str):
+                self.send(200, "text/html; charset=utf-8", result)
+            else:
+                self.send(200, "application/json", json.dumps(result["json"], indent=2))
+
+        def route(self, path, post, query, config, now):
+            action = path[len("/api"):] if path.startswith("/api/") else path
+            from_page = not path.startswith("/api/")
+
+            if not post:
+                state = State.load(state_path)
+                if path == "/":
+                    return status_html(config, now, default_azaan, state)
+                if path == "/api/times":
+                    return {"json": times_json(config, now.date(), now, default_azaan, state)}
+                if path == "/api/next":
+                    return {"json": next_json(config, next_azaan(config, now, default_azaan, state), now, state)}
+                return None
+
+            if action == "/skip":
+                entry = skip_next(config, state_path, now, default_azaan)
+                result = {"skipped": entry.to_json() if entry else None}
+            elif action == "/mute":
+                days = query.get("days", ["1"])[0]
+                if not days.isdigit() or not 1 <= int(days) <= MAX_MUTE_DAYS:
+                    raise ValueError("days must be a whole number from 1 to {}".format(MAX_MUTE_DAYS))
+                mute_until = mute(config, state_path, now, now.date() + timedelta(days=int(days) - 1))
+                result = {"muted_until": mute_until.isoformat()}
+            elif action == "/resume":
+                resume(state_path)
+                result = {"muted_until": None, "skip": []}
+            else:
+                return None
+            return "redirect" if from_page else {"json": result}
+
+        def send(self, status, content_type, body):
+            data = body.encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+
+    return Handler
+
+
+STATUS_STYLE = """
+:root { --bg: #f6f5f1; --card: #ffffff; --text: #1d1d1b; --muted: #6b6a65; --line: #e4e2db;
+        --accent: #1f7a4d; --accent-text: #ffffff; --warn: #9a5b00; --warn-bg: #fff3dc; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151614; --card: #1f201d; --text: #ecebe6; --muted: #9c9b94; --line: #33342f;
+          --accent: #3fb07a; --accent-text: #0d1a12; --warn: #f3b552; --warn-bg: #3a2c12; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+       font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 32rem; margin: 0 auto; padding: 24px 16px 40px; }
+h1 { font-size: 1rem; font-weight: 600; color: var(--muted); margin: 0 0 16px; letter-spacing: .02em; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+.label { color: var(--muted); font-size: .875rem; }
+.next { font-size: 2.25rem; font-weight: 700; line-height: 1.2; margin: 4px 0; font-variant-numeric: tabular-nums; }
+.notice { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 14px; margin-top: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.actions form { margin: 0; }
+button { font: inherit; font-size: .9375rem; padding: 9px 14px; border-radius: 10px; cursor: pointer;
+         border: 1px solid var(--line); background: var(--card); color: var(--text); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: .8125rem; padding: 0 0 8px; }
+td { padding: 8px 0; border-top: 1px solid var(--line); }
+th:not(:last-child), td:not(:last-child) { padding-right: 12px; }
+tr.past td { color: var(--muted); }
+tr.next td { font-weight: 600; }
+.tag { font-size: .75rem; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
+.tag.next { background: var(--accent); color: var(--accent-text); }
+footer { color: var(--muted); font-size: .8125rem; text-align: center; }
+"""
+
+
+def status_html(config, now, default_azaan, state):
+    """The status page: the next azaan, buttons to skip or mute, and today's times."""
+    today = schedule(config, now.date(), default_azaan, state)
+    upcoming = next_azaan(config, now, default_azaan, state)
+    playing = next_playing(config, now, default_azaan, state)
+    muted = state.mute_until and state.mute_until > now
+
+    if upcoming:
+        next_card = ('<div class="label">Next azaan</div><div class="next">{} {}</div>'
+                     '<div class="label">{}, in {}</div>').format(
+            escape(upcoming.prayer.capitalize()), upcoming.at.strftime("%H:%M"),
+            describe_day(upcoming.at.date(), now.date()).capitalize(), format_duration(upcoming.at - now))
+    else:
+        next_card = '<div class="next">No azaan in the next two days</div>'
+
+    if muted:
+        next_card += '<div class="notice">{}.</div>'.format(escape(describe_mute(config, state.mute_until, now)))
+    elif upcoming and upcoming.silenced == "skipped":
+        next_card += '<div class="notice">This azaan will be skipped.</div>'
+
+    buttons = []
+    if playing:
+        buttons.append(('/skip', "primary", "Skip " + describe_azaan(playing, now)))
+    if not muted:
+        buttons.append(('/mute', "", "Mute today"))
+    if muted or state.skip:
+        buttons.append(('/resume', "", "Resume"))
+    next_card += '<div class="actions">{}</div>'.format("".join(
+        '<form method="post" action="{}"><button class="{}">{}</button></form>'.format(action, cls, escape(text))
+        for action, cls, text in buttons))
+
+    rows = []
+    for entry in today:
+        if entry.at <= now:
+            tag, cls = "", "past"
+        elif entry.silenced:
+            tag, cls = '<span class="tag">{}</span>'.format(entry.silenced), ""
+        elif upcoming and entry.at == upcoming.at:
+            tag, cls = '<span class="tag next">next</span>', "next"
+        else:
+            tag, cls = "", ""
+        rows.append('<tr class="{}"><td>{}</td><td>{}</td><td>{}</td><td>{}%</td><td>{}</td></tr>'.format(
+            cls, escape(entry.prayer.capitalize()), entry.at.strftime("%H:%M"), entry.azaan, entry.volume, tag))
+    table = ('<table><thead><tr><th>Prayer</th><th>Time</th><th>Azaan</th><th>Volume</th><th></th></tr></thead>'
+             '<tbody>{}</tbody></table>'.format("".join(rows)) if rows else "No prayer times today")
+
+    return """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="60">
+<title>PiPrayer</title>
+<style>{style}</style>
+</head>
+<body>
+<main>
+<h1>PiPrayer</h1>
+<section class="card">{next_card}</section>
+<section class="card">
+<div class="label" style="margin-bottom:12px">{date}</div>
+{table}
+</section>
+<footer>{details} · updated {updated}</footer>
+</main>
+</body>
+</html>
+""".format(style=STATUS_STYLE, next_card=next_card, table=table,
+           date="{:%A} {} {:%B %Y}".format(now, now.day, now),
+           details=escape("{} · {} method · {} Asr".format(timezone_name(config, now.date()), config.method,
+                                                            config.asr_time)),
+           updated=now.strftime("%H:%M"))
 
 
 # ------------------------------------------------------------------ configuration wizard
@@ -980,6 +1412,16 @@ def parse_date(value):
         raise argparse.ArgumentTypeError("use the format YYYY-MM-DD, e.g. 2026-11-12")
 
 
+def mute_days(value):
+    try:
+        days = int(value)
+    except ValueError:
+        days = 0
+    if not 1 <= days <= MAX_MUTE_DAYS:
+        raise argparse.ArgumentTypeError("use a whole number from 1 to {}".format(MAX_MUTE_DAYS))
+    return days
+
+
 def azaan_number(value):
     azaan = int(value)
     if not os.path.isfile(azaan_file(azaan)):
@@ -1013,6 +1455,15 @@ def main():
                               type=str.lower, help="play the azaan and volume set for this prayer")
     play_command.add_argument("-r", "--reminder", action="store_true", help="play the reminder sound")
 
+    commands.add_parser("skip", help="don't play the next azaan or its reminder")
+    mute_command_parser = commands.add_parser("mute", help="don't play any azaan until the end of today, "
+                                                           "or for a number of days")
+    mute_for = mute_command_parser.add_mutually_exclusive_group()
+    mute_for.add_argument("-d", "--days", type=mute_days, default=1, metavar="DAYS",
+                          help="days to mute, counting today (default: 1, up to {})".format(MAX_MUTE_DAYS))
+    mute_for.add_argument("-u", "--until", type=parse_date, metavar="YYYY-MM-DD", help="last day to mute")
+    commands.add_parser("resume", help="clear skip and mute, so every azaan plays again")
+
     config_command = commands.add_parser("config", help="create or change the configuration, asking for each setting")
     # setup-piprayer.sh installs the service next, so it doesn't need saying
     config_command.add_argument("--no-next-step", dest="next_step", action="store_false", help=argparse.SUPPRESS)
@@ -1027,6 +1478,12 @@ def main():
             run(args.config, args.azaan)
         elif args.command == "play":
             return test_play(args)
+        elif args.command == "skip":
+            return skip_command(args)
+        elif args.command == "mute":
+            return mute_command(args)
+        elif args.command == "resume":
+            return resume_command(args)
         else:
             if args.command is None:
                 # "piprayer.py" on its own is the same as "piprayer.py times"

@@ -97,3 +97,18 @@ def fake_clock(monkeypatch):
         return clock
 
     return create
+
+
+@pytest.fixture
+def at_time(monkeypatch):
+    """Fix the current time seen by piprayer."""
+
+    def set_now(now):
+        class FixedDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return now.astimezone(tz)
+
+        monkeypatch.setattr(piprayer, "datetime", FixedDatetime)
+
+    return set_now
