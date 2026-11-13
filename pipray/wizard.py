@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """piprayer.py config: asks for each setting, shows the resulting times and saves .piprayer."""
 import configparser
+import getpass
 import os
 import socket
 
@@ -8,9 +9,11 @@ import praytimes
 
 from . import bluetooth, clock
 from .bluetooth import SCAN_SECONDS
-from .config import (AZAAN, ASR_TIME, DEFAULT_HIGH_LATITUDE, DEFAULT_VOLUME, DST, FAJR_AZAAN, GMT_OFFSET,
-                     HIGH_LATITUDE, LAT, LNG, MAC_ADDRESS, METHOD, PRAYERS, REMINDER, SPEAKER, STATUS_PORT, TIMEZONE,
-                     VOLUME, Config, ConfigError, check_azaan_file, check_range, parse_prayers, parse_volume)
+from .config import (AZAAN, ASR_TIME, DEFAULT_HIGH_LATITUDE, DEFAULT_MQTT_PORT, DEFAULT_VOLUME, DST, FAJR_AZAAN,
+                     GMT_OFFSET, HIGH_LATITUDE, LAT, LNG, MAC_ADDRESS, METHOD, MQTT_HOST, MQTT_PASSWORD, MQTT_PORT,
+                     MQTT_USERNAME, PRAYERS, REMINDER, SPEAKER, STATUS_PORT, TIMEZONE, VOLUME, Config, ConfigError,
+                     check_azaan_file, check_range, parse_prayers, parse_volume)
+from .mqtt import INSTALL_HINT, load_paho
 from .output import format_times
 from .service import installed_azaan, service_file
 
@@ -190,9 +193,11 @@ def number_option(what, minimum, maximum, blank_ok=False):
 
 
 class Wizard:
-    def __init__(self, ask=input, say=print):
+    def __init__(self, ask=input, say=print, ask_secret=None):
         self.ask_input = ask
         self.say = say
+        # Passwords aren't shown as they are typed, unless the answers come from elsewhere, e.g. in tests
+        self.ask_secret = ask_secret or (getpass.getpass if ask is input else ask)
 
     def ask(self, question, default, parse, hint=None):
         """Ask until the answer parses. An empty answer takes the default."""
@@ -207,6 +212,14 @@ class Wizard:
                 return parse(answer)
             except ConfigError as e:
                 self.say("  " + str(e))
+
+    def ask_password(self, question, current):
+        """Ask for a password without showing it. Enter keeps the current one, none removes it."""
+        hint = "Enter to keep it, none for no password" if current else "none for no password"
+        answer = self.ask_secret("{} ({}): ".format(question, hint))
+        if not answer.strip():
+            return current
+        return "" if answer.strip().lower() == "none" else answer
 
     def confirm(self, question, default=True):
         answer = self.ask_input("{} [{}]: ".format(question, "Y/n" if default else "y/N")).strip().lower()
@@ -314,6 +327,10 @@ def choose_speaker(wizard, current):
         wizard.say("")
 
 
+# Options the wizard asks about, so they are saved only when answered, and the legacy ones timezone replaces
+NOT_KEPT = (GMT_OFFSET, DST, FAJR_AZAAN, SPEAKER, STATUS_PORT, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD)
+
+
 def choose_method(wizard, default):
     """Ask for the calculation method. Lists the first few and the default, and the rest on request."""
     shown = METHODS[:SHORT_METHOD_LIST] + ([default] if default in METHODS[SHORT_METHOD_LIST:] else [])
@@ -335,6 +352,35 @@ def choose_method(wizard, default):
         shown = METHODS
 
 
+def ask_mqtt(wizard, current):
+    """Ask for the MQTT broker, and how to log in to it. Returns the settings to save."""
+    wizard.say("")
+    wizard.say("Home Assistant can show the next azaan and skip or mute it over MQTT, e.g. with the Mosquitto add-on.")
+    host = wizard.ask("MQTT broker, e.g. homeassistant.local (none for off)", current.get(MQTT_HOST, ""),
+                      mqtt_host_option)
+    if not host:
+        return []
+
+    if load_paho() is None:
+        wizard.say("  MQTT needs paho-mqtt. Install it with: " + INSTALL_HINT)
+    port = wizard.ask("MQTT port", current.get(MQTT_PORT, str(DEFAULT_MQTT_PORT)), number_option(MQTT_PORT, 1, 65535))
+    username = wizard.ask("MQTT username (none for no login)", current.get(MQTT_USERNAME, ""), text_option)
+    password = wizard.ask_password("MQTT password", current.get(MQTT_PASSWORD, "")) if username else ""
+    return [(MQTT_HOST, host), (MQTT_PORT, port), (MQTT_USERNAME, username), (MQTT_PASSWORD, password)]
+
+
+def mqtt_host_option(value):
+    if value.lower() in ("", "none"):
+        return ""
+    if any(c.isspace() for c in value) or "/" in value:
+        raise ConfigError("Invalid MQTT broker: {}, use a hostname or address, e.g. homeassistant.local".format(value))
+    return value
+
+
+def text_option(value):
+    return "" if value.lower() == "none" else value
+
+
 def status_page_address(port):
     """e.g. http://raspberrypi.local:8080, using the name the Raspberry Pi announces on the local network."""
     host = socket.gethostname().split(".")[0] or "raspberrypi"
@@ -342,11 +388,12 @@ def status_page_address(port):
 
 
 def read_existing(path):
-    parser = configparser.ConfigParser()
+    # Without % substitution, so values such as passwords are kept exactly as written
+    parser = configparser.RawConfigParser()
     try:
         parser.read(path)
     except configparser.Error:
-        return configparser.ConfigParser()
+        return configparser.RawConfigParser()
     return parser
 
 
@@ -418,23 +465,27 @@ def configure(path, wizard=None, next_step=True):
     status_port = wizard.ask("Status page port, e.g. 8080 (none for off)", current.get(STATUS_PORT, ""),
                              number_option(STATUS_PORT, 1, 65535, blank_ok=True))
 
+    mqtt = ask_mqtt(wizard, current)
+
     settings = [(TIMEZONE, tz_name), (LAT, lat), (LNG, lng), (METHOD, method), (ASR_TIME, asr),
                 (PRAYERS, prayers), (AZAAN, azaan), (FAJR_AZAAN, fajr_azaan), (VOLUME, volume),
                 (REMINDER, reminder), (SPEAKER, speaker), (HIGH_LATITUDE, high_latitude),
-                (STATUS_PORT, status_port)]
+                (STATUS_PORT, status_port)] + mqtt
 
     # Keep any other options, but timezone replaces the legacy ones
-    result = configparser.ConfigParser()
+    result = configparser.RawConfigParser()
     result.add_section("Default")
     for option, value in settings:
         if value != "":
             result["Default"][option] = value
     for option, value in current.items():
-        if option not in result["Default"] and option not in (GMT_OFFSET, DST, FAJR_AZAAN, SPEAKER, STATUS_PORT):
+        if option not in result["Default"] and option not in NOT_KEPT:
             result["Default"][option] = value
 
     preview = path + ".new"
     with open(preview, "w") as f:
+        if result["Default"].get(MQTT_PASSWORD):
+            os.chmod(preview, 0o600)  # only its owner can read the password
         result.write(f)
     try:
         config = Config(preview)

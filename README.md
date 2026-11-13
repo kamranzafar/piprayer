@@ -145,6 +145,10 @@ the file directly. The running service picks up changes within a minute, no rest
 | `reminder` | Play a short chime this many minutes before each Azaan, up to 60. `0` turns it off | `0` | `10` |
 | `speaker` | Bluetooth address of the speaker to play on. Other paired devices are not used | any paired speaker | `AA:BB:CC:DD:EE:FF` |
 | `status-port` | Serve the [status page](#status-page) on this port | off | `8080` |
+| `mqtt-host` | MQTT broker for [Home Assistant](#home-assistant), e.g. the Mosquitto add-on | off | `homeassistant.local` |
+| `mqtt-port` | Port of the MQTT broker | `1883` | `1883` |
+| `mqtt-username`, `mqtt-password` | Login for the MQTT broker | none | `piprayer` |
+| `mqtt-topic` | Start of PiPrayer's MQTT topics | `piprayer` | `home/azaan` |
 | `high-latitude` | How to set Fajr and Isha when summer nights are too short for their angles, see [below](#short-summer-nights) | `NightMiddle` | `AngleBased` |
 
 For example, to play azaan 5, a quieter azaan 14 for Fajr, and a chime 10 minutes before each prayer:
@@ -278,6 +282,38 @@ The JSON for each Azaan has `skipped` and `muted` set to `true` when it won't pl
 time the mute ends.
 
 ## Home Assistant
+
+**With MQTT**, PiPrayer appears in Home Assistant as a device, with no YAML to write:
+
+| Entity | Shows or does |
+|---|---|
+| Next azaan | When the next Azaan is, e.g. "in 2 hours", with the prayer and whether it is skipped |
+| Next prayer | e.g. Asr |
+| Muted | On while muted, with the time the mute ends |
+| Skip next azaan, Mute today, Resume | Buttons |
+
+To set it up with the Mosquitto broker add-on:
+
+1. On the Raspberry Pi, install the MQTT library: `sudo apt install python3-paho-mqtt`
+2. In Home Assistant, create a user for PiPrayer under **Settings → People → Users**, and set up the
+   **MQTT** integration if it isn't already.
+3. Run `python3 piprayer.py config` and enter the broker (e.g. `homeassistant.local`), port `1883`, and that user's
+   name and password. Or add them to `.piprayer`:
+
+   ```ini
+   mqtt-host = homeassistant.local
+   mqtt-username = piprayer
+   mqtt-password = your password
+   ```
+
+Within a minute, **PiPrayer** appears under **Settings → Devices & services → MQTT**. It shows as unavailable
+while the Raspberry Pi or the service is off. The password is saved in `.piprayer`, which the configuration wizard
+makes readable only by you. Skip and mute from Home Assistant, the status page and the command line all apply
+to the same Azaans.
+
+Automations can also publish `skip`, `mute`, `mute 3` (days, up to 30) or `resume` to `piprayer/command`. The state
+is published to `piprayer/state` as JSON. MQTT is off unless `mqtt-host` is set, so PiPrayer doesn't need
+`paho-mqtt` otherwise.
 
 **With the status page**, add a sensor for the next Azaan and commands to skip, mute and resume to
 `configuration.yaml`:
@@ -427,8 +463,9 @@ service.
 ## Development
 
 The code is in the [`pipray`](pipray) package, one module per concern: `config`, `schedule`, `state`, `output`,
-`player`, `web`, `service`, `bluetooth`, `wizard` and `cli`. Each module depends only on the ones before it, and
-`piprayer.py` just runs `pipray.cli`. Everything reads the time through `pipray.clock`, so the tests can replace it.
+`player`, `web`, `mqtt`, `service`, `bluetooth`, `wizard` and `cli`. Each module depends only on the ones before
+it, and `piprayer.py` just runs `pipray.cli`. Everything reads the time through `pipray.clock`, so the tests can
+replace it.
 
 The tests cover:
 - prayer times, compared with reference times from the [AlAdhan API](https://aladhan.com/prayer-times-api)

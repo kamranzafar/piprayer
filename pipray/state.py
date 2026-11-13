@@ -107,6 +107,14 @@ def mute(config, path, now, last_day):
     return state.mute_until
 
 
+def mute_days(config, path, now, days):
+    """Mute for a number of days counting today, given as text, e.g. from the status page or MQTT."""
+    days = str(days).strip()
+    if not days.isdigit() or not 1 <= int(days) <= MAX_MUTE_DAYS:
+        raise ValueError("days must be a whole number from 1 to {}".format(MAX_MUTE_DAYS))
+    return mute(config, path, now, now.date() + timedelta(days=int(days) - 1))
+
+
 def resume(path):
     """Clear every skip and mute."""
     State().save(path)

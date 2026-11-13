@@ -24,6 +24,7 @@ Modules, each depending only on the ones above it:
     output     the times as a table, text or JSON
     player     playing through play-azaan.sh
     web        the optional status page
+    mqtt       optional MQTT for Home Assistant
     service    the loop that waits for each azaan and plays it
     bluetooth  finding and pairing speakers with bluetoothctl
     wizard     piprayer.py config

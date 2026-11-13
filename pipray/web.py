@@ -5,7 +5,6 @@ import logging
 import os
 import threading
 from dataclasses import dataclass
-from datetime import timedelta
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
@@ -14,7 +13,7 @@ from . import clock
 from .config import Config, ConfigError
 from .output import describe_azaan, describe_day, describe_mute, format_duration, next_json, times_json
 from .schedule import next_azaan, schedule, timezone_name
-from .state import MAX_MUTE_DAYS, State, mute, next_playing, resume, skip_next, state_file
+from .state import State, mute_days, next_playing, resume, skip_next, state_file
 
 log = logging.getLogger("piprayer")
 
@@ -108,10 +107,10 @@ class StatusRoutes:
             entry = skip_next(config, self.state_path, now)
             result = {"skipped": entry.to_json() if entry else None}
         elif action == "/mute":
-            days = query.get("days", ["1"])[0]
-            if not days.isdigit() or not 1 <= int(days) <= MAX_MUTE_DAYS:
-                return Response(400, body="days must be a whole number from 1 to {}".format(MAX_MUTE_DAYS))
-            mute_until = mute(config, self.state_path, now, now.date() + timedelta(days=int(days) - 1))
+            try:
+                mute_until = mute_days(config, self.state_path, now, query.get("days", ["1"])[0])
+            except ValueError as e:
+                return Response(400, body=str(e))
             result = {"muted_until": mute_until.isoformat()}
         elif action == "/resume":
             resume(self.state_path)

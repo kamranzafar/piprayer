@@ -287,7 +287,7 @@ def test_setup_rejects_invalid_config(setup):
 
 def test_setup_configure_asks_for_settings_then_installs(setup):
     # the blank after ISNA keeps Standard Asr, the next one the rule for short summer nights
-    answers = "Europe/London\n51.5\n-0.12\nISNA\n\n\n\n7\n\n\n\n\ny\n"
+    answers = "Europe/London\n51.5\n-0.12\nISNA\n\n\n\n7\n\n\n\n\n\ny\n"
     result = setup.run("--configure", "5", answers=answers)
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -301,7 +301,7 @@ def test_setup_configure_asks_for_settings_then_installs(setup):
 
 
 def test_setup_configure_stops_when_not_saved(setup):
-    result = setup.run("--configure", answers="\n" * 11 + "n\n")
+    result = setup.run("--configure", answers="\n" * 12 + "n\n")
     assert result.returncode == 1
     assert "Not saved" in result.stdout
     assert (setup.project / ".piprayer").read_text() == MELBOURNE_CONFIG

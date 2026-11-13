@@ -9,6 +9,7 @@ from .config import DEFAULT_AZAAN, Config
 from .player import play_event
 from .schedule import next_event
 from .state import State, state_file, tidy_state
+from .mqtt import MqttBridge
 from .web import StatusPage
 
 log = logging.getLogger("piprayer")
@@ -26,6 +27,7 @@ def run(config_path, default_azaan):
     log.info("PiPrayer started with configuration %s", config_path)
     state_path = state_file(config_path)
     status_page = StatusPage(config_path, default_azaan)
+    mqtt = MqttBridge(config_path, default_azaan)
     started = None
     # Events already played or passed over. Another may fall due while one plays, e.g. Fajr at the same minute
     # as Isha on a short summer night, so the next event is looked for from a little before now.
@@ -38,6 +40,7 @@ def run(config_path, default_azaan):
             now = clock.now(config.tz)
             started = started or now
             status_page.serve(config.status_port)
+            mqtt.configure(config.mqtt)
             tidy_state(state_path, now)
 
             handled = {key for key in handled if key[0] > now - timedelta(days=1)}
@@ -51,6 +54,7 @@ def run(config_path, default_azaan):
                 log.info("Configuration changed, reloading")
     finally:
         status_page.serve(None)
+        mqtt.configure(None)
 
 
 def wait_and_play(config_path, config, mtime, state_path, event):

@@ -22,6 +22,15 @@ REMINDER = "reminder"
 SPEAKER = "speaker"
 STATUS_PORT = "status-port"
 HIGH_LATITUDE = "high-latitude"
+MQTT_HOST = "mqtt-host"
+MQTT_PORT = "mqtt-port"
+MQTT_USERNAME = "mqtt-username"
+MQTT_PASSWORD = "mqtt-password"
+MQTT_TOPIC = "mqtt-topic"
+
+DEFAULT_MQTT_PORT = 1883
+DEFAULT_MQTT_TOPIC = "piprayer"
+MQTT_TOPIC_NAME = re.compile(r"^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$")
 
 # How Fajr and Isha are set when the night is too short for their angles, as named by praytimes.py:
 # the middle of the night, a portion of the night given by the angle, or one seventh of the night
@@ -81,6 +90,7 @@ class Config:
         self.speaker = parse_speaker(section.get(SPEAKER, ""))
         self.status_port = parse_number(section, STATUS_PORT, None, 1, 65535)
         self.high_latitude = parse_high_latitude(section.get(HIGH_LATITUDE, DEFAULT_HIGH_LATITUDE))
+        self.mqtt = parse_mqtt(section)
         self.default_azaan = default_azaan
 
     def azaan_for(self, prayer):
@@ -175,6 +185,34 @@ def parse_speaker(value):
     if not MAC_ADDRESS.match(value):
         raise ConfigError("Invalid speaker: {}, use the Bluetooth address, e.g. AA:BB:CC:DD:EE:FF".format(value))
     return value
+
+
+class MqttSettings:
+    """Where to publish for Home Assistant. MQTT is off unless mqtt-host is set."""
+
+    def __init__(self, host, port, username, password, topic):
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.topic = topic
+
+    def __eq__(self, other):
+        return isinstance(other, MqttSettings) and vars(self) == vars(other)
+
+
+def parse_mqtt(section):
+    host = section.get(MQTT_HOST, "").strip()
+    if not host:
+        return None
+    topic = section.get(MQTT_TOPIC, DEFAULT_MQTT_TOPIC).strip()
+    if not MQTT_TOPIC_NAME.match(topic):
+        raise ConfigError("Invalid {}: {}, use letters, numbers, - and _, with / between levels, e.g. piprayer"
+                          .format(MQTT_TOPIC, topic))
+    return MqttSettings(host, parse_number(section, MQTT_PORT, DEFAULT_MQTT_PORT, 1, 65535),
+                        section.get(MQTT_USERNAME, "").strip() or None,
+                        # exactly as written, as passwords can contain %, which configparser would substitute
+                        section.get(MQTT_PASSWORD, "", raw=True) or None, topic)
 
 
 def parse_high_latitude(value):

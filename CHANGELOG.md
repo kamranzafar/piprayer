@@ -55,6 +55,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `high-latitude` option to choose how Fajr and Isha are set when summer nights are too short for their angles:
   `NightMiddle` (the default, as before), `AngleBased`, `OneSeventh` or `None`. The configuration wizard asks for
   it from 45° north or south.
+- Optional MQTT for Home Assistant, turned on with `mqtt-host`. PiPrayer appears as a device through MQTT
+  discovery, with the next Azaan, the next prayer, whether it is muted, and buttons to skip, mute today and resume.
+  It needs `paho-mqtt` (`sudo apt install python3-paho-mqtt`), version 1 or 2, only when MQTT is on. The
+  configuration wizard asks for the broker and login, and keeps `.piprayer` readable only by its owner when it
+  holds the password.
 - The README explains how to show the next Azaan in Home Assistant and skip or mute from it, with the status page
   or over SSH.
 
