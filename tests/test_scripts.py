@@ -174,6 +174,8 @@ def setup(tmp_path):
     project.mkdir()
     for name in ("piprayer.py", "praytimes.py", "play-azaan.sh", "setup-piprayer.sh"):
         shutil.copy2(os.path.join(ROOT, name), project / name)
+    shutil.copytree(os.path.join(ROOT, "pipray"), project / "pipray",
+                    ignore=shutil.ignore_patterns("__pycache__"))
     (project / "media").mkdir()
     for n in range(1, 18):
         (project / "media" / "azaan-{}.opus".format(n)).touch()

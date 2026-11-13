@@ -1,0 +1,29 @@
+:root { --bg: #f6f5f1; --card: #ffffff; --text: #1d1d1b; --muted: #6b6a65; --line: #e4e2db;
+        --accent: #1f7a4d; --accent-text: #ffffff; --warn: #9a5b00; --warn-bg: #fff3dc; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151614; --card: #1f201d; --text: #ecebe6; --muted: #9c9b94; --line: #33342f;
+          --accent: #3fb07a; --accent-text: #0d1a12; --warn: #f3b552; --warn-bg: #3a2c12; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+       font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 32rem; margin: 0 auto; padding: 24px 16px 40px; }
+h1 { font-size: 1rem; font-weight: 600; color: var(--muted); margin: 0 0 16px; letter-spacing: .02em; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+.label { color: var(--muted); font-size: .875rem; }
+.next { font-size: 2.25rem; font-weight: 700; line-height: 1.2; margin: 4px 0; font-variant-numeric: tabular-nums; }
+.notice { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 14px; margin-top: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.actions form { margin: 0; }
+button { font: inherit; font-size: .9375rem; padding: 9px 14px; border-radius: 10px; cursor: pointer;
+         border: 1px solid var(--line); background: var(--card); color: var(--text); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: .8125rem; padding: 0 0 8px; }
+td { padding: 8px 0; border-top: 1px solid var(--line); }
+th:not(:last-child), td:not(:last-child) { padding-right: 12px; }
+tr.past td { color: var(--muted); }
+tr.next td { font-weight: 600; }
+.tag { font-size: .75rem; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
+.tag.next { background: var(--accent); color: var(--accent-text); }
+footer { color: var(--muted); font-size: .8125rem; text-align: center; }

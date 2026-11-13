@@ -1,10 +1,14 @@
 """The configuration wizard: piprayer.py config."""
 import configparser
+import os
 from zoneinfo import ZoneInfo
 
 import pytest
 
-import piprayer
+from pipray import bluetooth as bluetooth_module, wizard
+from pipray.bluetooth import bluetooth_speakers
+from pipray.config import Config
+from pipray.wizard import Wizard, configure, parse_zone_coordinate, system_timezone, timezone_location
 from conftest import MELBOURNE_CONFIG
 
 
@@ -26,7 +30,7 @@ class Answers:
         self.output.append(text)
 
     def wizard(self):
-        return piprayer.Wizard(self.ask, self.say)
+        return Wizard(self.ask, self.say)
 
 
 def saved(path):
@@ -37,9 +41,9 @@ def saved(path):
 
 @pytest.fixture(autouse=True)
 def melbourne_system(monkeypatch):
-    monkeypatch.setattr(piprayer, "system_timezone", lambda: "Australia/Melbourne")
-    monkeypatch.setattr(piprayer, "installed_azaan", lambda: 1)
-    monkeypatch.setattr(piprayer, "bluetoothctl", FakeBluetooth())
+    monkeypatch.setattr(wizard, "system_timezone", lambda: "Australia/Melbourne")
+    monkeypatch.setattr(wizard, "installed_azaan", lambda: 1)
+    monkeypatch.setattr(bluetooth_module, "bluetoothctl", FakeBluetooth())
 
 # Answers up to the speaker question, and after it
 BEFORE_SPEAKER = [""] * 6
@@ -50,7 +54,7 @@ def test_new_configuration_from_system_timezone(tmp_path):
     path = str(tmp_path / ".piprayer")
     answers = Answers(*[""] * 11)
 
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert saved(path) == {
         "timezone": "Australia/Melbourne",
         "lat": "-37.8167",
@@ -62,14 +66,14 @@ def test_new_configuration_from_system_timezone(tmp_path):
         "volume": "100",
         "reminder": "0",
     }
-    piprayer.Config(path)
+    Config(path)
 
 
 def test_changes_an_existing_configuration(write_config):
     path = write_config(MELBOURNE_CONFIG + "gmt-offset = 10\ndst = 1\n")
     answers = Answers("", "-37.9", "", "", "", "Fajr:-5, Isha", "5", "3", "80, Fajr:40", "10", "y")
 
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert saved(path) == {
         "timezone": "Australia/Melbourne",
         "lat": "-37.9",
@@ -89,7 +93,7 @@ def test_new_timezone_suggests_its_location_and_method(write_config):
     path = write_config()
     answers = Answers("America/New_York", *[""] * 10)
 
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     config = saved(path)
     assert config["timezone"] == "America/New_York"
     assert (config["lat"], config["lng"]) == ("40.7142", "-74.0064")
@@ -106,7 +110,7 @@ def test_new_timezone_suggests_its_location_and_method(write_config):
 def test_suggests_regional_method(tmp_path, tz, method, asr):
     path = str(tmp_path / ".piprayer")
     answers = Answers(tz, *[""] * 10)
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert (saved(path)["method"], saved(path)["asr-time"]) == (method, asr)
 
 
@@ -115,7 +119,7 @@ def test_asks_again_after_invalid_answers(tmp_path):
     answers = Answers("Mars/Olympus", "", "100", "", "", "9", "", "", "Fajir", "", "18", "", "", "150", "",
                       "61", "", "")
 
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     for message in ["Unknown timezone: Mars/Olympus", "Invalid latitude: 100", "Choose a number from 1 to 7",
                     "Unknown prayer: Fajir", "there is no media/azaan-18.opus", "Invalid volume: 150",
                     "Invalid reminder: 61"]:
@@ -128,7 +132,7 @@ def test_asks_again_after_invalid_answers(tmp_path):
 def test_method_by_name_or_number(tmp_path):
     path = str(tmp_path / ".piprayer")
     answers = Answers("", "", "", "karachi", "2", *[""] * 6)
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert (saved(path)["method"], saved(path)["asr-time"]) == ("Karachi", "Hanafi")
 
 
@@ -136,23 +140,23 @@ def test_shows_times_and_keeps_file_when_not_saved(write_config):
     path = write_config()
     answers = Answers(*[""] * 3, "MWL", *[""] * 6, "n")
 
-    assert piprayer.configure(path, answers.wizard()) == 1
+    assert configure(path, answers.wizard()) == 1
     assert open(path).read() == MELBOURNE_CONFIG
     assert any("MWL method" in line for line in answers.output)
-    assert not (piprayer.os.path.exists(path + ".new"))
+    assert not (os.path.exists(path + ".new"))
 
 
 def test_none_removes_fajr_azaan(write_config):
     path = write_config(MELBOURNE_CONFIG + "fajr-azaan = 3\n")
     answers = Answers(*[""] * 7, "none", *[""] * 3)
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert "fajr-azaan" not in saved(path)
 
 
 def test_end_of_input_is_an_error(tmp_path):
     path = str(tmp_path / ".piprayer")
     with pytest.raises(EOFError):
-        piprayer.configure(path, Answers("").wizard())
+        configure(path, Answers("").wizard())
     assert not (tmp_path / ".piprayer").exists()
 
 
@@ -161,23 +165,23 @@ def test_end_of_input_is_an_error(tmp_path):
     ("America/New_York", 40.7142, -74.0064),
 ])
 def test_timezone_location(name, lat, lng):
-    assert piprayer.timezone_location(name)[:2] == (lat, lng)
+    assert timezone_location(name)[:2] == (lat, lng)
 
 
 def test_unknown_timezone_has_no_location():
-    assert piprayer.timezone_location("Etc/UTC") is None
+    assert timezone_location("Etc/UTC") is None
 
 
 def test_zone_coordinates_with_seconds():
-    assert piprayer.parse_zone_coordinate("+404251", 2) == 40.7142
-    assert piprayer.parse_zone_coordinate("-0740023", 3) == -74.0064
+    assert parse_zone_coordinate("+404251", 2) == 40.7142
+    assert parse_zone_coordinate("-0740023", 3) == -74.0064
 
 
 def test_system_timezone_from_tz_variable(monkeypatch):
     monkeypatch.undo()
     monkeypatch.setenv("TZ", "Europe/London")
-    assert piprayer.system_timezone() == "Europe/London"
-    ZoneInfo(piprayer.system_timezone())
+    assert system_timezone() == "Europe/London"
+    ZoneInfo(system_timezone())
 
 
 # ---------------------------------------------------------------- speaker
@@ -226,7 +230,7 @@ def bluetooth(monkeypatch):
     fake = FakeBluetooth(controller=True)
     fake.devices = {KITCHEN: ["Kitchen Speaker", True, False], ECHO: ["Echo Pop", True, True],
                     PHONE: ["Phone", False, False]}
-    monkeypatch.setattr(piprayer, "bluetoothctl", fake)
+    monkeypatch.setattr(bluetooth_module, "bluetoothctl", fake)
     return fake
 
 
@@ -234,7 +238,7 @@ def test_lists_paired_speakers_and_saves_the_choice(tmp_path, bluetooth):
     path = str(tmp_path / ".piprayer")
     answers = Answers(*BEFORE_SPEAKER, "2", *AFTER_SPEAKER)
 
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert saved(path)["speaker"] == ECHO
     assert "  1. Kitchen Speaker ({})".format(KITCHEN) in answers.output
     assert "  2. Echo Pop ({}), connected".format(ECHO) in answers.output
@@ -244,25 +248,25 @@ def test_lists_paired_speakers_and_saves_the_choice(tmp_path, bluetooth):
 
 def test_any_speaker_is_the_default(tmp_path, bluetooth):
     path = str(tmp_path / ".piprayer")
-    assert piprayer.configure(path, Answers(*BEFORE_SPEAKER, "", *AFTER_SPEAKER).wizard()) == 0
+    assert configure(path, Answers(*BEFORE_SPEAKER, "", *AFTER_SPEAKER).wizard()) == 0
     assert "speaker" not in saved(path)
 
 
 def test_keeps_or_removes_the_configured_speaker(write_config, bluetooth):
     path = write_config(MELBOURNE_CONFIG + "speaker = {}\n".format(KITCHEN))
     answers = Answers(*BEFORE_SPEAKER, "", *AFTER_SPEAKER)
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert saved(path)["speaker"] == KITCHEN
     assert "Speaker [1]: " in answers.prompts
 
-    assert piprayer.configure(path, Answers(*BEFORE_SPEAKER, "0", *AFTER_SPEAKER).wizard()) == 0
+    assert configure(path, Answers(*BEFORE_SPEAKER, "0", *AFTER_SPEAKER).wizard()) == 0
     assert "speaker" not in saved(path)
 
 
 def test_configured_speaker_that_is_no_longer_paired_is_offered(write_config, bluetooth):
     path = write_config(MELBOURNE_CONFIG + "speaker = {}\n".format(SOUNDBAR))
     answers = Answers(*BEFORE_SPEAKER, "", *AFTER_SPEAKER)
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert saved(path)["speaker"] == SOUNDBAR
     assert "  3. not paired now ({})".format(SOUNDBAR) in answers.output
 
@@ -270,7 +274,7 @@ def test_configured_speaker_that_is_no_longer_paired_is_offered(write_config, bl
 def test_speaker_by_address_and_invalid_choices(tmp_path, bluetooth):
     path = str(tmp_path / ".piprayer")
     answers = Answers(*BEFORE_SPEAKER, "3", "speaker", SOUNDBAR.lower(), *AFTER_SPEAKER)
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert saved(path)["speaker"] == SOUNDBAR
     assert answers.output.count(
         "  Choose a number from 0 to 2, p to pair a new speaker, or enter a Bluetooth address") == 2
@@ -281,7 +285,7 @@ def test_pairs_a_new_speaker(tmp_path, bluetooth):
     path = str(tmp_path / ".piprayer")
     answers = Answers(*BEFORE_SPEAKER, "p", "", "1", *AFTER_SPEAKER)
 
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert saved(path)["speaker"] == SOUNDBAR
     assert "  1. Soundbar ({})".format(SOUNDBAR) in answers.output
     # devices without a name, and the paired ones, are not offered
@@ -297,7 +301,7 @@ def test_pairing_failure_can_be_retried_or_abandoned(tmp_path, bluetooth):
     path = str(tmp_path / ".piprayer")
     answers = Answers(*BEFORE_SPEAKER, "p", "", "1", "r", "", "1", *AFTER_SPEAKER)
 
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert "Could not pair Soundbar: Failed to pair: org.bluez.Error.AuthenticationFailed" in answers.output
     assert sum(c.startswith("--timeout") for c in bluetooth.commands) == 2
     # back at the list of paired speakers, Kitchen Speaker was chosen
@@ -310,7 +314,7 @@ def test_offers_pairing_when_nothing_is_paired(tmp_path, bluetooth):
     path = str(tmp_path / ".piprayer")
     answers = Answers(*BEFORE_SPEAKER, "", "", "1", *AFTER_SPEAKER)
 
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert "No paired Bluetooth speakers found." in answers.output
     assert "Pair a speaker now? [Y/n]: " in answers.prompts
     assert saved(path)["speaker"] == SOUNDBAR
@@ -321,7 +325,7 @@ def test_nothing_found_when_scanning(tmp_path, bluetooth):
     path = str(tmp_path / ".piprayer")
     answers = Answers(*BEFORE_SPEAKER, "", "", "", "n", *AFTER_SPEAKER)
 
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert any(line.startswith("No new speakers found") for line in answers.output)
     assert "speaker" not in saved(path)
 
@@ -329,7 +333,7 @@ def test_nothing_found_when_scanning(tmp_path, bluetooth):
 def test_without_a_bluetooth_adapter_the_speaker_is_kept(write_config):
     path = write_config(MELBOURNE_CONFIG + "speaker = {}\n".format(KITCHEN))
     answers = Answers(*BEFORE_SPEAKER, *AFTER_SPEAKER)
-    assert piprayer.configure(path, answers.wizard()) == 0
+    assert configure(path, answers.wizard()) == 0
     assert not any(prompt.startswith("Speaker") for prompt in answers.prompts)
     assert any("No Bluetooth adapter found" in line for line in answers.output)
     assert saved(path)["speaker"] == KITCHEN
@@ -353,8 +357,8 @@ def test_bluetooth_speakers_reads_bluetoothctl(monkeypatch):
             "CC:CC:CC:CC:CC:03": "\tPaired: no\n",
         }[mac])
 
-    monkeypatch.setattr(piprayer.subprocess, "run", fake_run)
-    assert piprayer.bluetooth_speakers() == [(KITCHEN, "Kitchen Speaker", False), (ECHO, "Echo Pop", True)]
+    monkeypatch.setattr(bluetooth_module.subprocess, "run", fake_run)
+    assert bluetooth_speakers() == [(KITCHEN, "Kitchen Speaker", False), (ECHO, "Echo Pop", True)]
 
 
 def test_bluetooth_speakers_without_bluetoothctl(monkeypatch):
@@ -363,8 +367,8 @@ def test_bluetooth_speakers_without_bluetoothctl(monkeypatch):
     def missing(cmd, **kwargs):
         raise FileNotFoundError(cmd[0])
 
-    monkeypatch.setattr(piprayer.subprocess, "run", missing)
-    assert piprayer.bluetooth_speakers() == []
+    monkeypatch.setattr(bluetooth_module.subprocess, "run", missing)
+    assert bluetooth_speakers() == []
 
 
 # ---------------------------------------------------------------- after saving
@@ -378,15 +382,15 @@ def test_says_what_happens_next(tmp_path, monkeypatch, installed, message):
     service = tmp_path / "piprayer.service"
     if installed:
         service.write_text("[Service]\n")
-    monkeypatch.setattr(piprayer, "service_file", lambda: str(service))
+    monkeypatch.setattr(wizard, "service_file", lambda: str(service))
     answers = Answers(*[""] * 11)
 
-    assert piprayer.configure(str(tmp_path / ".piprayer"), answers.wizard()) == 0
+    assert configure(str(tmp_path / ".piprayer"), answers.wizard()) == 0
     assert answers.output[-1] == message
 
 
 def test_no_next_step_when_run_by_the_setup(tmp_path):
     answers = Answers(*[""] * 11)
     path = str(tmp_path / ".piprayer")
-    assert piprayer.configure(path, answers.wizard(), next_step=False) == 0
+    assert configure(path, answers.wizard(), next_step=False) == 0
     assert answers.output[-1] == "Saved " + path

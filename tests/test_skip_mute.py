@@ -6,9 +6,11 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-import piprayer
+from pipray.cli import main
+from pipray.config import Config
+from pipray.player import REMINDER_SOUND
+from pipray.state import State, skip_next, state_file
 from conftest import MELBOURNE_CONFIG
-from piprayer import State, state_file
 
 MELBOURNE = ZoneInfo("Australia/Melbourne")
 
@@ -23,7 +25,7 @@ def no_installed_service(tmp_path, monkeypatch):
 
 def cli(monkeypatch, capsys, *args):
     monkeypatch.setattr("sys.argv", ["piprayer.py"] + list(args))
-    code = piprayer.main()
+    code = main()
     return code, capsys.readouterr()
 
 
@@ -195,7 +197,7 @@ def test_service_doesnt_play_a_skipped_azaan_or_its_reminder(write_config, fake_
 
     clock.run_service(path, hours=5.5)
 
-    assert played(clock) == [("Thu 19:52", piprayer.REMINDER_SOUND), ("Thu 20:02", "1")]
+    assert played(clock) == [("Thu 19:52", REMINDER_SOUND), ("Thu 20:02", "1")]
     assert not os.path.exists(state_file(path))  # the skip is forgotten once it is over
 
 
@@ -214,7 +216,7 @@ def test_service_applies_a_skip_made_while_it_waits(write_config, fake_clock):
     path = write_config()
     clock = fake_clock(datetime(2026, 11, 12, 15, 0), MELBOURNE)
     clock.at(datetime(2026, 11, 12, 17, 0),
-             lambda: piprayer.skip_next(piprayer.Config(path), state_file(path), clock.local_now(), 1))
+             lambda: skip_next(Config(path), state_file(path), clock.local_now()))
 
     clock.run_service(path, hours=7)
 

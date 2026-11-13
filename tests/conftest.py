@@ -1,13 +1,13 @@
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta, timezone
 
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-import piprayer  # noqa: E402
+from pipray import clock, player, service  # noqa: E402
 
 MELBOURNE_CONFIG = """\
 [Default]
@@ -75,7 +75,7 @@ class FakeClock:
     def run_service(self, config_path, hours, azaan=1):
         self.stop_at = self.now + timedelta(hours=hours)
         try:
-            piprayer.run(config_path, azaan)
+            service.run(config_path, azaan)
         except Stop:
             pass
         return self.played
@@ -84,17 +84,12 @@ class FakeClock:
 @pytest.fixture
 def fake_clock(monkeypatch):
     def create(start, tz):
-        clock = FakeClock(start, tz)
+        fake = FakeClock(start, tz)
 
-        class FakeDatetime(datetime):
-            @classmethod
-            def now(cls, tz=None):
-                return clock.now.astimezone(tz)
-
-        monkeypatch.setattr(piprayer, "datetime", FakeDatetime)
-        monkeypatch.setattr(piprayer.systime, "sleep", clock.sleep)
-        monkeypatch.setattr(piprayer.subprocess, "run", clock.run_player)
-        return clock
+        monkeypatch.setattr(clock, "now", lambda tz: fake.now.astimezone(tz))
+        monkeypatch.setattr(clock, "sleep", fake.sleep)
+        monkeypatch.setattr(player.subprocess, "run", fake.run_player)
+        return fake
 
     return create
 
@@ -104,11 +99,6 @@ def at_time(monkeypatch):
     """Fix the current time seen by piprayer."""
 
     def set_now(now):
-        class FixedDatetime(datetime):
-            @classmethod
-            def now(cls, tz=None):
-                return now.astimezone(tz)
-
-        monkeypatch.setattr(piprayer, "datetime", FixedDatetime)
+        monkeypatch.setattr(clock, "now", lambda tz: now.astimezone(tz))
 
     return set_now

@@ -5,9 +5,12 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-import piprayer
+from pipray import player
+from pipray.cli import main
+from pipray.config import Config, ConfigError
+from pipray.player import REMINDER_SOUND, play_event
+from pipray.schedule import Event, next_event
 from conftest import MELBOURNE_CONFIG
-from piprayer import Config, ConfigError, next_event
 
 MELBOURNE = ZoneInfo("Australia/Melbourne")
 
@@ -64,15 +67,15 @@ def test_invalid_options(write_config, line, message):
 # ------------------------------------------------------- choosing what to play
 
 def test_azaan_for_uses_default_when_not_configured(write_config):
-    config = Config(write_config())
-    assert config.azaan_for("dhuhr", 7) == 7
-    assert config.azaan_for("fajr", 7) == 7
+    config = Config(write_config(), default_azaan=7)
+    assert config.azaan_for("dhuhr") == 7
+    assert config.azaan_for("fajr") == 7
 
 
 def test_azaan_option_overrides_default(write_config):
-    config = Config(config_with(write_config, "azaan = 5"))
-    assert config.azaan_for("dhuhr", 7) == 5
-    assert config.azaan_for("fajr", 7) == 5
+    config = Config(config_with(write_config, "azaan = 5"), default_azaan=7)
+    assert config.azaan_for("dhuhr") == 5
+    assert config.azaan_for("fajr") == 5
 
 
 def test_fajr_azaan_only_applies_to_fajr(write_config):
@@ -82,9 +85,9 @@ def test_fajr_azaan_only_applies_to_fajr(write_config):
 
 
 def test_fajr_azaan_without_azaan_uses_default_for_others(write_config):
-    config = Config(config_with(write_config, "fajr-azaan = 3"))
-    assert config.azaan_for("fajr", 7) == 3
-    assert config.azaan_for("asr", 7) == 7
+    config = Config(config_with(write_config, "fajr-azaan = 3"), default_azaan=7)
+    assert config.azaan_for("fajr") == 3
+    assert config.azaan_for("asr") == 7
 
 
 # ------------------------------------------------------------------ reminders
@@ -117,7 +120,7 @@ def test_service_plays_reminders_and_azaans_with_settings(write_config, fake_clo
     clock = fake_clock(datetime(2026, 11, 12, 3, 0), MELBOURNE)
     clock.run_service(path, hours=11, azaan=7)
 
-    reminder = piprayer.REMINDER_SOUND
+    reminder = REMINDER_SOUND
     assert [(at.strftime("%H:%M"), sound, volume) for at, sound, volume in clock.played] == [
         ("04:13", reminder, "40"),
         ("04:23", "3", "40"),
@@ -174,13 +177,13 @@ def played_commands(monkeypatch):
         commands.append(cmd[1:])
         return Result()
 
-    monkeypatch.setattr(piprayer.subprocess, "run", fake_run)
+    monkeypatch.setattr(player.subprocess, "run", fake_run)
     return commands
 
 
 def run_main(monkeypatch, *args):
     monkeypatch.setattr("sys.argv", ["piprayer.py"] + list(args))
-    return piprayer.main()
+    return main()
 
 
 @pytest.mark.parametrize("args, expected", [
@@ -189,7 +192,7 @@ def run_main(monkeypatch, *args):
     (["--prayer", "isha"], ["5", "80"]),
     (["-a", "11"], ["11", "80"]),
     (["-a", "11", "-p", "fajr"], ["11", "40"]),
-    (["--reminder", "-p", "fajr"], [piprayer.REMINDER_SOUND, "40"]),
+    (["--reminder", "-p", "fajr"], [REMINDER_SOUND, "40"]),
 ])
 def test_play_command_uses_config(write_config, monkeypatch, played_commands, args, expected):
     path = config_with(write_config, "azaan = 5", "fajr-azaan = 3", "volume = 80, Fajr:40")
@@ -212,22 +215,22 @@ def test_play_command_rejects_unknown_azaan(monkeypatch, capsys):
 
 
 def test_speaker_is_optional(write_config):
-    assert piprayer.Config(write_config()).speaker is None
+    assert Config(write_config()).speaker is None
 
 
 def test_speaker_address_is_upper_case(write_config):
-    assert piprayer.Config(config_with(write_config, "speaker = aa:bb:cc:dd:ee:0f")).speaker == "AA:BB:CC:DD:EE:0F"
+    assert Config(config_with(write_config, "speaker = aa:bb:cc:dd:ee:0f")).speaker == "AA:BB:CC:DD:EE:0F"
 
 
 @pytest.mark.parametrize("value", ["kitchen", "AA:BB:CC:DD:EE", "AA-BB-CC-DD-EE-FF", "GG:BB:CC:DD:EE:FF"])
 def test_rejects_invalid_speaker(write_config, value):
-    with pytest.raises(piprayer.ConfigError, match="Invalid speaker"):
-        piprayer.Config(config_with(write_config, "speaker = " + value))
+    with pytest.raises(ConfigError, match="Invalid speaker"):
+        Config(config_with(write_config, "speaker = " + value))
 
 
 @pytest.mark.parametrize("args, expected", [
     ([], ["1", "100", "AA:BB:CC:DD:EE:FF"]),
-    (["-r"], [piprayer.REMINDER_SOUND, "100", "AA:BB:CC:DD:EE:FF"]),
+    (["-r"], [REMINDER_SOUND, "100", "AA:BB:CC:DD:EE:FF"]),
 ])
 def test_play_command_uses_configured_speaker(write_config, monkeypatch, played_commands, args, expected):
     path = config_with(write_config, "speaker = AA:BB:CC:DD:EE:FF")
@@ -236,9 +239,9 @@ def test_play_command_uses_configured_speaker(write_config, monkeypatch, played_
 
 
 def test_service_plays_on_configured_speaker(write_config, played_commands):
-    config = piprayer.Config(config_with(write_config, "speaker = AA:BB:CC:DD:EE:FF", "reminder = 5"))
-    at = piprayer.datetime(2026, 11, 13, 5, 0, tzinfo=config.tz)
-    piprayer.play_event(config, piprayer.Event(at, "fajr"), 1)
-    piprayer.play_event(config, piprayer.Event(at, "fajr", reminder=True), 1)
+    config = Config(config_with(write_config, "speaker = AA:BB:CC:DD:EE:FF", "reminder = 5"))
+    at = datetime(2026, 11, 13, 5, 0, tzinfo=config.tz)
+    play_event(config, Event(at, "fajr"))
+    play_event(config, Event(at, "fajr", reminder=True))
     assert played_commands == [["1", "100", "AA:BB:CC:DD:EE:FF"],
-                               [piprayer.REMINDER_SOUND, "100", "AA:BB:CC:DD:EE:FF"]]
+                               [REMINDER_SOUND, "100", "AA:BB:CC:DD:EE:FF"]]

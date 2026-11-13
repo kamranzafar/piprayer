@@ -388,6 +388,10 @@ service.
 
 ## Development
 
+The code is in the [`pipray`](pipray) package, one module per concern: `config`, `schedule`, `state`, `output`,
+`player`, `web`, `service`, `bluetooth`, `wizard` and `cli`. Each module depends only on the ones before it, and
+`piprayer.py` just runs `pipray.cli`. Everything reads the time through `pipray.clock`, so the tests can replace it.
+
 The tests cover:
 - prayer times, compared with reference times from the [AlAdhan API](https://aladhan.com/prayer-times-api)
 - the service loop, run against a simulated clock

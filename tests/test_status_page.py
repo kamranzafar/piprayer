@@ -8,9 +8,10 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-import piprayer
+from pipray.config import Config, ConfigError
+from pipray.state import State, state_file
+from pipray.web import StatusPage
 from conftest import MELBOURNE_CONFIG
-from piprayer import ConfigError, State, StatusPage, state_file
 
 MELBOURNE = ZoneInfo("Australia/Melbourne")
 
@@ -134,10 +135,10 @@ def test_configuration_error(page):
 
 
 def test_status_port_option(write_config):
-    assert piprayer.Config(write_config()).status_port is None
-    assert piprayer.Config(write_config(MELBOURNE_CONFIG + "status-port = 8080\n")).status_port == 8080
+    assert Config(write_config()).status_port is None
+    assert Config(write_config(MELBOURNE_CONFIG + "status-port = 8080\n")).status_port == 8080
     with pytest.raises(ConfigError, match="Invalid status-port: 70000"):
-        piprayer.Config(write_config(MELBOURNE_CONFIG + "status-port = 70000\n"))
+        Config(write_config(MELBOURNE_CONFIG + "status-port = 70000\n"))
 
 
 def test_port_in_use_is_logged(caplog):

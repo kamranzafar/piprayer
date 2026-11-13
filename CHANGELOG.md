@@ -63,6 +63,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   instead of about 430 MB. Every commit and tag has a new hash. The original MP3s are kept as
   [`original-mp3s.zip`](https://github.com/kamranzafar/piprayer/releases/download/v0.1/original-mp3s.zip) on the
   v0.1 release.
+- The code is split from one large `piprayer.py` into modules in the `pipray` package. `piprayer.py` is still the
+  command to run, and nothing changes in how PiPrayer behaves.
 - `.piprayer` is ignored by git instead of shipping with example settings for Melbourne. The first
   `./setup-piprayer.sh` creates it by asking for each setting.
 

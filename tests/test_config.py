@@ -4,8 +4,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-import piprayer
-from piprayer import Config, ConfigError, parse_prayers
+from pipray.cli import main
+from pipray.config import Config, ConfigError, parse_prayers
 
 
 def test_parse_prayers_with_offsets():
@@ -91,7 +91,7 @@ def test_config_missing_file(tmp_path):
 def test_main_reports_config_errors(write_config, monkeypatch, capsys):
     path = write_config(piprayer_config().replace("Fajr,", "Fajir,"))
     monkeypatch.setattr("sys.argv", ["piprayer.py", "-c", path, "times"])
-    assert piprayer.main() == 1
+    assert main() == 1
     assert "Unknown prayer: Fajir" in capsys.readouterr().err
 
 
