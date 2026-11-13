@@ -7,8 +7,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.9] - 2026-11-13
+
 ### Upgrading from 0.8
-- Run `./setup-piprayer.sh` once after this update. From then on, the service restarts itself after `git pull`.
 - The repository history was rewritten to remove old audio files, so `git pull` can't update an existing clone.
   Clone again and copy your settings across, from the folder that contains `piprayer`:
 
@@ -20,14 +21,15 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   ```
 
   Then remove `piprayer.old` once the Azaan plays as before.
-- `.piprayer` is no longer part of the repository, so future updates with `git pull` don't touch your settings.
 - The Azaan recordings are renumbered so that the Fajr azaans come last, as 14 to 17. If `.piprayer` sets `azaan`
   or `fajr-azaan`, or you installed with `./setup-piprayer.sh <number>`, change the number to keep the same
-  recording:
+  recording, or run `python3 piprayer.py config`:
 
   | Before | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | Now | 1 | 2 | **14** | 3 | 4 | 5 | 6 | 7 | 8 | **15** | 9 | 10 | 11 | 12 | 13 |
+- From now on, `git pull` is enough to update: `.piprayer` is no longer part of the repository, so your settings
+  aren't touched, and the service restarts itself within a minute to run the new version.
 
 ### Added
 - `LICENSE` with the full GNU GPL v3 text, and `COPYING.LESSER` with the GNU LGPL v3 text for `praytimes.py`.
@@ -60,9 +62,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   discovery, with the next Azaan, the next prayer, whether it is muted, and buttons to skip, mute today and resume.
   It needs `paho-mqtt` (`sudo apt install python3-paho-mqtt`), version 1 or 2, only when MQTT is on. The
   configuration wizard asks for the broker and login, and keeps `.piprayer` readable only by its owner when it
-  holds the password.
-  When the broker can't be reached, the log says why: the name isn't found, the port is refused, or there is no
-  answer.
+  holds the password. When the broker can't be reached, the log says why: the name isn't found, the port is
+  refused, or there is no answer.
 - The service restarts itself within a minute of `git pull` updating PiPrayer, so updates apply without running
   `./setup-piprayer.sh`.
 - Unknown options in `.piprayer`, e.g. `status_port` for `status-port`, are logged by the service and shown by
@@ -208,7 +209,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - First release: plays the Azaan on a Bluetooth speaker at calculated prayer times, scheduled with cron.
 - 15 Azaan recordings, selectable with an argument to the setup script.
 
-[Unreleased]: https://github.com/kamranzafar/piprayer/compare/v0.8...HEAD
+[Unreleased]: https://github.com/kamranzafar/piprayer/compare/v0.9...HEAD
+[0.9]: https://github.com/kamranzafar/piprayer/compare/v0.8...v0.9
 [0.8]: https://github.com/kamranzafar/piprayer/compare/v0.7...v0.8
 [0.7]: https://github.com/kamranzafar/piprayer/compare/v0.6...v0.7
 [0.6]: https://github.com/kamranzafar/piprayer/compare/v0.5...v0.6
