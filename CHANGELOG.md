@@ -81,7 +81,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   (-16 LUFS) so they play at a similar level. Their numbers are unchanged, so `azaan` and `fajr-azaan` settings
   keep working. Recordings 1, 2, 9, 12 and 13 only had low quality sources and still need better ones.
   Playing Opus needs libsndfile 1.0.29 or later: Raspberry Pi OS Bullseye or later.
-- Azaan 3 no longer ends with 7 seconds of spoken credits.
+- Azaans 3, 4, 7, 12, 14 and 15 no longer end with about 7 seconds of spoken credits.
 - `play-azaan.sh` takes an optional speaker address after the volume.
 - The repository history no longer contains the old WAV and MP3 recordings, so a clone downloads about 30 MB
   instead of about 430 MB. Every commit and tag has a new hash. The original MP3s are kept as
