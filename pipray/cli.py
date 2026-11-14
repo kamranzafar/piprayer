@@ -83,7 +83,8 @@ def play_command(args):
         return play(REMINDER_SOUND, volume, "reminder", speaker, fallback).returncode
 
     azaan = args.azaan or (config.azaan_for(args.prayer) if config else DEFAULT_AZAAN)
-    return play(azaan, volume, speaker=speaker, fallback=fallback).returncode
+    fade_in = config.fade_in_for(args.prayer) if config else 0
+    return play(azaan, volume, speaker=speaker, fallback=fallback, fade_in=fade_in).returncode
 
 
 def stop_command(args):
@@ -191,7 +192,7 @@ def parser():
     play_parser.add_argument("-a", "--azaan", type=azaan_number, metavar="1-17",
                              help="azaan to play (default: the one in the configuration)")
     play_parser.add_argument("-p", "--prayer", choices=PRAYERS, type=str.lower,
-                             help="play the azaan and volume set for this prayer")
+                             help="play the azaan, volume and fade in set for this prayer")
     play_parser.add_argument("-r", "--reminder", action="store_true", help="play the reminder sound")
     play_parser.set_defaults(func=play_command)
 

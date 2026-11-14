@@ -165,6 +165,7 @@ the file directly. The running service picks up changes within a minute, no rest
 | `azaan` | Azaan recording to play, from 1 to 17 | 1, or the number given to `setup-piprayer.sh` | `5` |
 | `fajr-azaan` | A different recording for Fajr, e.g. one of the [Fajr azaans](#azaan-recordings) | same as `azaan` | `14` |
 | `volume` | Volume in percent. Add `Prayer:percent` to set a prayer's volume | `100` | `80, Fajr:40` |
+| `fade-in` | Start the Azaan quietly and raise it to its volume over this many seconds, up to 30. Add `Prayer:seconds` to set a prayer's fade in. `0` turns it off. The reminder chime doesn't fade in | `0`, off | `5, Fajr:15` |
 | `reminder` | Play a short chime this many minutes before each Azaan, up to 60. `0` turns it off | `0` | `10` |
 | `speaker` | Bluetooth address of the speaker to play on. Other paired devices are not used | any paired speaker | `AA:BB:CC:DD:EE:FF` |
 | `fallback-output` | `local` plays on the Raspberry Pi's own audio output (headphone jack or HDMI) when no speaker connects | `off` | `local` |
@@ -175,12 +176,14 @@ the file directly. The running service picks up changes within a minute, no rest
 | `mqtt-topic` | Start of PiPrayer's MQTT topics | `piprayer` | `home/azaan` |
 | `high-latitude` | How to set Fajr and Isha when summer nights are too short for their angles, see [below](#short-summer-nights) | `NightMiddle` | `AngleBased` |
 
-For example, to play azaan 5, a quieter azaan 14 for Fajr, and a chime 10 minutes before each prayer:
+For example, to play azaan 5, a quieter azaan 14 for Fajr that fades in over 15 seconds, and a chime 10 minutes
+before each prayer:
 
 ```ini
 azaan = 5
 fajr-azaan = 14
 volume = 80, Fajr:40
+fade-in = Fajr:15
 reminder = 10
 ```
 

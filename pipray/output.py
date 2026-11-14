@@ -63,10 +63,13 @@ def format_times(config, day, now, state=None, last=None, synchronised=None):
     entries = schedule(config, day, state)
     upcoming = next((e for e in entries if e.at > now), None) if day == now.date() else None
 
-    header = ["Prayer", "Time", "Azaan", "Volume"] + (["Reminder"] if config.reminder else [])
+    header = ["Prayer", "Time", "Azaan", "Volume"] + (["Fade"] if config.fades_in else []) + \
+        (["Reminder"] if config.reminder else [])
     rows = []
     for entry in entries:
         row = [entry.prayer.capitalize(), entry.at.strftime("%H:%M"), str(entry.azaan), "{}%".format(entry.volume)]
+        if config.fades_in:
+            row.append("{} s".format(entry.fade_in) if entry.fade_in else "-")
         if entry.reminder:
             row.append(entry.reminder.strftime("%H:%M"))
         notes = (["◀ next"] if entry is upcoming else []) + ([entry.silenced] if entry.silenced else []) + \

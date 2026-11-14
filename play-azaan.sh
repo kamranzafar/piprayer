@@ -17,13 +17,14 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#    Usage: play-azaan.sh [--fallback] <azaan number | sound file> [volume percent] [speaker address]
+#    Usage: play-azaan.sh [--fallback] [--fade-in seconds] <azaan number | sound file> [volume percent] [speaker]
 #           play-azaan.sh --connect [speaker address]
 #           play-azaan.sh --disconnect <speaker address>
 #
 #    Without a speaker address, any paired speaker is used. With --fallback, the sound plays on the Raspberry Pi's
 #    own audio output (headphone jack or HDMI) when no speaker connects. --connect connects a speaker ahead of
-#    time, so the azaan starts on time, and prints its address.
+#    time, so the azaan starts on time, and prints its address. --fade-in raises the volume from silent over the
+#    first seconds.
 #
 #    Stop it with SIGTERM (piprayer.py stop does): it stops playing and disconnects the speaker.
 #
@@ -32,13 +33,27 @@
 # How long to wait for a speaker to connect, and then for its audio output to appear
 CONNECT_SECONDS=10
 
+# How often the volume is raised while fading in
+FADE_STEPS_PER_SECOND=4
+MAX_FADE_IN=30
+
 MODE=play
 FALLBACK=""
-case "$1" in
-  --connect) MODE=connect; shift ;;
-  --disconnect) MODE=disconnect; shift ;;
-  --fallback) FALLBACK=1; shift ;;
-esac
+FADE_IN=0
+while [[ "$1" == --* ]]; do
+  case "$1" in
+    --connect) MODE=connect; shift ;;
+    --disconnect) MODE=disconnect; shift ;;
+    --fallback) FALLBACK=1; shift ;;
+    --fade-in) FADE_IN=$2; shift 2 ;;
+    *) echo "Unknown option: $1"; exit 1 ;;
+  esac
+done
+
+if ! [[ "$FADE_IN" =~ ^[0-9]+$ ]] || [ "$FADE_IN" -gt "$MAX_FADE_IN" ]; then
+  echo "Invalid fade-in: $FADE_IN, use a number of seconds from 0 to $MAX_FADE_IN"
+  exit 1
+fi
 
 if [ "$MODE" = play ]; then
   SOUND=$1
@@ -115,6 +130,31 @@ local_sink() {
   pactl list short sinks 2>/dev/null | awk '$2 !~ /^bluez/ {print $2; exit}'
 }
 
+# Print the number of the stream a process plays, as pactl lists it, waiting up to 3 seconds for it to appear
+stream_of() {
+  local i input
+  for ((i = 0; i < 30; i++)); do
+    input=$(pactl list sink-inputs 2>/dev/null | awk -v pid="\"$1\"" '
+      /^Sink Input #/ { sub(/^Sink Input #/, ""); number = $0 }
+      $1 == "application.process.id" && $3 == pid { print number; exit }')
+    if [ -n "$input" ]; then
+      echo "$input"
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
+# Raise a stream's volume from silent to the given level (65536 is 100%) over a number of seconds
+fade() {
+  local input=$1 target=$2 steps=$(($3 * FADE_STEPS_PER_SECOND)) i
+  for ((i = 1; i <= steps; i++)); do
+    sleep "0.$((100 / FADE_STEPS_PER_SECOND))"
+    pactl set-sink-input-volume "$input" $((target * i / steps)) 2>/dev/null || return
+  done
+}
+
 not_connected() {
   echo "Can't connect to bluetooth${SPEAKER:+ speaker $SPEAKER}"
 }
@@ -155,9 +195,13 @@ if ! [[ "$VOLUME" =~ ^[0-9]+$ ]] || [ "$VOLUME" -gt 100 ]; then
 fi
 
 PAPLAY=""
+FADE=""
 BLUETOOTH_MAC=""
 
 stop() {
+  if [ -n "$FADE" ]; then
+    kill "$FADE" 2>/dev/null
+  fi
   if [ -n "$PAPLAY" ]; then
     kill "$PAPLAY" 2>/dev/null
   fi
@@ -182,13 +226,38 @@ else
   exit 2
 fi
 
-# 65536 is 100%, on the same scale as the system volume control. In the background, so a stop is handled straight
-# away rather than once paplay has finished
-paplay --volume=$((VOLUME * 65536 / 100)) ${DEVICE:+"--device=$DEVICE"} "$SOUND_FILE" &
-PAPLAY=$!
+# 65536 is 100%, on the same scale as the system volume control
+LEVEL=$((VOLUME * 65536 / 100))
+
+# In the background, so a stop is handled straight away rather than once paplay has finished
+start_paplay() {
+  paplay --volume="$1" ${DEVICE:+"--device=$DEVICE"} "$SOUND_FILE" &
+  PAPLAY=$!
+}
+
+if [ "$FADE_IN" -gt 0 ] && command -v pactl >/dev/null; then
+  start_paplay 0
+  if INPUT=$(stream_of "$PAPLAY"); then
+    fade "$INPUT" "$LEVEL" "$FADE_IN" &
+    FADE=$!
+  else
+    # Never leave the azaan silent: start again at full volume
+    echo "Can't find the stream to fade in, playing without fading in"
+    kill "$PAPLAY" 2>/dev/null
+    wait "$PAPLAY" 2>/dev/null
+    start_paplay "$LEVEL"
+  fi
+else
+  start_paplay "$LEVEL"
+fi
+
 wait "$PAPLAY"
 STATUS=$?
 PAPLAY=""
+if [ -n "$FADE" ]; then
+  kill "$FADE" 2>/dev/null
+  FADE=""
+fi
 if [ -n "$BLUETOOTH_MAC" ]; then
   echo "disconnect $BLUETOOTH_MAC" | bluetoothctl >/dev/null
 fi

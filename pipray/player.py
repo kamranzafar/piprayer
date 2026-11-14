@@ -66,16 +66,16 @@ def run_player(args, on_start=None):
     return process.returncode, [line.strip() for line in (output or "").splitlines() if line.strip()]
 
 
-def play(sound, volume=DEFAULT_VOLUME, description=None, speaker=None, fallback=False, on_start=None):
+def play(sound, volume=DEFAULT_VOLUME, description=None, speaker=None, fallback=False, on_start=None, fade_in=0):
     """Play an azaan (by number) or a sound file, on the given speaker or any paired one.
 
-    With fallback, play on the Raspberry Pi's own audio output when no speaker connects. on_start is called with
-    play-azaan.sh's process id. Returns a Played.
+    With fallback, play on the Raspberry Pi's own audio output when no speaker connects. fade_in is the seconds to
+    raise the volume over at the start. on_start is called with play-azaan.sh's process id. Returns a Played.
     """
-    log.info("Playing %s at %d%% volume%s", description or "azaan " + str(sound), volume,
-             " on " + speaker if speaker else "")
-    code, lines = run_player((["--fallback"] if fallback else []) + [str(sound), str(volume)] +
-                             ([speaker] if speaker else []), on_start)
+    log.info("Playing %s at %d%% volume%s%s", description or "azaan " + str(sound), volume,
+             ", fading in over {} seconds".format(fade_in) if fade_in else "", " on " + speaker if speaker else "")
+    code, lines = run_player((["--fallback"] if fallback else []) + (["--fade-in", str(fade_in)] if fade_in else []) +
+                             [str(sound), str(volume)] + ([speaker] if speaker else []), on_start)
     for line in lines:
         log.info("%s", line)
     if code not in (0, STOPPED):
@@ -90,7 +90,7 @@ def play_event(config, event, on_start=None):
                     on_start)
     azaan = config.azaan_for(event.prayer)
     return play(azaan, volume, "azaan {} for {}".format(azaan, event.prayer), config.speaker,
-                config.fallback_local, on_start)
+                config.fallback_local, on_start, config.fade_in_for(event.prayer))
 
 
 def connect(speaker=None):

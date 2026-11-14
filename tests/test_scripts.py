@@ -90,6 +90,34 @@ def bluetooth(tmp_path):
         def run(self, *args):
             return run([os.path.join(ROOT, "play-azaan.sh")] + list(args), bin_dir)
 
+        def fading(self, steps, stream_found=True):
+            """paplay plays until the volume has been raised the given number of times, and pactl lists its stream
+            as number 7, and records volume changes."""
+            (state / "steps").write_text(str(steps))
+            make_command(bin_dir, "sleep", "/bin/sleep 0.01\n")  # time for paplay to start
+            make_command(bin_dir, "paplay", """\
+                echo "play $*" >> {state}/log
+                echo $$ > {state}/paplay
+                for ((i = 0; i < 100; i++)); do
+                  [ -f {state}/faded ] && break
+                  /bin/sleep 0.03
+                done
+                """.format(state=state))
+            make_command(bin_dir, "pactl", """\
+                if [ "$1 $2" = "list sink-inputs" ]; then
+                  {found} && [ -f {state}/paplay ] || exit 0
+                  printf 'Sink Input #7\\n\\tDriver: PipeWire\\n\\tProperties:\\n'
+                  printf '\\t\\tapplication.name = "paplay"\\n'
+                  printf '\\t\\tapplication.process.id = "%s"\\n' "$(cat {state}/paplay)"
+                  exit 0
+                fi
+                if [ "$1" = set-sink-input-volume ]; then
+                  echo "volume $2 $3" >> {state}/log
+                  [ "$(grep -c ^volume {state}/log)" -ge "$(cat {state}/steps)" ] && touch {state}/faded
+                fi
+                exit 0
+                """.format(state=state, found="true" if stream_found else "false"))
+
         def paplay_blocks(self):
             """paplay plays until it is stopped."""
             make_command(bin_dir, "paplay", """\
@@ -258,6 +286,35 @@ def test_stopping_stops_playing_and_disconnects(bluetooth):
     assert bluetooth.log() == ["connect " + SPEAKER_1, azaan_file(3), "disconnect " + SPEAKER_1]
 
 
+def test_fades_in_to_the_volume(bluetooth):
+    bluetooth.fading(steps=8)
+    result = bluetooth.play("--fade-in", "2", "3", "50")
+    assert result.returncode == 0, result.stdout
+    sound = os.path.join(ROOT, "media", "azaan-3.opus")
+    # starts silent, then 4 steps a second up to 50% (32768)
+    assert bluetooth.log() == ["connect " + SPEAKER_1, "play --volume=0 " + sound] + \
+        ["volume 7 {}".format(32768 * i // 8) for i in range(1, 9)] + ["disconnect " + SPEAKER_1]
+
+
+def test_fade_in_with_fallback_in_any_order(bluetooth):
+    bluetooth.fading(steps=4)
+    bluetooth.refuse(SPEAKER_1, SPEAKER_2)
+    result = bluetooth.play("--fade-in", "1", "--fallback", "3")
+    assert result.returncode == 0, result.stdout
+    assert result.stdout.strip().endswith("Played on the local audio output")
+    assert bluetooth.log()[-1] == "volume 7 65536"
+
+
+def test_plays_at_full_volume_when_the_stream_cant_be_found(bluetooth):
+    bluetooth.fading(steps=0, stream_found=False)
+    result = bluetooth.play("--fade-in", "5", "3")
+    assert result.returncode == 0
+    assert "Can't find the stream to fade in, playing without fading in" in result.stdout
+    sound = os.path.join(ROOT, "media", "azaan-3.opus")
+    assert bluetooth.log() == ["connect " + SPEAKER_1, "play --volume=0 " + sound, "play --volume=65536 " + sound,
+                               "disconnect " + SPEAKER_1]
+
+
 def test_disconnect(bluetooth):
     assert bluetooth.run("--disconnect", SPEAKER_2).returncode == 0
     assert bluetooth.log() == ["disconnect " + SPEAKER_2]
@@ -270,6 +327,9 @@ def test_disconnect(bluetooth):
     (["/no/such/file.wav"], "Sound file not found"),
     (["3", "150"], "Invalid volume: 150"),
     (["3", "loud"], "Invalid volume: loud"),
+    (["--fade-in", "31", "3"], "Invalid fade-in: 31"),
+    (["--fade-in", "soft", "3"], "Invalid fade-in: soft"),
+    (["--louder", "3"], "Unknown option: --louder"),
 ])
 def test_rejects_bad_arguments_before_connecting(bluetooth, args, message):
     result = bluetooth.play(*args)

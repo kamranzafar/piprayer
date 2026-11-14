@@ -8,6 +8,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- Optional `fade-in` option to start the Azaan quietly and raise it to its volume over a number of seconds, per
+  prayer like `volume`, e.g. `fade-in = 5, Fajr:15`. Off unless set. `piprayer.py times` shows a Fade column when it
+  is set, and the JSON has `fade_in` for each prayer. `play-azaan.sh` takes `--fade-in`
+  ([#9](https://github.com/kamranzafar/piprayer/issues/9)).
 - `piprayer.py stop` stops the Azaan or reminder that is playing and disconnects the speaker, and it isn't tried
   again. The status page has a Stop button while one plays, and `POST /api/stop`; Home Assistant has a Stop button,
   a `stop` command, and a "Playing" binary sensor. `/api/times` says what is `playing`

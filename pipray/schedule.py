@@ -111,12 +111,13 @@ class Entry:
     volume: int
     reminder: Optional[datetime]
     silenced: Optional[str] = None  # "skipped" or "muted" when it won't play
+    fade_in: int = 0  # seconds
 
     @classmethod
     def of(cls, config, prayer, at, state=None):
         return cls(prayer, at, config.azaan_for(prayer), config.volume_for(prayer),
                    at - timedelta(minutes=config.reminder) if config.reminder else None,
-                   state.silenced(at) if state else None)
+                   state.silenced(at) if state else None, config.fade_in_for(prayer))
 
     def to_json(self):
         return {
@@ -124,6 +125,7 @@ class Entry:
             "time": self.at.isoformat(),
             "azaan": self.azaan,
             "volume": self.volume,
+            "fade_in": self.fade_in,
             "reminder": self.reminder.isoformat() if self.reminder else None,
             "skipped": self.silenced == "skipped",
             "muted": self.silenced == "muted",

@@ -31,8 +31,9 @@ MQTT_USERNAME = "mqtt-username"
 MQTT_PASSWORD = "mqtt-password"
 MQTT_TOPIC = "mqtt-topic"
 FALLBACK_OUTPUT = "fallback-output"
+FADE_IN = "fade-in"
 
-OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, REMINDER,
+OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, FADE_IN, REMINDER,
            SPEAKER, FALLBACK_OUTPUT, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
            MQTT_TOPIC)
 
@@ -54,6 +55,9 @@ MEDIA_DIR = os.path.join(SCRIPT_DIR, "media")
 
 DEFAULT_AZAAN = 1
 DEFAULT_VOLUME = 100
+
+# Longest fade in at the start of an azaan, in seconds
+MAX_FADE_IN = 30
 
 
 class ConfigError(Exception):
@@ -94,6 +98,7 @@ class Config:
         self.azaan = parse_azaan(section, AZAAN)
         self.fajr_azaan = parse_azaan(section, FAJR_AZAAN)
         self.volume, self.volumes = parse_volume(section.get(VOLUME, ""))
+        self.fade_in, self.fade_ins = parse_fade_in(section.get(FADE_IN, ""))
         self.reminder = parse_number(section, REMINDER, 0, 0, 60)
         self.speaker = parse_speaker(section.get(SPEAKER, ""))
         self.fallback_local = parse_fallback(section.get(FALLBACK_OUTPUT, "off"))
@@ -112,6 +117,15 @@ class Config:
 
     def volume_for(self, prayer):
         return self.volumes.get(prayer, self.volume)
+
+    def fade_in_for(self, prayer):
+        """Seconds to fade the azaan in over, 0 for none."""
+        return self.fade_ins.get(prayer, self.fade_in)
+
+    @property
+    def fades_in(self):
+        """True if any azaan fades in."""
+        return bool(self.fade_in or any(self.fade_ins.values()))
 
 
 def parse_prayers(value):
@@ -145,6 +159,24 @@ def parse_volume(value):
             volumes[name] = number
 
     return default, volumes
+
+
+def parse_fade_in(value):
+    """Parse "5, Fajr:15" into a default fade in and per-prayer fade ins, in seconds. None is 0."""
+    default = 0
+    fades = {}
+
+    for name, seconds in parse_list(value, allow_bare_value=True):
+        what = FADE_IN if name is None else name.capitalize() + " " + FADE_IN
+        if name is not None and not seconds:
+            raise ConfigError("Missing " + what + ", e.g. " + name.capitalize() + ":10")
+        number = check_range(seconds, what, 0, MAX_FADE_IN)
+        if name is None:
+            default = number
+        else:
+            fades[name] = number
+
+    return default, fades
 
 
 def parse_list(value, allow_bare_value=False):
