@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# SPDX-License-Identifier: LGPL-3.0-only
 # compatible with python 2.x and 3.x
 
 import math

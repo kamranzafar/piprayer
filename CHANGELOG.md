@@ -8,7 +8,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Changed
-- Every source file now carries a copyright notice (2021-2026) and an `SPDX-License-Identifier: GPL-3.0-or-later` line.
+- Every source file now carries a copyright notice (2021-2026) and an `SPDX-License-Identifier: GPL-3.0-or-later` line;
+  the bundled `praytimes.py` is marked `LGPL-3.0-only`.
 
 ## [0.9] - 2026-11-13
 
