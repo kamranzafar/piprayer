@@ -61,6 +61,7 @@ class FakeClock:
         self.now = start.replace(tzinfo=tz).astimezone(timezone.utc)
         self.tz = tz
         self.played = []
+        self.then = []  # (local time, sound played straight after, e.g. the dua)
         self.bluetooth = []  # (local time, "--connect" or "--disconnect", speaker or None)
         self.failures = []  # (exit code, message) for the next plays to fail with
         self.connect_fails = False
@@ -99,8 +100,14 @@ class FakeClock:
             if args[0] == "--connect" and self.connect_fails:
                 return 2, ["Can't connect to bluetooth"]
             return 0, [args[1] if len(args) > 1 else "AA:AA:AA:AA:AA:01"]
-        if args[0] == "--fallback":
-            args = args[1:]
+        then = None
+        while args[0].startswith("--"):
+            if args[0] == "--fallback":
+                args = args[1:]
+            else:  # --fade-in seconds, --then sound
+                if args[0] == "--then":
+                    then = args[1]
+                args = args[2:]
         if on_start:
             on_start(self.pid)
         if self.failures:
@@ -108,6 +115,8 @@ class FakeClock:
             return code, [message]
         # (local time, azaan number or sound file, volume)
         self.played.append((minute, args[0], args[1]))
+        if then:
+            self.then.append((minute, then))
         self.advance(self.play_duration)
         if self.stopped_while_playing:
             self.stopped_while_playing = False

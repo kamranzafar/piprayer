@@ -17,14 +17,16 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#    Usage: play-azaan.sh [--fallback] [--fade-in seconds] <azaan number | sound file> [volume percent] [speaker]
+#    Usage: play-azaan.sh [--fallback] [--fade-in seconds] [--then sound file] <azaan number | sound file>
+#                         [volume percent] [speaker]
 #           play-azaan.sh --connect [speaker address]
 #           play-azaan.sh --disconnect <speaker address>
 #
 #    Without a speaker address, any paired speaker is used. With --fallback, the sound plays on the Raspberry Pi's
 #    own audio output (headphone jack or HDMI) when no speaker connects. --connect connects a speaker ahead of
 #    time, so the azaan starts on time, and prints its address. --fade-in raises the volume from silent over the
-#    first seconds.
+#    first seconds. --then plays another sound straight after, e.g. the dua after the azaan, at the same volume and
+#    without disconnecting in between. If only that one doesn't play, it still exits with 0.
 #
 #    Stop it with SIGTERM (piprayer.py stop does): it stops playing and disconnects the speaker.
 #
@@ -40,12 +42,14 @@ MAX_FADE_IN=30
 MODE=play
 FALLBACK=""
 FADE_IN=0
+THEN=""
 while [[ "$1" == --* ]]; do
   case "$1" in
     --connect) MODE=connect; shift ;;
     --disconnect) MODE=disconnect; shift ;;
     --fallback) FALLBACK=1; shift ;;
     --fade-in) FADE_IN=$2; shift 2 ;;
+    --then) THEN=$2; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -189,6 +193,11 @@ if [ ! -f "$SOUND_FILE" ]; then
   exit 1
 fi
 
+if [ -n "$THEN" ] && [ ! -f "$THEN" ]; then
+  echo "Sound file not found: $THEN"
+  exit 1
+fi
+
 if ! [[ "$VOLUME" =~ ^[0-9]+$ ]] || [ "$VOLUME" -gt 100 ]; then
   echo "Invalid volume: $VOLUME, use a number from 0 to 100"
   exit 1
@@ -231,7 +240,7 @@ LEVEL=$((VOLUME * 65536 / 100))
 
 # In the background, so a stop is handled straight away rather than once paplay has finished
 start_paplay() {
-  paplay --volume="$1" ${DEVICE:+"--device=$DEVICE"} "$SOUND_FILE" &
+  paplay --volume="$1" ${DEVICE:+"--device=$DEVICE"} "${2:-$SOUND_FILE}" &
   PAPLAY=$!
 }
 
@@ -258,6 +267,18 @@ if [ -n "$FADE" ]; then
   kill "$FADE" 2>/dev/null
   FADE=""
 fi
+
+# The sound to play after it, while still connected. Stopping it stops this one too
+if [ "$STATUS" -eq 0 ] && [ -n "$THEN" ]; then
+  start_paplay "$LEVEL" "$THEN"
+  wait "$PAPLAY"
+  THEN_STATUS=$?
+  PAPLAY=""
+  if [ "$THEN_STATUS" -ne 0 ]; then
+    echo "$(basename "$THEN") didn't play: paplay failed with exit code $THEN_STATUS"
+  fi
+fi
+
 if [ -n "$BLUETOOTH_MAC" ]; then
   echo "disconnect $BLUETOOTH_MAC" | bluetoothctl >/dev/null
 fi

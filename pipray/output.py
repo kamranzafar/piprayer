@@ -90,12 +90,15 @@ def format_times(config, day, now, state=None, last=None, synchronised=None):
     fast = fast_times(config, day)
 
     header = ["Prayer", "Time", "Azaan", "Volume"] + (["Fade"] if config.fades_in else []) + \
+        (["Dua"] if config.plays_dua else []) + \
         (["Reminder"] if config.reminder else [])
     rows = []
     for entry in entries:
         row = [entry.prayer.capitalize(), entry.at.strftime("%H:%M"), str(entry.azaan), "{}%".format(entry.volume)]
         if config.fades_in:
             row.append("{} s".format(entry.fade_in) if entry.fade_in else "-")
+        if config.plays_dua:
+            row.append("yes" if entry.dua else "-")
         if entry.reminder:
             row.append(entry.reminder.strftime("%H:%M"))
         notes = (["◀ next"] if entry is upcoming else []) + \
@@ -138,7 +141,7 @@ def format_next(config, entry, now, state=None, synchronised=None):
     if entry is None:
         return indent(["No azaan in the next two days"] + warning)
 
-    details = "Azaan {} · {}% volume".format(entry.azaan, entry.volume)
+    details = "Azaan {} · {}% volume".format(entry.azaan, entry.volume) + (" · then the dua" if entry.dua else "")
     if entry.reminder:
         details += " · reminder at " + entry.reminder.strftime("%H:%M")
 

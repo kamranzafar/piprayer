@@ -38,10 +38,11 @@ FADE_IN = "fade-in"
 HIJRI_ADJUST = "hijri-adjust"
 RAMADAN = "ramadan"
 SUHOOR = "suhoor"
+DUA = "dua"
 
 OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, FADE_IN, REMINDER,
            SPEAKER, FALLBACK_OUTPUT, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
-           MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR)
+           MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR, DUA)
 
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_MQTT_TOPIC = "piprayer"
@@ -66,6 +67,7 @@ MAC_ADDRESS = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
 SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 DEFAULT_CONFIG = os.path.join(SCRIPT_DIR, ".piprayer")
 MEDIA_DIR = os.path.join(SCRIPT_DIR, "media")
+DUA_FILE = os.path.join(MEDIA_DIR, "dua.opus")
 
 DEFAULT_AZAAN = 1
 DEFAULT_VOLUME = 100
@@ -113,6 +115,7 @@ class Config:
         self.fajr_azaan = parse_azaan(section, FAJR_AZAAN)
         self.volume, self.volumes = parse_volume(section.get(VOLUME, ""))
         self.fade_in, self.fade_ins = parse_fade_in(section.get(FADE_IN, ""))
+        self.dua, self.duas = parse_dua(section.get(DUA, ""))
         self.reminder = parse_number(section, REMINDER, 0, 0, 60)
         self.speaker = parse_speaker(section.get(SPEAKER, ""))
         self.fallback_local = parse_fallback(section.get(FALLBACK_OUTPUT, "off"))
@@ -138,6 +141,15 @@ class Config:
     def fade_in_for(self, prayer):
         """Seconds to fade the azaan in over, 0 for none."""
         return self.fade_ins.get(prayer, self.fade_in)
+
+    def dua_for(self, prayer):
+        """True to play the dua after the prayer's azaan."""
+        return self.duas.get(prayer, self.dua)
+
+    @property
+    def plays_dua(self):
+        """True if the dua is played after any azaan."""
+        return bool(self.dua or any(self.duas.values()))
 
     @property
     def fades_in(self):
@@ -333,6 +345,28 @@ def parse_fade_in(value):
             fades[name] = number
 
     return default, fades
+
+
+def parse_dua(value):
+    """Parse "on, Fajr:off" into whether to play the dua after the azaan, and for which prayers. Off unless set."""
+    default = False
+    duas = {}
+
+    for name, setting in parse_list(value, allow_bare_value=True):
+        what = DUA if name is None else name.capitalize() + " " + DUA
+        if name is not None and not setting:
+            raise ConfigError("Missing " + what + ", e.g. " + name.capitalize() + ":on")
+        if setting.lower() not in ("on", "off"):
+            raise ConfigError("Invalid {}: {}, use on or off, e.g. on, Fajr:off".format(what, shown(setting)))
+        if name is None:
+            default = setting.lower() == "on"
+        else:
+            duas[name] = setting.lower() == "on"
+
+    if (default or any(duas.values())) and not os.path.isfile(DUA_FILE):
+        raise ConfigError("{} is on, but there is no {}. Add a recording of the dua there, or turn it off".format(
+            DUA, os.path.relpath(DUA_FILE, SCRIPT_DIR)))
+    return default, duas
 
 
 def parse_list(value, allow_bare_value=False):

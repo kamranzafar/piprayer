@@ -67,6 +67,9 @@ def bluetooth(tmp_path):
     make_command(bin_dir, "sleep", "")
 
     class Bluetooth:
+        bin_dir = None
+        state = None
+
         def connected(self, *macs):
             (state / "connected").write_text("".join(m + "\n" for m in macs))
 
@@ -144,7 +147,9 @@ def bluetooth(tmp_path):
             path = state / "log"
             return path.read_text().splitlines() if path.exists() else []
 
-    return Bluetooth()
+    result = Bluetooth()
+    result.bin_dir, result.state = bin_dir, state
+    return result
 
 
 def azaan_file(azaan, volume=65536):
@@ -286,6 +291,43 @@ def test_stopping_stops_playing_and_disconnects(bluetooth):
     assert bluetooth.log() == ["connect " + SPEAKER_1, azaan_file(3), "disconnect " + SPEAKER_1]
 
 
+def test_then_plays_another_sound_in_the_same_connection(bluetooth):
+    dua = os.path.join(ROOT, "media", "reminder.wav")
+    result = bluetooth.play("--then", dua, "3", "50")
+    assert result.returncode == 0, result.stdout
+    assert bluetooth.log() == ["connect " + SPEAKER_1, azaan_file(3, 32768), "play --volume=32768 " + dua,
+                               "disconnect " + SPEAKER_1]
+    assert result.stdout.strip().endswith("Played on speaker " + SPEAKER_1)
+
+
+def test_then_isnt_played_when_the_azaan_doesnt_play(bluetooth):
+    bluetooth.paplay_fails()
+    result = bluetooth.play("--then", os.path.join(ROOT, "media", "reminder.wav"), "3")
+    assert result.returncode == 3
+    assert bluetooth.log() == ["connect " + SPEAKER_1, azaan_file(3), "disconnect " + SPEAKER_1]
+
+
+def test_then_failing_still_counts_as_played(bluetooth):
+    make_command(bluetooth.bin_dir, "paplay", """\
+        echo "play $*" >> {}/log
+        case "$*" in *reminder.wav) exit 1 ;; esac
+        """.format(bluetooth.state))
+    result = bluetooth.play("--then", os.path.join(ROOT, "media", "reminder.wav"), "3")
+    assert result.returncode == 0, result.stdout
+    assert "reminder.wav didn't play: paplay failed with exit code 1" in result.stdout
+    assert bluetooth.log()[-1] == "disconnect " + SPEAKER_1
+
+
+def test_stopping_the_azaan_doesnt_play_then(bluetooth):
+    bluetooth.paplay_blocks()
+    process = bluetooth.start("--then", os.path.join(ROOT, "media", "reminder.wav"), "3")
+    bluetooth.wait_until_playing()
+    os.killpg(process.pid, signal.SIGTERM)
+    process.communicate(timeout=10)
+    assert process.returncode == 4
+    assert bluetooth.log() == ["connect " + SPEAKER_1, azaan_file(3), "disconnect " + SPEAKER_1]
+
+
 def test_fades_in_to_the_volume(bluetooth):
     bluetooth.fading(steps=8)
     result = bluetooth.play("--fade-in", "2", "3", "50")
@@ -330,6 +372,7 @@ def test_disconnect(bluetooth):
     (["--fade-in", "31", "3"], "Invalid fade-in: 31"),
     (["--fade-in", "soft", "3"], "Invalid fade-in: soft"),
     (["--louder", "3"], "Unknown option: --louder"),
+    (["--then", "/no/such/dua.opus", "3"], "Sound file not found: /no/such/dua.opus"),
 ])
 def test_rejects_bad_arguments_before_connecting(bluetooth, args, message):
     result = bluetooth.play(*args)

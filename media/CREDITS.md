@@ -3,6 +3,13 @@
 `suhoor.opus`, the suhoor alarm, was made for PiPrayer: three bell-like notes, synthesised with SoX, repeated and
 getting louder, normalised to -16 LUFS and encoded as Opus. It is under the same licence as PiPrayer.
 
+`dua.opus`, the dua after the Azaan, is recited by Mishary Rashid Alafasy. It is
+[Dua_after_Adhan.mp3](https://archive.org/details/adhan.notifications) from the Internet Archive item "Adhan
+Notifications", which its uploader marked Public Domain
+([Public Domain Mark 1.0](https://creativecommons.org/publicdomain/mark/1.0/)), with no licence from the reciter.
+It is the end of his Fajr Azaan with the dua in the same item. It was trimmed of its closing silence, faded out,
+normalised to -16 LUFS and encoded as Opus. It will be removed if the reciter or the rights holder asks.
+
 Azaans 16 and 17 are used under Creative Commons licences. They were trimmed to the azaan, faded in and out,
 normalised to -16 LUFS and encoded as Opus.
 

@@ -8,6 +8,12 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- Optional `dua` option to play the dua after the Azaan straight after it, in the same speaker connection and at
+  the same volume, e.g. `dua = on` or `dua = on, Fajr:off`. It is skipped and muted with the Azaan, and Stop stops
+  it. `piprayer.py times` shows a Dua column when it is on, the JSON has `dua` for each prayer, and
+  `piprayer.py play --dua` plays it. The recording, `media/dua.opus`, is recited by Mishary Rashid Alafasy, see
+  `media/CREDITS.md`. `play-azaan.sh` takes `--then` to play a sound straight after another
+  ([#12](https://github.com/kamranzafar/piprayer/issues/12)).
 - Ramadan mode. `suhoor = 30` sounds an alarm 30 minutes before Fajr on the days of Ramadan, with its own sound,
   `media/suhoor.opus`, at the volume set for Fajr. Mute silences it, but skipping Fajr doesn't. `piprayer.py play -s`
   plays it. `piprayer.py times` and the status page mark Fajr as the end of suhoor and Maghrib as iftar, and the

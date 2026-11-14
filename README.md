@@ -22,6 +22,7 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 - 📶 **Connects to your Bluetooth speaker**, e.g. an Amazon Echo or Google Home, just before the Azaan and
   disconnects afterwards
 - 🌙 **The Hijri date**, by the Umm al-Qura calendar, adjustable by a day or two to match moon sighting
+- 🤲 **The dua after the Azaan**, optionally played straight after it, for every prayer or some
 - 🍽️ **Ramadan mode**: an optional suhoor alarm before Fajr, and a countdown to iftar
 - ⏸️ **Stop the Azaan, skip the next one or mute for a few days**, from the command line, an optional status page or
   Home Assistant
@@ -169,6 +170,7 @@ the file directly. The running service picks up changes within a minute, no rest
 | `fajr-azaan` | A different recording for Fajr, e.g. one of the [Fajr azaans](#azaan-recordings) | same as `azaan` | `14` |
 | `volume` | Volume in percent. Add `Prayer:percent` to set a prayer's volume | `100` | `80, Fajr:40` |
 | `fade-in` | Start the Azaan quietly and raise it to its volume over this many seconds, up to 30. Add `Prayer:seconds` to set a prayer's fade in. `0` turns it off. The reminder chime doesn't fade in | `0`, off | `5, Fajr:15` |
+| `dua` | Play the dua after the Azaan straight after it, at the same volume. `on` or `off`, and add `Prayer:on` or `Prayer:off` to set a prayer's | `off` | `on, Fajr:off` |
 | `reminder` | Play a short chime this many minutes before each Azaan, up to 60. `0` turns it off | `0` | `10` |
 | `speaker` | Bluetooth address of the speaker to play on. Other paired devices are not used | any paired speaker | `AA:BB:CC:DD:EE:FF` |
 | `fallback-output` | `local` plays on the Raspberry Pi's own audio output (headphone jack or HDMI) when no speaker connects | `off` | `local` |
@@ -306,6 +308,7 @@ dst = 1            # 1 during daylight saving, otherwise 0
 | `python3 piprayer.py play -p fajr` | Play the Azaan and volume set for a prayer |
 | `python3 piprayer.py play -r` | Play the reminder chime |
 | `python3 piprayer.py play -s` | Play the [suhoor alarm](#ramadan) |
+| `python3 piprayer.py play --dua` | Play the dua after the Azaan. `play` plays it after the Azaan too when `dua` is on |
 | `python3 piprayer.py stop` | Stop the Azaan, reminder or suhoor alarm that is playing, and disconnect the speaker |
 | `python3 piprayer.py skip` | Don't play the next Azaan or its reminder. Run it again to skip the one after too |
 | `python3 piprayer.py mute` | Don't play any Azaan until the end of today. `-d 3` mutes today and the next 2 days, `-u 2026-12-25` until the end of a date, up to 30 days |
@@ -318,12 +321,17 @@ dst = 1            # 1 during daylight saving, otherwise 0
 
 ### Azaan recordings
 
-The Azaan recordings, the reminder chime and the suhoor alarm are in the [`media`](media) folder. The recordings are Opus files,
+The Azaan recordings, the dua after the Azaan, the reminder chime and the suhoor alarm are in the
+[`media`](media) folder. The recordings are Opus files,
 normalised to the same loudness (-16 LUFS), so they play at a similar level at the same volume.
 
 Azaans **14 to 17 are Fajr azaans**: they include *as-salatu khayrun min an-nawm* ("prayer is better than
 sleep"), so use them as the `fajr-azaan` only. Azaans 16 and 17 are recorded at the Malmö Mosque and in the medina
 of Marrakesh, and are used under Creative Commons licences, see [media/CREDITS.md](media/CREDITS.md).
+
+The dua after the Azaan, `dua.opus`, is recited by Mishary Rashid Alafasy. It plays after the Azaan with `dua = on`.
+To use another recording, replace `media/dua.opus` with it, e.g. converted with
+`ffmpeg -i my-dua.mp3 -ac 1 -c:a libopus -b:a 64k media/dua.opus`.
 
 ## Status page
 
@@ -491,6 +499,9 @@ Prayer times are calculated with the [PrayTimes.org](http://praytimes.org) libra
 
 If the clock jumps forward after boot (the Raspberry Pi has no hardware clock), any Azaan missed by more than
 5 minutes is skipped rather than played late.
+
+With `dua` on, `play-azaan.sh` plays `media/dua.opus` straight after the Azaan, before disconnecting the speaker.
+Skipping or muting the Azaan skips the dua too, and Stop stops whichever is playing.
 
 The speaker is connected 30 seconds before each Azaan, so it starts on time. If the speaker doesn't connect, or the
 sound doesn't play, the service tries again every 30 seconds for up to 5 minutes after the Azaan's time. With

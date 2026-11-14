@@ -8,7 +8,7 @@ import signal
 import subprocess
 from dataclasses import dataclass
 
-from .config import DEFAULT_VOLUME, MEDIA_DIR, SCRIPT_DIR
+from .config import DEFAULT_VOLUME, DUA_FILE, MEDIA_DIR, SCRIPT_DIR
 from .state import Playing, playing_file
 
 PLAYER = os.path.join(SCRIPT_DIR, "play-azaan.sh")
@@ -67,15 +67,19 @@ def run_player(args, on_start=None):
     return process.returncode, [line.strip() for line in (output or "").splitlines() if line.strip()]
 
 
-def play(sound, volume=DEFAULT_VOLUME, description=None, speaker=None, fallback=False, on_start=None, fade_in=0):
+def play(sound, volume=DEFAULT_VOLUME, description=None, speaker=None, fallback=False, on_start=None, fade_in=0,
+         dua=False):
     """Play an azaan (by number) or a sound file, on the given speaker or any paired one.
 
     With fallback, play on the Raspberry Pi's own audio output when no speaker connects. fade_in is the seconds to
-    raise the volume over at the start. on_start is called with play-azaan.sh's process id. Returns a Played.
+    raise the volume over at the start. With dua, the dua after the azaan plays straight after it, in the same
+    connection. on_start is called with play-azaan.sh's process id. Returns a Played.
     """
-    log.info("Playing %s at %d%% volume%s%s", description or "azaan " + str(sound), volume,
-             ", fading in over {} seconds".format(fade_in) if fade_in else "", " on " + speaker if speaker else "")
+    log.info("Playing %s at %d%% volume%s%s%s", description or "azaan " + str(sound), volume,
+             ", fading in over {} seconds".format(fade_in) if fade_in else "", ", then the dua" if dua else "",
+             " on " + speaker if speaker else "")
     code, lines = run_player((["--fallback"] if fallback else []) + (["--fade-in", str(fade_in)] if fade_in else []) +
+                             (["--then", DUA_FILE] if dua else []) +
                              [str(sound), str(volume)] + ([speaker] if speaker else []), on_start)
     for line in lines:
         log.info("%s", line)
@@ -93,7 +97,7 @@ def play_event(config, event, on_start=None):
                     on_start)
     azaan = config.azaan_for(event.prayer)
     return play(azaan, volume, "azaan {} for {}".format(azaan, event.prayer), config.speaker,
-                config.fallback_local, on_start, config.fade_in_for(event.prayer))
+                config.fallback_local, on_start, config.fade_in_for(event.prayer), config.dua_for(event.prayer))
 
 
 def connect(speaker=None):

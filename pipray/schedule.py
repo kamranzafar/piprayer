@@ -130,12 +130,13 @@ class Entry:
     reminder: Optional[datetime]
     silenced: Optional[str] = None  # "skipped" or "muted" when it won't play
     fade_in: int = 0  # seconds
+    dua: bool = False  # the dua plays after the azaan
 
     @classmethod
     def of(cls, config, prayer, at, state=None):
         return cls(prayer, at, config.azaan_for(prayer), config.volume_for(prayer),
                    at - timedelta(minutes=config.reminder) if config.reminder else None,
-                   state.silenced(at) if state else None, config.fade_in_for(prayer))
+                   state.silenced(at) if state else None, config.fade_in_for(prayer), config.dua_for(prayer))
 
     def to_json(self):
         return {
@@ -144,6 +145,7 @@ class Entry:
             "azaan": self.azaan,
             "volume": self.volume,
             "fade_in": self.fade_in,
+            "dua": self.dua,
             "reminder": self.reminder.isoformat() if self.reminder else None,
             "skipped": self.silenced == "skipped",
             "muted": self.silenced == "muted",

@@ -322,7 +322,8 @@ def times_list(entries, upcoming, now, fast=None):
             cls = ""
             if entry.silenced:
                 pill = '<span class="pill">{}</span>'.format(entry.silenced)
-        detail = '<span class="detail">Azaan {} · {}%</span>'.format(entry.azaan, entry.volume)
+        detail = '<span class="detail">Azaan {} · {}%{}</span>'.format(
+            entry.azaan, entry.volume, " · dua" if entry.dua else "")
         label = fast.label(entry.prayer) if fast else None
         if label:
             alarm = " · alarm {}".format(fast.suhoor_alarm.strftime("%H:%M")) \

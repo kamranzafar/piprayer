@@ -13,6 +13,7 @@ from . import clock
 from .config import DEFAULT_AZAAN, DEFAULT_CONFIG, DEFAULT_VOLUME, Config, ConfigError, azaan_file
 from .output import (RESUME_HINT, describe_azaan, describe_mute, format_next, format_plain, format_times,
                      next_json, times_json)
+from . import player
 from .player import REMINDER_SOUND, SUHOOR_SOUND, play, stop
 from .schedule import next_azaan
 from .service import Updated, installed_azaan, run
@@ -85,9 +86,13 @@ def play_command(args):
         volume = config.volume_for("fajr") if config else DEFAULT_VOLUME
         return play(SUHOOR_SOUND, volume, "suhoor alarm", speaker, fallback).returncode
 
+    if args.dua:
+        return play(player.DUA_FILE, volume, "dua", speaker, fallback).returncode
+
     azaan = args.azaan or (config.azaan_for(args.prayer) if config else DEFAULT_AZAAN)
     fade_in = config.fade_in_for(args.prayer) if config else 0
-    return play(azaan, volume, speaker=speaker, fallback=fallback, fade_in=fade_in).returncode
+    dua = config.dua_for(args.prayer) if config else False
+    return play(azaan, volume, speaker=speaker, fallback=fallback, fade_in=fade_in, dua=dua).returncode
 
 
 def stop_command(args):
@@ -191,7 +196,7 @@ def parser():
                             help="azaan to play when the configuration doesn't set one (default: %(default)s)")
     run_parser.set_defaults(func=run_command)
 
-    play_parser = commands.add_parser("play", help="play the azaan now, to test the speaker")
+    play_parser = commands.add_parser("play", help="play the azaan now, with the dua if it is on, to test the speaker")
     play_parser.add_argument("-a", "--azaan", type=azaan_number, metavar="1-17",
                              help="azaan to play (default: the one in the configuration)")
     play_parser.add_argument("-p", "--prayer", choices=PRAYERS, type=str.lower,
@@ -200,6 +205,7 @@ def parser():
     play_sound.add_argument("-r", "--reminder", action="store_true", help="play the reminder sound")
     play_sound.add_argument("-s", "--suhoor", action="store_true",
                             help="play the suhoor alarm, at the volume set for Fajr")
+    play_sound.add_argument("--dua", action="store_true", help="play only the dua after the azaan")
     play_parser.set_defaults(func=play_command)
 
     commands.add_parser("stop", help="stop the azaan, reminder or suhoor alarm that is playing") \
