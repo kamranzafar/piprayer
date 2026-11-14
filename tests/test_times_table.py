@@ -25,7 +25,7 @@ def table(config, now=datetime(2026, 11, 12, 14, 0, tzinfo=MELBOURNE), day=DAY):
 
 def test_table(write_config):
     assert table(Config(write_config())) == "\n".join([
-        " Thursday 12 November 2026",
+        " Thursday 12 November 2026 · 2 Jumada al-Thani 1448",
         " Australia/Melbourne (AEDT) · Jafari method · Hanafi Asr",
         "",
         " Prayer   Time   Azaan  Volume",
@@ -174,6 +174,8 @@ def test_times_json(write_config, monkeypatch, capsys, at_time):
     assert {k: v for k, v in data.items() if k != "prayers"} == {
         "date": "2026-11-12", "timezone": "Australia/Melbourne", "method": "Jafari", "asr": "Hanafi", "next": "asr",
         "muted_until": None, "last": None, "clock_synchronised": True, "playing": None,
+        "hijri": {"day": 2, "month": 6, "month_name": "Jumada al-Thani", "year": 1448, "evening": False, "adjust": 0,
+                  "text": "2 Jumada al-Thani 1448"},
     }
     assert data["prayers"][0] == {
         "prayer": "fajr", "time": "2026-11-12T04:23:00+11:00", "azaan": 3, "volume": 40, "fade_in": 0,

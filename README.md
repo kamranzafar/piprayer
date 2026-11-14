@@ -21,6 +21,7 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 - 🔁 **Runs as a background service** that starts at boot and picks up configuration changes on its own
 - 📶 **Connects to your Bluetooth speaker**, e.g. an Amazon Echo or Google Home, just before the Azaan and
   disconnects afterwards
+- 🌙 **The Hijri date**, by the Umm al-Qura calendar, adjustable by a day or two to match moon sighting
 - ⏸️ **Stop the Azaan, skip the next one or mute for a few days**, from the command line, an optional status page or
   Home Assistant
 - ⚙️ **And more**, e.g. fading in the Azaan at Fajr. See [Configuration](#configuration) for all the options
@@ -176,6 +177,7 @@ the file directly. The running service picks up changes within a minute, no rest
 | `mqtt-username`, `mqtt-password` | Login for the MQTT broker | none | `piprayer` |
 | `mqtt-topic` | Start of PiPrayer's MQTT topics | `piprayer` | `home/azaan` |
 | `high-latitude` | How to set Fajr and Isha when summer nights are too short for their angles, see [below](#short-summer-nights) | `NightMiddle` | `AngleBased` |
+| `hijri-adjust` | Days to move the [Hijri date](#hijri-date) on from the Umm al-Qura calendar, from -2 to 2 | `0` | `-1` |
 
 For example, to play azaan 5, a quieter azaan 14 for Fajr that fades in over 15 seconds, and a chime 10 minutes
 before each prayer:
@@ -189,6 +191,22 @@ reminder = 10
 ```
 
 The volume is that of the Raspberry Pi's audio output, so the speaker's own volume still applies.
+
+### Hijri date
+
+`piprayer.py times`, the status page and Home Assistant show today's Hijri date, calculated with the Umm al-Qura
+calendar, e.g. 23 Jumada al-Awwal 1448. The Islamic day starts at Maghrib, so from Maghrib they show the next
+date, e.g. *Evening of 1 Ramadan 1448*.
+
+Communities start the month differently, so the date can be moved by whole days with `hijri-adjust`. Set it once
+if you follow a local calendar. If you follow moon sighting, change it when the start of the month is announced:
+e.g. if Ramadan starts a day later than the Umm al-Qura calendar, set it to `-1`, so 1 Ramadan comes a day later,
+and back to `0` if the next month starts as calculated. Change it with the **−** and **+** buttons on the status
+page, in Home Assistant, or with `python3 piprayer.py config`, all of which save it to `.piprayer`:
+
+```ini
+hijri-adjust = -1
+```
 
 ### Calculation methods
 
@@ -295,6 +313,7 @@ Within a minute, the page is at `http://raspberrypi.local:8080` (use your Raspbe
 shows the next Azaan with a countdown and today's times, with buttons to skip the next Azaan, mute today, or resume,
 and to stop the Azaan while it plays.
 It warns when the last Azaan didn't play, or the clock isn't set from the network.
+Below the times, the [Hijri date](#hijri-date) has **−** and **+** buttons to move it a day back or forward.
 
 **On your phone**, add it to the home screen to use it like an app, full screen with its own icon:
 - iPhone: open the page in Safari, tap **Share**, then **Add to Home Screen**
@@ -315,10 +334,13 @@ It also answers JSON requests, e.g. for Home Assistant:
 | `POST /api/skip` | Skip the next Azaan that would play, and return it |
 | `POST /api/mute?days=1` | Mute until the end of today, or for up to 30 days counting today |
 | `POST /api/resume` | Clear skip and mute |
+| `POST /api/hijri-adjust?days=-1` | Set `hijri-adjust`, from -2 to 2, and return the Hijri date |
 
 The JSON for each Azaan has `skipped` and `muted` set to `true` when it won't play, and `muted_until` gives the
 time the mute ends. `/api/times` also has `last`, how the last Azaan went, with its `prayer`, `time`, `result`
 (`played`, `played locally`, `failed`, `missed`, `skipped` or `muted`) and `error`, and `clock_synchronised`.
+`hijri` is the Hijri date, with its `day`, `month` (1 to 12), `month_name`, `year`, `evening` (`true` from Maghrib,
+when it is the next day's date), `adjust` and `text`, e.g. "Evening of 1 Ramadan 1448".
 
 ## Home Assistant
 
@@ -332,6 +354,8 @@ time the mute ends. `/api/times` also has `last`, how the last Azaan went, with 
 | Last azaan | How the last Azaan went, e.g. played or failed, with the prayer, time and error |
 | Problem | On when the last Azaan didn't play as it should have, or the clock isn't set from the network. Use it in an automation to send yourself a notification |
 | Playing | On while an Azaan or reminder plays, with the prayer. Use it e.g. to pause the TV |
+| Hijri date | e.g. 23 Jumada al-Awwal 1448, with the day, month and year. From Maghrib, "Evening of" the next date |
+| Hijri date adjustment | Days to move the Hijri date on from the Umm al-Qura calendar, from -2 to 2. Change it when the month starts a day earlier or later |
 | Stop, Skip next azaan, Mute today, Resume | Buttons |
 
 To set it up with the Mosquitto broker add-on:
@@ -353,7 +377,8 @@ while the Raspberry Pi or the service is off. The password is saved in `.pipraye
 makes readable only by you. Skip and mute from Home Assistant, the status page and the command line all apply
 to the same Azaans.
 
-Automations can also publish `stop`, `skip`, `mute`, `mute 3` (days, up to 30) or `resume` to `piprayer/command`. The state
+Automations can also publish `stop`, `skip`, `mute`, `mute 3` (days, up to 30), `resume` or `hijri-adjust -1` to
+`piprayer/command`. The state
 is published to `piprayer/state` as JSON. MQTT is off unless `mqtt-host` is set, so PiPrayer doesn't need
 `paho-mqtt` otherwise.
 
@@ -517,7 +542,7 @@ service.
 
 ## Development
 
-The code is in the [`pipray`](pipray) package, one module per concern: `config`, `schedule`, `state`, `output`,
+The code is in the [`pipray`](pipray) package, one module per concern: `config`, `schedule`, `hijri`, `state`, `output`,
 `player`, `web`, `mqtt`, `service`, `bluetooth`, `wizard` and `cli`. Each module depends only on the ones before
 it, and `piprayer.py` just runs `pipray.cli`. Everything reads the time through `pipray.clock`, so the tests can
 replace it.

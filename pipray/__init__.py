@@ -21,6 +21,7 @@ Modules, each depending only on the ones above it:
     clock      the current time and sleeping, replaced in tests
     config     reading and checking .piprayer
     schedule   prayer times, and the azaans and reminders to play
+    hijri      the Hijri date, by the Umm al-Qura calendar
     state      skip and mute, saved in .piprayer-state
     output     the times as a table, text or JSON
     player     playing through play-azaan.sh

@@ -8,6 +8,13 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- Today's Hijri date, calculated with the Umm al-Qura calendar, in `piprayer.py times`, its JSON as `hijri`, on
+  the status page, and in Home Assistant as a "Hijri date" sensor. From Maghrib it shows the next date, e.g.
+  "Evening of 1 Ramadan 1448". `hijri-adjust = -1` (from -2 to 2) moves it by whole days to match a local calendar
+  or moon sighting. It can be changed with the − and + buttons on the status page, `POST /api/hijri-adjust`, a
+  "Hijri date adjustment" number in Home Assistant, the `hijri-adjust <days>` MQTT command, and
+  `piprayer.py config`. These change only that line of `.piprayer`, keeping its comments
+  ([#10](https://github.com/kamranzafar/piprayer/issues/10)).
 - Optional `fade-in` option to start the Azaan quietly and raise it to its volume over a number of seconds, per
   prayer like `volume`, e.g. `fade-in = 5, Fajr:15`. Off unless set. `piprayer.py times` shows a Fade column when it
   is set, and the JSON has `fade_in` for each prayer. `play-azaan.sh` takes `--fade-in`

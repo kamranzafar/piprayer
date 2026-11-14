@@ -12,7 +12,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 from . import clock
-from .config import Config, ConfigError
+from .config import MAX_HIJRI_ADJUST, Config, ConfigError, set_hijri_adjust
+from .hijri import describe_adjust, hijri_now
 from .output import describe_day, describe_last, describe_mute, format_duration, next_json, times_json
 from .schedule import next_azaan, schedule, timezone_name
 from .player import stop
@@ -141,7 +142,10 @@ class StatusRoutes:
         return NOT_FOUND
 
     def post(self, path, query):
-        """/stop, /skip, /mute and /resume come from the page's buttons and go back to it. /api/... answer in JSON."""
+        """/stop, /skip, /mute, /resume and /hijri-adjust come from the page's buttons and go back to it.
+
+        /api/... answer in JSON.
+        """
         api = path.startswith("/api/")
         action = path[len("/api"):] if api else path
         config, now = self.load()
@@ -161,6 +165,14 @@ class StatusRoutes:
         elif action == "/resume":
             resume(self.state_path)
             result = {"muted_until": None, "skip": []}
+        elif action == "/hijri-adjust":
+            try:
+                days = set_hijri_adjust(self.config_path, query.get("days", [""])[0])
+            except ValueError as e:
+                return Response(400, body=str(e))
+            config, now = self.load()
+            hijri = hijri_now(config, now)
+            result = {"hijri_adjust": days, "hijri": hijri.to_json() if hijri else None}
         else:
             return NOT_FOUND
         return Response.json(result) if api else Response.back_to_page()
@@ -265,6 +277,7 @@ def status_html(config, now, state, last=None, synchronised=None, playing=None):
 
     return PAGE.format(style=STATUS_STYLE, hero=hero,
                        times=times_list(schedule(config, now.date(), state), upcoming, now),
+                       hijri=hijri_card(config, now),
                        date="{:%A} {} {:%B}".format(now, now.day, now),
                        details=escape(timezone_name(config, now.date())) + "<br>" +
                        escape("{} method · {} Asr".format(config.method, config.asr_time)) +
@@ -298,6 +311,25 @@ def times_list(entries, upcoming, now):
                         cls, escape(entry.prayer.capitalize()), detail, pill,
                         entry.at.isoformat(), entry.at.strftime("%H:%M")))
     return '<ol class="times">{}</ol>'.format("".join(rows))
+
+
+def hijri_card(config, now):
+    """The Hijri date, with buttons to move it a day back or forward to match the calendar followed."""
+    hijri = hijri_now(config, now)
+    if hijri is None:
+        return ""
+
+    def button(change, sign, label):
+        days = config.hijri_adjust + change
+        disabled = " disabled" if abs(days) > MAX_HIJRI_ADJUST else ""
+        return ('<form method="post" action="/hijri-adjust"><input type="hidden" name="days" value="{}">'
+                '<button aria-label="{}" title="{}"{}>{}</button></form>').format(days, label, label, disabled, sign)
+
+    return ('<section class="card"><h2 class="label">Hijri date</h2><div class="hijri">'
+            '<div><div class="hijri-date">{}</div><div class="detail">{}</div></div>'
+            '<div class="stepper">{}{}</div></div></section>').format(
+        escape(str(hijri)), escape(describe_adjust(config.hijri_adjust)),
+        button(-1, "\u2212", "A day back"), button(1, "+", "A day forward"))
 
 
 # Keeps the page current: the countdown ticks, and the page reloads once the azaan is due, every ten minutes, and
@@ -353,6 +385,7 @@ PAGE = """<!doctype html>
 <h2 class="label">Today</h2>
 {times}
 </section>
+{hijri}
 <footer>{details} · updated {updated}</footer>
 </main>
 <script>{script}</script>

@@ -50,12 +50,12 @@ def melbourne_system(monkeypatch):
 
 # Answers up to the speaker question, and after it
 BEFORE_SPEAKER = [""] * 6
-AFTER_SPEAKER = [""] * 7  # azaan, fajr azaan, volume, reminder, status page, MQTT, save
+AFTER_SPEAKER = [""] * 8  # azaan, fajr azaan, volume, reminder, Hijri date, status page, MQTT, save
 
 
 def test_new_configuration_from_system_timezone(tmp_path):
     path = str(tmp_path / ".piprayer")
-    answers = Answers(*[""] * 13)
+    answers = Answers(*[""] * 14)
 
     assert configure(path, answers.wizard()) == 0
     assert saved(path) == {
@@ -74,7 +74,7 @@ def test_new_configuration_from_system_timezone(tmp_path):
 
 def test_changes_an_existing_configuration(write_config):
     path = write_config(MELBOURNE_CONFIG + "gmt-offset = 10\ndst = 1\n")
-    answers = Answers("", "-37.9", "", "", "", "Fajr:-5, Isha", "5", "3", "80, Fajr:40", "10", "", "", "y")
+    answers = Answers("", "-37.9", "", "", "", "Fajr:-5, Isha", "5", "3", "80, Fajr:40", "10", "", "", "", "y")
 
     assert configure(path, answers.wizard()) == 0
     assert saved(path) == {
@@ -94,7 +94,7 @@ def test_changes_an_existing_configuration(write_config):
 
 def test_new_timezone_suggests_its_location_and_method(write_config):
     path = write_config()
-    answers = Answers("America/New_York", *[""] * 12)
+    answers = Answers("America/New_York", *[""] * 13)
 
     assert configure(path, answers.wizard()) == 0
     config = saved(path)
@@ -116,7 +116,7 @@ def test_new_timezone_suggests_its_location_and_method(write_config):
 ])
 def test_suggests_regional_method(tmp_path, tz, method, asr):
     path = str(tmp_path / ".piprayer")
-    answers = Answers(tz, *[""] * 13)
+    answers = Answers(tz, *[""] * 14)
     assert configure(path, answers.wizard()) == 0
     assert (saved(path)["method"], saved(path)["asr-time"]) == (method, asr)
 
@@ -124,12 +124,13 @@ def test_suggests_regional_method(tmp_path, tz, method, asr):
 def test_asks_again_after_invalid_answers(tmp_path):
     path = str(tmp_path / ".piprayer")
     answers = Answers("Mars/Olympus", "", "100", "", "", "99", "", "", "Fajir", "", "18", "", "", "150", "",
-                      "61", "", "70000", "", "", "")
+                      "61", "", "3", "", "70000", "", "", "")
 
     assert configure(path, answers.wizard()) == 0
     for message in ["Unknown timezone: Mars/Olympus", "Invalid latitude: 100", "Choose a number from 1 to 22",
                     "Unknown prayer: Fajir", "there is no media/azaan-18.opus", "Invalid volume: 150",
-                    "Invalid reminder: 61", "Invalid status-port: 70000"]:
+                    "Invalid reminder: 61", "Invalid hijri-adjust: 3",
+                    "Invalid status-port: 70000"]:
         assert any(message in line for line in answers.output), message
     config = saved(path)
     assert config["method"] == "MWL"
@@ -138,14 +139,14 @@ def test_asks_again_after_invalid_answers(tmp_path):
 
 def test_method_by_name_or_number(tmp_path):
     path = str(tmp_path / ".piprayer")
-    answers = Answers("", "", "", "karachi", "2", *[""] * 8)
+    answers = Answers("", "", "", "karachi", "2", *[""] * 9)
     assert configure(path, answers.wizard()) == 0
     assert (saved(path)["method"], saved(path)["asr-time"]) == ("Karachi", "Hanafi")
 
 
 def test_shows_times_and_keeps_file_when_not_saved(write_config):
     path = write_config()
-    answers = Answers(*[""] * 3, "MWL", *[""] * 8, "n")
+    answers = Answers(*[""] * 3, "MWL", *[""] * 9, "n")
 
     assert configure(path, answers.wizard()) == 1
     assert open(path).read() == MELBOURNE_CONFIG
@@ -155,7 +156,7 @@ def test_shows_times_and_keeps_file_when_not_saved(write_config):
 
 def test_none_removes_fajr_azaan(write_config):
     path = write_config(MELBOURNE_CONFIG + "fajr-azaan = 3\n")
-    answers = Answers(*[""] * 7, "none", *[""] * 5)
+    answers = Answers(*[""] * 7, "none", *[""] * 6)
     assert configure(path, answers.wizard()) == 0
     assert "fajr-azaan" not in saved(path)
 
@@ -390,14 +391,14 @@ def test_says_what_happens_next(tmp_path, monkeypatch, installed, message):
     if installed:
         service.write_text("[Service]\n")
     monkeypatch.setattr(wizard, "service_file", lambda: str(service))
-    answers = Answers(*[""] * 13)
+    answers = Answers(*[""] * 14)
 
     assert configure(str(tmp_path / ".piprayer"), answers.wizard()) == 0
     assert answers.output[-1] == message
 
 
 def test_no_next_step_when_run_by_the_setup(tmp_path):
-    answers = Answers(*[""] * 13)
+    answers = Answers(*[""] * 14)
     path = str(tmp_path / ".piprayer")
     assert configure(path, answers.wizard(), next_step=False) == 0
     assert answers.output[-1] == "Saved " + path
@@ -406,7 +407,7 @@ def test_no_next_step_when_run_by_the_setup(tmp_path):
 def test_asks_about_short_nights_far_from_the_equator(tmp_path):
     path = str(tmp_path / ".piprayer")
     # timezone, latitude, longitude, method, Asr, then the rule for short nights: 2 is angle based
-    answers = Answers("Europe/London", "51.5", "-0.12", "", "", "2", *[""] * 8)
+    answers = Answers("Europe/London", "51.5", "-0.12", "", "", "2", *[""] * 9)
 
     assert configure(path, answers.wizard()) == 0
     assert saved(path)["high-latitude"] == "AngleBased"
@@ -415,7 +416,7 @@ def test_asks_about_short_nights_far_from_the_equator(tmp_path):
 
 def test_doesnt_ask_about_short_nights_near_the_equator(write_config):
     path = write_config()
-    answers = Answers(*[""] * 13)
+    answers = Answers(*[""] * 14)
     assert configure(path, answers.wizard()) == 0
     assert "high-latitude" not in saved(path)
     assert not any("too short for Fajr and Isha" in line for line in answers.output)
@@ -424,22 +425,22 @@ def test_doesnt_ask_about_short_nights_near_the_equator(write_config):
 def test_status_page_port(write_config, monkeypatch):
     monkeypatch.setattr(wizard.socket, "gethostname", lambda: "raspberrypi")
     path = write_config()
-    answers = Answers(*[""] * 10, "8080", "", "")
+    answers = Answers(*[""] * 11, "8080", "", "")
 
     assert configure(path, answers.wizard()) == 0
     assert saved(path)["status-port"] == "8080"
     assert "Status page: http://raspberrypi.local:8080 from another device on your network" in answers.output
 
     # kept when Enter is pressed, removed with none
-    assert configure(path, Answers(*[""] * 13).wizard()) == 0
+    assert configure(path, Answers(*[""] * 14).wizard()) == 0
     assert saved(path)["status-port"] == "8080"
-    assert configure(path, Answers(*[""] * 10, "none", "", "").wizard()) == 0
+    assert configure(path, Answers(*[""] * 11, "none", "", "").wizard()) == 0
     assert "status-port" not in saved(path)
 
 
 def test_method_menu_lists_the_first_seven_and_more_on_request(tmp_path):
     path = str(tmp_path / ".piprayer")
-    answers = Answers("", "", "", "m", "16", *[""] * 9)
+    answers = Answers("", "", "", "m", "16", *[""] * 10)
 
     assert configure(path, answers.wizard()) == 0
     menus = [i for i, line in enumerate(answers.output) if line.startswith("   1. MWL")]
@@ -454,7 +455,7 @@ def test_method_menu_lists_the_first_seven_and_more_on_request(tmp_path):
 
 def test_method_menu_includes_the_suggested_method(tmp_path):
     path = str(tmp_path / ".piprayer")
-    answers = Answers("Europe/Istanbul", *[""] * 12)
+    answers = Answers("Europe/Istanbul", *[""] * 13)
 
     assert configure(path, answers.wizard()) == 0
     assert "  15. Turkey     Diyanet Isleri Baskanligi, Turkey" in answers.output
@@ -464,12 +465,12 @@ def test_method_menu_includes_the_suggested_method(tmp_path):
 
 def test_any_method_can_be_chosen_without_listing_them_all(tmp_path):
     path = str(tmp_path / ".piprayer")
-    assert configure(path, Answers("", "", "", "malaysia", *[""] * 9).wizard()) == 0
+    assert configure(path, Answers("", "", "", "malaysia", *[""] * 10).wizard()) == 0
     assert saved(path)["method"] == "Malaysia"
 
 
 # Answers up to the MQTT question for an existing Melbourne configuration
-BEFORE_MQTT = [""] * 11
+BEFORE_MQTT = [""] * 12
 
 
 def test_mqtt_broker_with_a_login(write_config, monkeypatch):

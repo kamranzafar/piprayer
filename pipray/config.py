@@ -7,6 +7,8 @@ import difflib
 import math
 import os
 import re
+import stat
+import threading
 from datetime import timedelta, timezone
 
 import praytimes
@@ -33,10 +35,11 @@ MQTT_PASSWORD = "mqtt-password"
 MQTT_TOPIC = "mqtt-topic"
 FALLBACK_OUTPUT = "fallback-output"
 FADE_IN = "fade-in"
+HIJRI_ADJUST = "hijri-adjust"
 
 OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, FADE_IN, REMINDER,
            SPEAKER, FALLBACK_OUTPUT, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
-           MQTT_TOPIC)
+           MQTT_TOPIC, HIJRI_ADJUST)
 
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_MQTT_TOPIC = "piprayer"
@@ -67,6 +70,9 @@ DEFAULT_VOLUME = 100
 
 # Longest fade in at the start of an azaan, in seconds
 MAX_FADE_IN = 30
+
+# Most days the Hijri date can be shifted either way from the Umm al-Qura calendar
+MAX_HIJRI_ADJUST = 2
 
 
 class ConfigError(Exception):
@@ -104,6 +110,7 @@ class Config:
         self.status_port = parse_number(section, STATUS_PORT, None, 1, 65535)
         self.high_latitude = parse_high_latitude(section.get(HIGH_LATITUDE, DEFAULT_HIGH_LATITUDE))
         self.mqtt = parse_mqtt(section)
+        self.hijri_adjust = parse_number(section, HIJRI_ADJUST, 0, -MAX_HIJRI_ADJUST, MAX_HIJRI_ADJUST)
         # Not errors, as PiPrayer still works, but e.g. status_port for status-port would silently do nothing
         self.warnings = [unknown_option(option, path) for option in section if option not in OPTIONS]
         self.default_azaan = default_azaan
@@ -157,6 +164,76 @@ def read_section(path):
     if not parser.has_section("Default"):
         raise ConfigError("Prayer configuration is missing: {} needs a [Default] section".format(path))
     return parser["Default"]
+
+
+# Saving from the status page and MQTT at once would lose one of the changes
+_saving = threading.Lock()
+
+# A section header, and an option's name at the start of its line, as configparser reads them
+SECTION_LINE = re.compile(r"\[(?P<name>.+)\]")
+OPTION_LINE = re.compile(r"(?P<name>[^\s=:][^=:]*?)\s*[=:]")
+
+
+def save_option(path, option, value):
+    """Set an option in the configuration file, changing only its line, so comments and the order are kept.
+
+    configparser would drop the comments when writing the file. The option is added at the end of [Default] if it
+    isn't there. The running service picks the change up within a minute, as for any edit.
+    """
+    with _saving:
+        try:
+            with open(path, encoding="utf-8") as f:
+                lines = f.read().splitlines(keepends=True)
+            mode = stat.S_IMODE(os.stat(path).st_mode)
+        except (OSError, UnicodeDecodeError) as e:
+            raise ConfigError("Can't read {}: {}".format(path, getattr(e, "strerror", None) or e))
+
+        new_line = "{} = {}\n".format(option, value)
+        section = None
+        end_of_default = None  # after the last line of [Default] that isn't blank or a comment
+        found = False
+        result = []
+        replacing = False  # skipping the indented lines that continue the old value
+        for line in lines:
+            if replacing and line.strip() and line[0].isspace():
+                continue
+            replacing = False
+            header = SECTION_LINE.match(line)
+            if header:
+                section = header.group("name")
+            elif section == "Default":
+                name = OPTION_LINE.match(line)
+                if name and name.group("name").strip().lower() == option and not found:
+                    found = replacing = True
+                    line = new_line
+            result.append(line)
+            if section == "Default" and line.strip() and not line.lstrip().startswith(("#", ";")):
+                end_of_default = len(result)
+
+        if end_of_default is None:
+            raise ConfigError("Prayer configuration is missing: {} needs a [Default] section".format(path))
+        if not found:
+            if not result[end_of_default - 1].endswith("\n"):
+                result[end_of_default - 1] += "\n"
+            result.insert(end_of_default, new_line)
+
+        # Write then rename, so the service never reads a half written file, keeping who can read it, as it can
+        # hold the MQTT password
+        saving = path + ".saving"
+        with open(saving, "w", encoding="utf-8") as f:
+            os.chmod(saving, mode)
+            f.writelines(result)
+        os.replace(saving, path)
+
+
+def set_hijri_adjust(path, value):
+    """Save hijri-adjust, the days to shift the Hijri date by. Raises ValueError when it is out of range."""
+    try:
+        days = check_range(str(value).strip(), HIJRI_ADJUST, -MAX_HIJRI_ADJUST, MAX_HIJRI_ADJUST)
+    except ConfigError as e:
+        raise ValueError(str(e))
+    save_option(path, HIJRI_ADJUST, days)
+    return days
 
 
 def parse_coordinate(value, option, what, limit, example):

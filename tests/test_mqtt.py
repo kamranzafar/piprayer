@@ -139,6 +139,8 @@ def test_discovery_creates_sensors_and_buttons():
         "homeassistant/button/piprayer_raspberrypi/resume/config",
         "homeassistant/button/piprayer_raspberrypi/skip/config",
         "homeassistant/button/piprayer_raspberrypi/stop/config",
+        "homeassistant/number/piprayer_raspberrypi/hijri_adjust/config",
+        "homeassistant/sensor/piprayer_raspberrypi/hijri_date/config",
         "homeassistant/sensor/piprayer_raspberrypi/last_azaan/config",
         "homeassistant/sensor/piprayer_raspberrypi/next_azaan/config",
         "homeassistant/sensor/piprayer_raspberrypi/next_prayer/config",
@@ -151,7 +153,12 @@ def test_discovery_creates_sensors_and_buttons():
     assert all(config["availability_topic"] == "piprayer/availability" for config in configs.values())
     assert configs["problem"]["device_class"] == "problem"
     assert configs["stop"]["payload_press"] == "stop"
-    assert len({config["unique_id"] for config in configs.values()}) == 10
+    assert (configs["hijri_adjust"]["min"], configs["hijri_adjust"]["max"], configs["hijri_adjust"]["step"]) == \
+        (-2, 2, 1)
+    assert configs["hijri_adjust"]["command_topic"] == "piprayer/command"
+    assert configs["hijri_adjust"]["command_template"] == "hijri-adjust {{ value | int }}"
+    assert configs["hijri_date"]["value_template"] == "{{ value_json.hijri_date }}"
+    assert len({config["unique_id"] for config in configs.values()}) == 12
     assert all(config["device"]["identifiers"] == ["piprayer_raspberrypi"] for config in configs.values())
 
 
@@ -164,6 +171,9 @@ def test_state_payload(write_config):
         "next_azaan": "2026-11-12T18:03:00+11:00", "next_prayer": "Asr", "next_skipped": False, "muted_until": None,
         "last_result": None, "last_prayer": None, "last_time": None, "last_error": None,
         "clock_synchronised": None, "problem": None, "playing": None, "playing_reminder": False,
+        "hijri_date": "2 Jumada al-Thani 1448", "hijri_adjust": 0,
+        "hijri": {"day": 2, "month": 6, "month_name": "Jumada al-Thani", "year": 1448, "evening": False, "adjust": 0,
+                  "text": "2 Jumada al-Thani 1448"},
     }
     state = State([datetime(2026, 11, 12, 18, 3, tzinfo=MELBOURNE)], datetime(2026, 11, 14, tzinfo=MELBOURNE))
     data = json.loads(state_payload(config, now, state))
@@ -230,11 +240,31 @@ def test_paho_2_uses_its_new_callbacks(monkeypatch, write_config):
     bridge.configure(None)
 
 
+@pytest.mark.parametrize("command, saved, log", [
+    ("hijri-adjust 1", "1", "MQTT: hijri-adjust set to 1, the Hijri date is 3 Jumada al-Thani 1448"),
+    ("hijri-adjust -2", "-2", "MQTT: hijri-adjust set to -2, the Hijri date is 30 Jumada al-Awwal 1448"),
+    ("hijri-adjust 3", None, "Ignoring MQTT command 'hijri-adjust 3': Invalid hijri-adjust: 3"),
+    ("hijri-adjust soon", None, "Ignoring MQTT command 'hijri-adjust soon': Invalid hijri-adjust: soon"),
+])
+def test_hijri_adjust_command(write_config, at_time, command, saved, log):
+    at_time(datetime(2026, 11, 12, 14, 0, tzinfo=MELBOURNE))
+    path = write_config()
+    assert log in handle_command(command, path, 1)
+    assert open(path).read() == MELBOURNE_CONFIG + ("hijri-adjust = {}\n".format(saved) if saved else "")
+
+
+def test_hijri_adjust_from_home_assistant_is_published(connected):
+    bridge, client, path = connected
+    bridge.on_message(client, None, Message("piprayer/command", "hijri-adjust 1"))
+    state = json.loads(published(client, "piprayer/state")[-1])
+    assert (state["hijri_adjust"], state["hijri_date"]) == (1, "3 Jumada al-Thani 1448")
+
+
 def test_announces_itself_on_connecting(connected):
     bridge, client, path = connected
     assert client.subscribed == ["piprayer/command", "homeassistant/status"]
     discovery = [(topic, retain) for topic, _, retain in client.published if topic.startswith("homeassistant/")]
-    assert len(discovery) == 10 and all(retain for _, retain in discovery)
+    assert len(discovery) == 12 and all(retain for _, retain in discovery)
     assert published(client, "piprayer/availability") == ["online"]
     assert json.loads(published(client, "piprayer/state")[0])["next_prayer"] == "Asr"
 
@@ -258,7 +288,7 @@ def test_announces_again_when_home_assistant_restarts(connected):
     bridge, client, path = connected
     client.published.clear()
     bridge.on_message(client, None, Message("homeassistant/status", "online"))
-    assert len([t for t, _, _ in client.published if t.startswith("homeassistant/")]) == 10
+    assert len([t for t, _, _ in client.published if t.startswith("homeassistant/")]) == 12
     assert published(client, "piprayer/state")  # sent again, although unchanged
 
 

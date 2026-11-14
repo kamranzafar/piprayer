@@ -5,6 +5,7 @@
 from datetime import datetime, time, timedelta
 
 from .clock import NOT_SYNCHRONISED
+from .hijri import hijri_day, hijri_now
 from .schedule import schedule, timezone_name
 from .state import FAILED, MISSED, PLAYED_LOCALLY
 
@@ -81,8 +82,9 @@ def format_times(config, day, now, state=None, last=None, synchronised=None):
     def line(cells):
         return "  ".join(cell.ljust(width) for cell, width in zip(cells, widths))
 
+    hijri = hijri_for(config, day, now)
     lines = [
-        "{:%A} {} {:%B %Y}".format(day, day.day, day),
+        "{:%A} {} {:%B %Y}".format(day, day.day, day) + (" · {}".format(hijri) if hijri else ""),
         "{} · {} method · {} Asr".format(timezone_name(config, day), config.method, config.asr_time),
         "",
         line(header).rstrip(),
@@ -124,6 +126,11 @@ def format_next(config, entry, now, state=None, synchronised=None):
     return indent(lines + warning)
 
 
+def hijri_for(config, day, now):
+    """The Hijri date to show with a day's times: now's for today, which changes at Maghrib."""
+    return hijri_now(config, now) if day == now.date() else hijri_day(config, day)
+
+
 def format_plain(config, day):
     """fajr-04:21 lines."""
     return "\n".join(entry.prayer + "-" + entry.at.strftime("%H:%M") for entry in schedule(config, day))
@@ -141,8 +148,10 @@ def muted_until_json(state, now):
 def times_json(config, day, now, state=None, last=None, synchronised=None, playing=None):
     entries = schedule(config, day, state)
     upcoming = next((e for e in entries if e.at > now), None) if day == now.date() else None
+    hijri = hijri_for(config, day, now)
     return {
         "date": day.isoformat(),
+        "hijri": hijri.to_json() if hijri else None,
         "timezone": getattr(config.tz, "key", None) or datetime.combine(day, time(12), config.tz).tzname(),
         "method": config.method,
         "asr": config.asr_time,

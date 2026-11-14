@@ -14,8 +14,8 @@ import praytimes
 log = logging.getLogger("piprayer")
 
 
-def prayer_times(config, day):
-    """Return [(prayer, datetime)] for the configured prayers on the given day, in order.
+def prayer_times(config, day, prayers=None):
+    """Return [(prayer, datetime)] for the configured prayers, or the given ones, on the given day, in order.
 
     A time after midnight, such as Isha on a summer night far from the equator, is on the next day.
     """
@@ -34,7 +34,7 @@ def prayer_times(config, day):
     midnight = datetime.combine(solar_day, time(0), timezone.utc)
 
     result = []
-    for prayer in config.prayers:
+    for prayer in prayers or config.prayers:
         hours = times[prayer]
         if hours == calc.invalidTime:
             log.warning("No %s time on %s at this location", prayer, day)

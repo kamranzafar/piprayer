@@ -6,15 +6,18 @@ import configparser
 import getpass
 import os
 import socket
+from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 import praytimes
 
 from . import bluetooth, clock
 from .bluetooth import SCAN_SECONDS
 from .config import (AZAAN, ASR_TIME, DEFAULT_HIGH_LATITUDE, DEFAULT_MQTT_PORT, DEFAULT_VOLUME, DST, FAJR_AZAAN,
-                     GMT_OFFSET, HIGH_LATITUDE, LAT, LNG, MAC_ADDRESS, METHOD, MQTT_HOST, MQTT_PASSWORD, MQTT_PORT,
-                     MQTT_USERNAME, PRAYERS, REMINDER, SPEAKER, STATUS_PORT, TIMEZONE, VOLUME, Config, ConfigError,
+                     GMT_OFFSET, HIGH_LATITUDE, HIJRI_ADJUST, LAT, LNG, MAC_ADDRESS, MAX_HIJRI_ADJUST, METHOD, MQTT_HOST,
+                     MQTT_PASSWORD, MQTT_PORT, MQTT_USERNAME, PRAYERS, REMINDER, SPEAKER, STATUS_PORT, TIMEZONE, VOLUME, Config, ConfigError,
                      check_azaan_file, check_range, parse_prayers, parse_volume)
+from .hijri import HijriDate
 from .mqtt import INSTALL_HINT, load_paho
 from .output import format_times
 from .service import installed_azaan, service_file
@@ -330,7 +333,8 @@ def choose_speaker(wizard, current):
 
 
 # Options the wizard asks about, so they are saved only when answered, and the legacy ones timezone replaces
-NOT_KEPT = (GMT_OFFSET, DST, FAJR_AZAAN, SPEAKER, STATUS_PORT, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD)
+NOT_KEPT = (GMT_OFFSET, DST, FAJR_AZAAN, SPEAKER, STATUS_PORT, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
+            HIJRI_ADJUST)
 
 
 def choose_method(wizard, default):
@@ -369,6 +373,22 @@ def ask_mqtt(wizard, current):
     username = wizard.ask("MQTT username (none for no login)", current.get(MQTT_USERNAME, ""), text_option)
     password = wizard.ask_password("MQTT password", current.get(MQTT_PASSWORD, "")) if username else ""
     return [(MQTT_HOST, host), (MQTT_PORT, port), (MQTT_USERNAME, username), (MQTT_PASSWORD, password)]
+
+
+def ask_hijri_adjust(wizard, current, tz_name):
+    """Ask how many days to shift the Hijri date from the Umm al-Qura calendar. Returns "" for none."""
+    today = clock.now(ZoneInfo(tz_name)).date()
+    hijri = HijriDate.from_gregorian(today)
+    if hijri is None:
+        return current.get(HIJRI_ADJUST, "")
+    wizard.say("")
+    wizard.say("Today is {} by the Umm al-Qura calendar, until Maghrib.".format(hijri))
+    wizard.say("If the calendar you follow, or the moon sighting, is a day or two different, shift it, e.g. 1 for")
+    wizard.say("{}, or -1 for {}. The status page and Home Assistant can change it too.".format(
+        HijriDate.from_gregorian(today + timedelta(days=1)), HijriDate.from_gregorian(today - timedelta(days=1))))
+    days = wizard.ask("Hijri date adjustment in days", current.get(HIJRI_ADJUST, "0"),
+                      number_option(HIJRI_ADJUST, -MAX_HIJRI_ADJUST, MAX_HIJRI_ADJUST))
+    return "" if days == "0" else days
 
 
 def mqtt_host_option(value):
@@ -460,6 +480,7 @@ def configure(path, wizard=None, next_step=True):
                         volume_option)
     reminder = wizard.ask("Reminder chime, minutes before each azaan (0 for none)", current.get(REMINDER, "0"),
                           number_option("reminder", 0, 60))
+    hijri_adjust = ask_hijri_adjust(wizard, current, tz_name)
 
     wizard.say("")
     wizard.say("The status page shows the times in a browser, with buttons to skip or mute the azaan.")
@@ -472,7 +493,7 @@ def configure(path, wizard=None, next_step=True):
     settings = [(TIMEZONE, tz_name), (LAT, lat), (LNG, lng), (METHOD, method), (ASR_TIME, asr),
                 (PRAYERS, prayers), (AZAAN, azaan), (FAJR_AZAAN, fajr_azaan), (VOLUME, volume),
                 (REMINDER, reminder), (SPEAKER, speaker), (HIGH_LATITUDE, high_latitude),
-                (STATUS_PORT, status_port)] + mqtt
+                (HIJRI_ADJUST, hijri_adjust), (STATUS_PORT, status_port)] + mqtt
 
     # Keep any other options, but timezone replaces the legacy ones
     result = configparser.RawConfigParser()

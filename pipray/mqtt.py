@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Optional MQTT for Home Assistant, turned on with mqtt-host in .piprayer.
 
-Publishes the next azaan and whether PiPrayer is muted, with Home Assistant MQTT discovery so the entities appear
-on their own, and takes skip, mute and resume commands. Needs paho-mqtt, which is only imported when MQTT is on:
+Publishes the next azaan, whether PiPrayer is muted and the Hijri date, with Home Assistant MQTT discovery so the
+entities appear on their own, and takes stop, skip, mute, resume and hijri-adjust commands. Needs paho-mqtt, which
+is only imported when MQTT is on:
 sudo apt install python3-paho-mqtt
 """
 import json
@@ -14,7 +15,8 @@ import socket
 import threading
 
 from . import clock
-from .config import Config, ConfigError
+from .config import MAX_HIJRI_ADJUST, Config, ConfigError, set_hijri_adjust
+from .hijri import hijri_now
 from .schedule import next_azaan
 from .output import describe_last
 from .player import stop
@@ -83,6 +85,13 @@ def discovery_messages(topics, node):
                value_template="{{ 'ON' if value_json.playing else 'OFF' }}", json_attributes_topic=topics.state,
                json_attributes_template="{{ {'prayer': value_json.playing, "
                                         "'reminder': value_json.playing_reminder} | tojson }}", **state),
+        entity("sensor", "hijri_date", "Hijri date", icon="mdi:moon-waxing-crescent",
+               value_template="{{ value_json.hijri_date }}", json_attributes_topic=topics.state,
+               json_attributes_template="{{ (value_json.hijri or {}) | tojson }}", **state),
+        entity("number", "hijri_adjust", "Hijri date adjustment", icon="mdi:calendar-arrow-right",
+               entity_category="config", min=-MAX_HIJRI_ADJUST, max=MAX_HIJRI_ADJUST, step=1, mode="box",
+               unit_of_measurement="days", value_template="{{ value_json.hijri_adjust }}",
+               command_topic=topics.command, command_template="hijri-adjust {{ value | int }}", **state),
         entity("button", "stop", "Stop", icon="mdi:stop",
                command_topic=topics.command, payload_press="stop"),
         entity("button", "skip", "Skip next azaan", icon="mdi:skip-next",
@@ -99,6 +108,7 @@ def state_payload(config, now, state, last=None, synchronised=None, playing=None
     problem: the last azaan didn't play as it should have, or the clock isn't set from the network."""
     entry = next_azaan(config, now, state)
     muted = state.muted_at(now)
+    hijri = hijri_now(config, now)
     problems = ([describe_last(last, now)] if last and last.problem else []) + \
         ([clock.NOT_SYNCHRONISED] if synchronised is False else [])
     return json.dumps({
@@ -114,11 +124,17 @@ def state_payload(config, now, state, last=None, synchronised=None, playing=None
         "problem": ". ".join(problems) or None,
         "playing": playing.prayer.capitalize() if playing else None,
         "playing_reminder": bool(playing and playing.reminder),
+        "hijri_date": str(hijri) if hijri else None,
+        "hijri": hijri.to_json() if hijri else None,
+        "hijri_adjust": config.hijri_adjust,
     }, sort_keys=True)
 
 
 def handle_command(text, config_path, default_azaan):
-    """Do what a command message asks: stop, skip, mute, mute <days> or resume. Returns a log message."""
+    """Do what a command message asks: stop, skip, mute, mute <days>, resume or hijri-adjust <days>.
+
+    Returns a log message.
+    """
     words = text.strip().lower().split()
     if not words:
         return "Ignoring an empty MQTT command"
@@ -141,7 +157,15 @@ def handle_command(text, config_path, default_azaan):
     if words == ["resume"]:
         resume(path)
         return "MQTT: skip and mute cleared"
-    return "Ignoring unknown MQTT command {!r}, use stop, skip, mute, mute <days> or resume".format(text)
+    if words[0] == "hijri-adjust" and len(words) == 2:
+        try:
+            days = set_hijri_adjust(config_path, words[1])
+        except ValueError as e:
+            return "Ignoring MQTT command {!r}: {}".format(text, e)
+        hijri = hijri_now(Config(config_path, default_azaan), now)
+        return "MQTT: hijri-adjust set to {}{}".format(days, ", the Hijri date is " + str(hijri) if hijri else "")
+    return "Ignoring unknown MQTT command {!r}, use stop, skip, mute, mute <days>, resume or hijri-adjust <days>" \
+        .format(text)
 
 
 # ------------------------------------------------------------------ connection
