@@ -20,10 +20,7 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 - 🔊 **17 Azaan recordings** to choose from, including 4 Fajr azaans to play at Fajr, and per-prayer volume
 - 🔁 **Runs as a background service** that starts at boot and picks up configuration changes on its own
 - 📶 **Connects to your Bluetooth speaker**, e.g. an Amazon Echo or Google Home, just before the Azaan and
-  disconnects afterwards. If the speaker can't be reached, it tries again for 5 minutes, or plays on the
-  Raspberry Pi's own audio output
-- ⚠️ **Tells you when an Azaan didn't play**, or the clock is wrong, in `piprayer.py times`, on the status page and
-  in Home Assistant
+  disconnects afterwards
 - ⏸️ **Skip the next Azaan or mute for a few days**, from the command line, an optional status page or Home Assistant
 
 Tested on a **Raspberry Pi 3** with an **Amazon Echo Pop** speaker and a **Yamaha Bluetooth soundbar**. Google
@@ -187,18 +184,6 @@ reminder = 10
 ```
 
 The volume is that of the Raspberry Pi's audio output, so the speaker's own volume still applies.
-
-### When the speaker can't be reached
-
-PiPrayer connects the speaker 30 seconds before each Azaan, so it starts on time. If the speaker doesn't connect, or
-the sound doesn't play, it tries again every 30 seconds for up to 5 minutes after the Azaan's time. With
-`fallback-output = local`, it plays on the Raspberry Pi's own audio output straight away instead, e.g. through
-speakers plugged into the headphone jack.
-
-How the last Azaan went is shown by `piprayer.py times`, on the [status page](#status-page) and in
-[Home Assistant](#home-assistant), e.g. "Isha at 21:43 yesterday didn't play: Can't connect to bluetooth". They also
-warn when the clock isn't set from the network: the Raspberry Pi has no clock of its own, so until it is online
-the time, and so the Azaan, can be off.
 
 ### Calculation methods
 
@@ -439,6 +424,16 @@ Prayer times are calculated with the [PrayTimes.org](http://praytimes.org) libra
 
 If the clock jumps forward after boot (the Raspberry Pi has no hardware clock), any Azaan missed by more than
 5 minutes is skipped rather than played late.
+
+The speaker is connected 30 seconds before each Azaan, so it starts on time. If the speaker doesn't connect, or the
+sound doesn't play, the service tries again every 30 seconds for up to 5 minutes after the Azaan's time. With
+`fallback-output = local`, it plays on the Raspberry Pi's own audio output straight away instead, e.g. through
+speakers plugged into the headphone jack.
+
+How the last Azaan went is saved in `.piprayer-last`, and shown by `piprayer.py times`, on the
+[status page](#status-page) and in [Home Assistant](#home-assistant), e.g. "Isha at 21:43 yesterday didn't play:
+Can't connect to bluetooth". They also warn when the clock isn't set from the network, as until then the time, and
+so the Azaan, can be off.
 
 ## Troubleshooting
 
