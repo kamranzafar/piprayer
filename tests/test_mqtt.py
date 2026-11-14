@@ -133,9 +133,11 @@ def test_discovery_creates_sensors_and_buttons():
 
     assert sorted(messages) == [
         "homeassistant/binary_sensor/piprayer_raspberrypi/muted/config",
+        "homeassistant/binary_sensor/piprayer_raspberrypi/problem/config",
         "homeassistant/button/piprayer_raspberrypi/mute_today/config",
         "homeassistant/button/piprayer_raspberrypi/resume/config",
         "homeassistant/button/piprayer_raspberrypi/skip/config",
+        "homeassistant/sensor/piprayer_raspberrypi/last_azaan/config",
         "homeassistant/sensor/piprayer_raspberrypi/next_azaan/config",
         "homeassistant/sensor/piprayer_raspberrypi/next_prayer/config",
     ]
@@ -145,7 +147,8 @@ def test_discovery_creates_sensors_and_buttons():
     assert configs["skip"]["command_topic"] == "piprayer/command"
     assert [configs[key]["payload_press"] for key in ("skip", "mute_today", "resume")] == ["skip", "mute", "resume"]
     assert all(config["availability_topic"] == "piprayer/availability" for config in configs.values())
-    assert len({config["unique_id"] for config in configs.values()}) == 6
+    assert configs["problem"]["device_class"] == "problem"
+    assert len({config["unique_id"] for config in configs.values()}) == 8
     assert all(config["device"]["identifiers"] == ["piprayer_raspberrypi"] for config in configs.values())
 
 
@@ -156,6 +159,8 @@ def test_state_payload(write_config):
 
     assert json.loads(state_payload(config, now, State())) == {
         "next_azaan": "2026-11-12T18:03:00+11:00", "next_prayer": "Asr", "next_skipped": False, "muted_until": None,
+        "last_result": None, "last_prayer": None, "last_time": None, "last_error": None,
+        "clock_synchronised": None, "problem": None,
     }
     state = State([datetime(2026, 11, 12, 18, 3, tzinfo=MELBOURNE)], datetime(2026, 11, 14, tzinfo=MELBOURNE))
     data = json.loads(state_payload(config, now, state))
@@ -226,7 +231,7 @@ def test_announces_itself_on_connecting(connected):
     bridge, client, path = connected
     assert client.subscribed == ["piprayer/command", "homeassistant/status"]
     discovery = [(topic, retain) for topic, _, retain in client.published if topic.startswith("homeassistant/")]
-    assert len(discovery) == 6 and all(retain for _, retain in discovery)
+    assert len(discovery) == 8 and all(retain for _, retain in discovery)
     assert published(client, "piprayer/availability") == ["online"]
     assert json.loads(published(client, "piprayer/state")[0])["next_prayer"] == "Asr"
 
@@ -250,7 +255,7 @@ def test_announces_again_when_home_assistant_restarts(connected):
     bridge, client, path = connected
     client.published.clear()
     bridge.on_message(client, None, Message("homeassistant/status", "online"))
-    assert len([t for t, _, _ in client.published if t.startswith("homeassistant/")]) == 6
+    assert len([t for t, _, _ in client.published if t.startswith("homeassistant/")]) == 8
     assert published(client, "piprayer/state")  # sent again, although unchanged
 
 

@@ -1,11 +1,13 @@
 # PiPrayer - Azaan for Raspberry Pi
 # Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Skip and mute, saved next to the configuration so they survive restarts."""
+"""Skip and mute, and how the last azaan went, saved next to the configuration so they survive restarts."""
 import json
 import logging
 import os
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta
+from typing import Optional
 
 from .schedule import upcoming_azaans
 
@@ -120,3 +122,56 @@ def mute_days(config, path, now, days):
 def resume(path):
     """Clear every skip and mute."""
     State().save(path)
+
+
+# ------------------------------------------------------------------ the last azaan
+
+def last_file(config_path):
+    """e.g. .piprayer-last for .piprayer."""
+    return config_path + "-last"
+
+
+PLAYED = "played"
+PLAYED_LOCALLY = "played locally"
+FAILED = "failed"
+MISSED = "missed"
+SKIPPED = "skipped"
+MUTED = "muted"
+
+
+@dataclass
+class LastAzaan:
+    """How the last azaan went, to show on the status page, in piprayer.py times and in Home Assistant."""
+    prayer: str
+    at: datetime  # when it was due
+    result: str  # played, played locally, failed, missed, skipped or muted
+    error: Optional[str] = None  # why it failed or was missed
+
+    @property
+    def problem(self):
+        """True when it didn't play as it should have."""
+        return self.result in (PLAYED_LOCALLY, FAILED, MISSED)
+
+    def to_json(self):
+        return {"prayer": self.prayer, "time": self.at.isoformat(), "result": self.result, "error": self.error}
+
+    @classmethod
+    def load(cls, path):
+        """The last azaan, or None if none is recorded or the file can't be read."""
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            return cls(data["prayer"], datetime.fromisoformat(data["time"]), data["result"], data.get("error"))
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as e:
+            log.warning("Ignoring %s, it can't be read: %s", path, e)
+            return None
+
+    def save(self, path):
+        try:
+            with open(path + ".new", "w") as f:
+                json.dump(self.to_json(), f, indent=2)
+            os.replace(path + ".new", path)
+        except OSError as e:
+            log.error("Can't save how the azaan went to %s: %s", path, e)

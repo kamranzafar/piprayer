@@ -20,7 +20,10 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 - 🔊 **17 Azaan recordings** to choose from, including 4 Fajr azaans to play at Fajr, and per-prayer volume
 - 🔁 **Runs as a background service** that starts at boot and picks up configuration changes on its own
 - 📶 **Connects to your Bluetooth speaker**, e.g. an Amazon Echo or Google Home, just before the Azaan and
-  disconnects afterwards
+  disconnects afterwards. If the speaker can't be reached, it tries again for 5 minutes, or plays on the
+  Raspberry Pi's own audio output
+- ⚠️ **Tells you when an Azaan didn't play**, or the clock is wrong, in `piprayer.py times`, on the status page and
+  in Home Assistant
 - ⏸️ **Skip the next Azaan or mute for a few days**, from the command line, an optional status page or Home Assistant
 
 Tested on a **Raspberry Pi 3** with an **Amazon Echo Pop** speaker and a **Yamaha Bluetooth soundbar**. Google
@@ -166,6 +169,7 @@ the file directly. The running service picks up changes within a minute, no rest
 | `volume` | Volume in percent. Add `Prayer:percent` to set a prayer's volume | `100` | `80, Fajr:40` |
 | `reminder` | Play a short chime this many minutes before each Azaan, up to 60. `0` turns it off | `0` | `10` |
 | `speaker` | Bluetooth address of the speaker to play on. Other paired devices are not used | any paired speaker | `AA:BB:CC:DD:EE:FF` |
+| `fallback-output` | `local` plays on the Raspberry Pi's own audio output (headphone jack or HDMI) when no speaker connects | `off` | `local` |
 | `status-port` | Serve the [status page](#status-page) on this port | off | `8080` |
 | `mqtt-host` | MQTT broker for [Home Assistant](#home-assistant), e.g. the Mosquitto add-on | off | `homeassistant.local` |
 | `mqtt-port` | Port of the MQTT broker | `1883` | `1883` |
@@ -183,6 +187,18 @@ reminder = 10
 ```
 
 The volume is that of the Raspberry Pi's audio output, so the speaker's own volume still applies.
+
+### When the speaker can't be reached
+
+PiPrayer connects the speaker 30 seconds before each Azaan, so it starts on time. If the speaker doesn't connect, or
+the sound doesn't play, it tries again every 30 seconds for up to 5 minutes after the Azaan's time. With
+`fallback-output = local`, it plays on the Raspberry Pi's own audio output straight away instead, e.g. through
+speakers plugged into the headphone jack.
+
+How the last Azaan went is shown by `piprayer.py times`, on the [status page](#status-page) and in
+[Home Assistant](#home-assistant), e.g. "Isha at 21:43 yesterday didn't play: Can't connect to bluetooth". They also
+warn when the clock isn't set from the network: the Raspberry Pi has no clock of its own, so until it is online
+the time, and so the Azaan, can be off.
 
 ### Calculation methods
 
@@ -286,6 +302,7 @@ status-port = 8080
 
 Within a minute, the page is at `http://raspberrypi.local:8080` (use your Raspberry Pi's hostname or address). It
 shows the next Azaan with a countdown and today's times, with buttons to skip the next Azaan, mute today, or resume.
+It warns when the last Azaan didn't play, or the clock isn't set from the network.
 
 **On your phone**, add it to the home screen to use it like an app, full screen with its own icon:
 - iPhone: open the page in Safari, tap **Share**, then **Add to Home Screen**
@@ -307,7 +324,8 @@ It also answers JSON requests, e.g. for Home Assistant:
 | `POST /api/resume` | Clear skip and mute |
 
 The JSON for each Azaan has `skipped` and `muted` set to `true` when it won't play, and `muted_until` gives the
-time the mute ends.
+time the mute ends. `/api/times` also has `last`, how the last Azaan went, with its `prayer`, `time`, `result`
+(`played`, `played locally`, `failed`, `missed`, `skipped` or `muted`) and `error`, and `clock_synchronised`.
 
 ## Home Assistant
 
@@ -318,6 +336,8 @@ time the mute ends.
 | Next azaan | When the next Azaan is, e.g. "in 2 hours", with the prayer and whether it is skipped |
 | Next prayer | e.g. Asr |
 | Muted | On while muted, with the time the mute ends |
+| Last azaan | How the last Azaan went, e.g. played or failed, with the prayer, time and error |
+| Problem | On when the last Azaan didn't play as it should have, or the clock isn't set from the network. Use it in an automation to send yourself a notification |
 | Skip next azaan, Mute today, Resume | Buttons |
 
 To set it up with the Mosquitto broker add-on:

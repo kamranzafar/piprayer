@@ -166,9 +166,10 @@ cython_debug/
 *.bak
 .piprayercron
 
-# PiPrayer configuration, created by setup-piprayer.sh, and skip and mute state
+# PiPrayer configuration, created by setup-piprayer.sh, skip and mute state, and how the last azaan went
 .piprayer
 .piprayer-state*
+.piprayer-last*
 
 # graphify knowledge graph
 graphify-out/

@@ -16,7 +16,8 @@ import threading
 from . import clock
 from .config import Config, ConfigError
 from .schedule import next_azaan
-from .state import State, mute_days, resume, skip_next, state_file
+from .output import describe_last
+from .state import LastAzaan, State, last_file, mute_days, resume, skip_next, state_file
 
 log = logging.getLogger("piprayer")
 
@@ -70,6 +71,13 @@ def discovery_messages(topics, node):
                value_template="{{ 'ON' if value_json.muted_until else 'OFF' }}",
                json_attributes_topic=topics.state,
                json_attributes_template="{{ {'muted_until': value_json.muted_until} | tojson }}", **state),
+        entity("sensor", "last_azaan", "Last azaan", icon="mdi:history",
+               value_template="{{ value_json.last_result }}", json_attributes_topic=topics.state,
+               json_attributes_template="{{ {'prayer': value_json.last_prayer, 'time': value_json.last_time, "
+                                        "'error': value_json.last_error} | tojson }}", **state),
+        entity("binary_sensor", "problem", "Problem", device_class="problem", entity_category="diagnostic",
+               value_template="{{ 'ON' if value_json.problem else 'OFF' }}", json_attributes_topic=topics.state,
+               json_attributes_template="{{ {'problem': value_json.problem} | tojson }}", **state),
         entity("button", "skip", "Skip next azaan", icon="mdi:skip-next",
                command_topic=topics.command, payload_press="skip"),
         entity("button", "mute_today", "Mute today", icon="mdi:volume-off",
@@ -79,15 +87,24 @@ def discovery_messages(topics, node):
     ]
 
 
-def state_payload(config, now, state):
-    """What Home Assistant shows: the next azaan and prayer, and the end of a mute."""
+def state_payload(config, now, state, last=None, synchronised=None):
+    """What Home Assistant shows: the next azaan and prayer, the end of a mute, how the last azaan went, and any
+    problem: the last azaan didn't play as it should have, or the clock isn't set from the network."""
     entry = next_azaan(config, now, state)
     muted = state.muted_at(now)
+    problems = ([describe_last(last, now)] if last and last.problem else []) + \
+        ([clock.NOT_SYNCHRONISED] if synchronised is False else [])
     return json.dumps({
         "next_azaan": entry.at.isoformat() if entry else None,
         "next_prayer": entry.prayer.capitalize() if entry else None,
         "next_skipped": bool(entry and entry.silenced == "skipped"),
         "muted_until": muted.isoformat() if muted else None,
+        "last_result": last.result if last else None,
+        "last_prayer": last.prayer.capitalize() if last else None,
+        "last_time": last.at.isoformat() if last else None,
+        "last_error": last.error if last else None,
+        "clock_synchronised": synchronised,
+        "problem": ". ".join(problems) or None,
     }, sort_keys=True)
 
 
@@ -282,7 +299,8 @@ class MqttBridge:
         try:
             config = Config(self.config_path, self.default_azaan)
             now = clock.now(config.tz)
-            payload = state_payload(config, now, State.load(state_file(self.config_path)))
+            payload = state_payload(config, now, State.load(state_file(self.config_path)),
+                                    LastAzaan.load(last_file(self.config_path)), clock.synchronised())
         except ConfigError as e:
             log.error("Can't update MQTT state, configuration error: %s", e)
             return

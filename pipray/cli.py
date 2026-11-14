@@ -16,7 +16,7 @@ from .output import (RESUME_HINT, describe_azaan, describe_mute, format_next, fo
 from .player import REMINDER_SOUND, play
 from .schedule import next_azaan
 from .service import Updated, installed_azaan, run
-from .state import MAX_MUTE_DAYS, State, mute, resume, skip_next, state_file
+from .state import MAX_MUTE_DAYS, LastAzaan, State, last_file, mute, resume, skip_next, state_file
 from .wizard import configure
 
 PRAYERS = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
@@ -30,6 +30,7 @@ def times_command(args):
         print(warning, file=sys.stderr)
     now = clock.now(config.tz)
     state = State.load(state_file(args.config))
+    synchronised = clock.synchronised()
 
     if args.which == "next":
         if args.date:
@@ -41,16 +42,17 @@ def times_command(args):
             if entry:
                 print(entry.prayer + "-" + entry.at.strftime("%H:%M"))
         else:
-            print(format_next(config, entry, now, state))
+            print(format_next(config, entry, now, state, synchronised))
         return 0
 
     day = args.date or now.date()
+    last = LastAzaan.load(last_file(args.config))
     if args.format == "json":
-        print(json.dumps(times_json(config, day, now, state), indent=2))
+        print(json.dumps(times_json(config, day, now, state, last, synchronised), indent=2))
     elif args.format == "plain":
         print(format_plain(config, day))
     else:
-        print(format_times(config, day, now, state))
+        print(format_times(config, day, now, state, last, synchronised))
     return 0
 
 
@@ -74,11 +76,12 @@ def play_command(args):
     config = Config(args.config) if os.path.exists(args.config) else None
     volume = config.volume_for(args.prayer) if config else DEFAULT_VOLUME
     speaker = config.speaker if config else None
+    fallback = config.fallback_local if config else False
     if args.reminder:
-        return play(REMINDER_SOUND, volume, "reminder", speaker)
+        return play(REMINDER_SOUND, volume, "reminder", speaker, fallback).returncode
 
     azaan = args.azaan or (config.azaan_for(args.prayer) if config else DEFAULT_AZAAN)
-    return play(azaan, volume, speaker=speaker)
+    return play(azaan, volume, speaker=speaker, fallback=fallback).returncode
 
 
 def skip_command(args):

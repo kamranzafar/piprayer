@@ -30,9 +30,11 @@ MQTT_PORT = "mqtt-port"
 MQTT_USERNAME = "mqtt-username"
 MQTT_PASSWORD = "mqtt-password"
 MQTT_TOPIC = "mqtt-topic"
+FALLBACK_OUTPUT = "fallback-output"
 
 OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, REMINDER,
-           SPEAKER, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD, MQTT_TOPIC)
+           SPEAKER, FALLBACK_OUTPUT, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
+           MQTT_TOPIC)
 
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_MQTT_TOPIC = "piprayer"
@@ -94,6 +96,7 @@ class Config:
         self.volume, self.volumes = parse_volume(section.get(VOLUME, ""))
         self.reminder = parse_number(section, REMINDER, 0, 0, 60)
         self.speaker = parse_speaker(section.get(SPEAKER, ""))
+        self.fallback_local = parse_fallback(section.get(FALLBACK_OUTPUT, "off"))
         self.status_port = parse_number(section, STATUS_PORT, None, 1, 65535)
         self.high_latitude = parse_high_latitude(section.get(HIGH_LATITUDE, DEFAULT_HIGH_LATITUDE))
         self.mqtt = parse_mqtt(section)
@@ -193,6 +196,14 @@ def parse_speaker(value):
     if not MAC_ADDRESS.match(value):
         raise ConfigError("Invalid speaker: {}, use the Bluetooth address, e.g. AA:BB:CC:DD:EE:FF".format(value))
     return value
+
+
+def parse_fallback(value):
+    """True to play on the Raspberry Pi's own audio output when no speaker connects."""
+    value = value.strip().lower()
+    if value not in ("local", "off"):
+        raise ConfigError("Invalid {}: {}, use local or off".format(FALLBACK_OUTPUT, value))
+    return value == "local"
 
 
 def unknown_option(option, path):

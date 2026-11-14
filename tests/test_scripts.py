@@ -71,6 +71,23 @@ def bluetooth(tmp_path):
         def refuse(self, *macs):
             (state / "refuse").write_text("".join(m + "\n" for m in macs))
 
+        def sinks(self, *names):
+            """Audio outputs pactl lists. A speaker's output is only listed while it is connected."""
+            make_command(bin_dir, "pactl", """\
+                for name in {names}; do
+                  mac=$(echo "$name" | sed -n 's/^bluez_output\\.\\([0-9A-F_]*\\)\\..*/\\1/p' | tr _ :)
+                  if [ -z "$mac" ] || grep -qx "$mac" {state}/connected 2>/dev/null; then
+                    printf '1\\t%s\\tPipeWire\\ts16le 2ch 48000Hz\\tSUSPENDED\\n' "$name"
+                  fi
+                done
+                """.format(names=" ".join(names), state=state))
+
+        def paplay_fails(self):
+            make_command(bin_dir, "paplay", 'echo "play $*" >> {}/log\nexit 1\n'.format(state))
+
+        def run(self, *args):
+            return run([os.path.join(ROOT, "play-azaan.sh")] + list(args), bin_dir)
+
         def play(self, *args):
             return run([os.path.join(ROOT, "play-azaan.sh")] + list(args or ["3"]), bin_dir)
 
@@ -107,7 +124,7 @@ def test_tries_next_speaker_when_one_refuses(bluetooth):
 def test_fails_when_no_speaker_connects(bluetooth):
     bluetooth.refuse(SPEAKER_1, SPEAKER_2)
     result = bluetooth.play()
-    assert result.returncode == 1
+    assert result.returncode == 2
     assert "Can't connect to bluetooth" in result.stdout
     assert not any(line.startswith("play") for line in bluetooth.log())
 
@@ -138,9 +155,80 @@ def test_chosen_speaker_that_is_connected_is_used(bluetooth):
 def test_fails_when_chosen_speaker_refuses(bluetooth):
     bluetooth.refuse(SPEAKER_2)
     result = bluetooth.play("3", "100", SPEAKER_2)
-    assert result.returncode == 1
+    assert result.returncode == 2
     assert "Can't connect to bluetooth speaker " + SPEAKER_2 in result.stdout
     assert bluetooth.log() == ["connect " + SPEAKER_2]
+
+
+LOCAL_SINK = "alsa_output.platform-bcm2835_audio.stereo-fallback"
+SINK_1 = "bluez_output.AA_AA_AA_AA_AA_01.1"
+
+
+def test_plays_on_the_speakers_audio_output(bluetooth):
+    bluetooth.sinks(LOCAL_SINK, SINK_1)
+    result = bluetooth.play("3")
+    assert result.returncode == 0, result.stdout
+    assert bluetooth.log() == [
+        "connect " + SPEAKER_1,
+        "play --volume=65536 --device={} {}".format(SINK_1, os.path.join(ROOT, "media", "azaan-3.opus")),
+        "disconnect " + SPEAKER_1]
+    assert result.stdout.strip().endswith("Played on speaker " + SPEAKER_1)
+
+
+def test_fallback_plays_on_the_local_output(bluetooth):
+    bluetooth.sinks(LOCAL_SINK, SINK_1)
+    bluetooth.refuse(SPEAKER_1, SPEAKER_2)
+    result = bluetooth.play("--fallback", "3")
+    assert result.returncode == 0
+    assert "Can't connect to bluetooth, playing on the local audio output instead" in result.stdout
+    assert result.stdout.strip().endswith("Played on the local audio output")
+    assert "play --volume=65536 --device={} {}".format(LOCAL_SINK, os.path.join(ROOT, "media", "azaan-3.opus")) \
+        in bluetooth.log()
+    assert not any(line.startswith("disconnect") for line in bluetooth.log())
+
+
+def test_fallback_isnt_used_when_a_speaker_connects(bluetooth):
+    bluetooth.sinks(LOCAL_SINK, SINK_1)
+    result = bluetooth.play("--fallback", "3")
+    assert result.stdout.strip().endswith("Played on speaker " + SPEAKER_1)
+
+
+def test_reports_when_the_sound_doesnt_play(bluetooth):
+    bluetooth.paplay_fails()
+    result = bluetooth.play("3")
+    assert result.returncode == 3
+    assert "paplay failed with exit code 1" in result.stdout
+    assert bluetooth.log()[-1] == "disconnect " + SPEAKER_1  # still disconnected
+
+
+def test_connect_ahead_prints_the_speaker(bluetooth):
+    result = bluetooth.run("--connect")
+    assert (result.returncode, result.stdout.strip()) == (0, SPEAKER_1)
+    assert bluetooth.log() == ["connect " + SPEAKER_1]
+
+
+def test_connect_ahead_to_chosen_speaker(bluetooth):
+    result = bluetooth.run("--connect", SPEAKER_2.lower())
+    assert (result.returncode, result.stdout.strip()) == (0, SPEAKER_2)
+
+
+def test_connect_ahead_fails_when_no_speaker_connects(bluetooth):
+    bluetooth.refuse(SPEAKER_1, SPEAKER_2)
+    result = bluetooth.run("--connect")
+    assert result.returncode == 2
+    assert "Can't connect to bluetooth" in result.stdout
+
+
+def test_connected_speaker_plays_without_connecting_again(bluetooth):
+    bluetooth.run("--connect")
+    bluetooth.play("3")
+    assert bluetooth.log() == ["connect " + SPEAKER_1, azaan_file(3), "disconnect " + SPEAKER_1]
+
+
+def test_disconnect(bluetooth):
+    assert bluetooth.run("--disconnect", SPEAKER_2).returncode == 0
+    assert bluetooth.log() == ["disconnect " + SPEAKER_2]
+    assert bluetooth.run("--disconnect").returncode == 1
 
 
 @pytest.mark.parametrize("args, message", [

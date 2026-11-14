@@ -4,15 +4,19 @@
 """The times as a table, as text, and as JSON."""
 from datetime import datetime, time, timedelta
 
+from .clock import NOT_SYNCHRONISED
 from .schedule import schedule, timezone_name
+from .state import FAILED, MISSED, PLAYED_LOCALLY
 
 RESUME_HINT = "Run piprayer.py resume to play again."
 
 
 def describe_day(day, today):
-    """e.g. "today", "tomorrow" or "Friday 14 November"."""
+    """e.g. "today", "tomorrow", "yesterday" or "Friday 14 November"."""
     if day == today:
         return "today"
+    if day == today - timedelta(days=1):
+        return "yesterday"
     if day == today + timedelta(days=1):
         return "tomorrow"
     return "{:%A} {} {:%B}".format(day, day.day, day)
@@ -22,6 +26,18 @@ def describe_azaan(entry, now):
     """e.g. "Asr at 18:03 today"."""
     return "{} at {} {}".format(entry.prayer.capitalize(), entry.at.strftime("%H:%M"),
                                 describe_day(entry.at.date(), now.date()))
+
+
+def describe_last(last, now):
+    """How the last azaan went, e.g. "Asr at 18:03 today played", or "... didn't play: <why>"."""
+    what = describe_azaan(last, now)
+    if last.result == FAILED:
+        return "{} didn't play: {}".format(what, last.error or "unknown error")
+    if last.result == MISSED:
+        return "{} was missed: {}".format(what, last.error or "unknown reason")
+    if last.result == PLAYED_LOCALLY:
+        return "{} played on the Raspberry Pi's own audio output, as the speaker couldn't be reached".format(what)
+    return "{} {}".format(what, last.result if last.result == "played" else "was " + last.result)
 
 
 def describe_mute(config, mute_until, now):
@@ -39,8 +55,11 @@ def format_duration(delta):
     return "{} h".format(hours) if hours else "{} min".format(minutes)
 
 
-def format_times(config, day, now, state=None):
-    """The day's schedule as a table, marking the next azaan and any that won't play."""
+def format_times(config, day, now, state=None, last=None, synchronised=None):
+    """The day's schedule as a table, marking the next azaan and any that won't play.
+
+    Below it, how the last azaan went, and a warning when the clock isn't set from the network (synchronised False).
+    """
     entries = schedule(config, day, state)
     upcoming = next((e for e in entries if e.at > now), None) if day == now.date() else None
 
@@ -72,14 +91,19 @@ def format_times(config, day, now, state=None):
         lines.append("No prayer times on this day")
     if state and state.muted_at(now):
         lines += ["", describe_mute(config, state.mute_until, now) + ". " + RESUME_HINT]
+    if last and day == now.date():
+        lines += ["", "Last azaan: " + describe_last(last, now)]
+    if synchronised is False:
+        lines += ["", "Warning: " + NOT_SYNCHRONISED]
 
     return indent(lines)
 
 
-def format_next(config, entry, now, state=None):
+def format_next(config, entry, now, state=None, synchronised=None):
     """The next azaan, e.g. "Next azaan: Asr at 18:03 today, in 3 h 12 min"."""
+    warning = ["", "Warning: " + NOT_SYNCHRONISED] if synchronised is False else []
     if entry is None:
-        return indent(["No azaan in the next two days"])
+        return indent(["No azaan in the next two days"] + warning)
 
     details = "Azaan {} · {}% volume".format(entry.azaan, entry.volume)
     if entry.reminder:
@@ -94,7 +118,7 @@ def format_next(config, entry, now, state=None):
         lines.append(describe_mute(config, state.mute_until, now) + ". " + RESUME_HINT)
     elif entry.silenced == "skipped":
         lines.append("Skipped. Run piprayer.py resume to play it.")
-    return indent(lines)
+    return indent(lines + warning)
 
 
 def format_plain(config, day):
@@ -111,7 +135,7 @@ def muted_until_json(state, now):
     return muted.isoformat() if muted else None
 
 
-def times_json(config, day, now, state=None):
+def times_json(config, day, now, state=None, last=None, synchronised=None):
     entries = schedule(config, day, state)
     upcoming = next((e for e in entries if e.at > now), None) if day == now.date() else None
     return {
@@ -122,6 +146,8 @@ def times_json(config, day, now, state=None):
         "next": upcoming.prayer if upcoming else None,
         "muted_until": muted_until_json(state, now),
         "prayers": [entry.to_json() for entry in entries],
+        "last": last.to_json() if last else None,
+        "clock_synchronised": synchronised,
     }
 
 

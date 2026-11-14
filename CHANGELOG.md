@@ -7,7 +7,26 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- The speaker is connected 30 seconds before each Azaan and reminder, so they start on time, and play on the
+  speaker's own audio output once it is ready, instead of waiting a fixed 5 seconds after connecting
+  ([#6](https://github.com/kamranzafar/piprayer/issues/6)).
+- When the speaker doesn't connect or the sound doesn't play, PiPrayer tries again every 30 seconds for up to 5
+  minutes after the Azaan's time ([#5](https://github.com/kamranzafar/piprayer/issues/5)).
+- `fallback-output = local` plays on the Raspberry Pi's own audio output, e.g. the headphone jack, when no speaker
+  connects.
+- How the last Azaan went (played, played locally, failed, missed, skipped or muted) is saved in `.piprayer-last`
+  and shown by `piprayer.py times`, on the status page, in `/api/times` as `last`, and in Home Assistant as a
+  "Last azaan" sensor. The status page warns when it didn't play.
+- PiPrayer warns when the clock isn't set from the network, in the log, `piprayer.py times`, the status page,
+  `/api/times` as `clock_synchronised`, and Home Assistant
+  ([#7](https://github.com/kamranzafar/piprayer/issues/7)).
+- A "Problem" binary sensor in Home Assistant, on when the last Azaan didn't play or the clock isn't set, for
+  automations that send a notification.
+
 ### Changed
+- `play-azaan.sh` exits with 2 when no speaker connects and 3 when the sound doesn't play, instead of 1, and takes
+  `--fallback`, `--connect` and `--disconnect`.
 - Every source file now carries a copyright notice (2021-2026) and an `SPDX-License-Identifier: GPL-3.0-or-later` line;
   the bundled `praytimes.py` is marked `LGPL-3.0-only`.
 

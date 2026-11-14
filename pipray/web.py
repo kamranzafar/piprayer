@@ -13,9 +13,9 @@ from urllib.parse import parse_qs, urlsplit
 
 from . import clock
 from .config import Config, ConfigError
-from .output import describe_day, describe_mute, format_duration, next_json, times_json
+from .output import describe_day, describe_last, describe_mute, format_duration, next_json, times_json
 from .schedule import next_azaan, schedule, timezone_name
-from .state import State, mute_days, next_playing, resume, skip_next, state_file
+from .state import LastAzaan, State, last_file, mute_days, next_playing, resume, skip_next, state_file
 
 log = logging.getLogger("piprayer")
 
@@ -117,6 +117,7 @@ class StatusRoutes:
     def __init__(self, config_path, default_azaan):
         self.config_path = config_path
         self.state_path = state_file(config_path)
+        self.last_path = last_file(config_path)
         self.default_azaan = default_azaan
 
     def get(self, path):
@@ -127,9 +128,11 @@ class StatusRoutes:
         config, now = self.load()
         state = State.load(self.state_path)
         if path == "/":
-            return Response.html(status_html(config, now, state))
+            return Response.html(status_html(config, now, state, LastAzaan.load(self.last_path),
+                                             clock.synchronised()))
         if path == "/api/times":
-            return Response.json(times_json(config, now.date(), now, state))
+            return Response.json(times_json(config, now.date(), now, state, LastAzaan.load(self.last_path),
+                                            clock.synchronised()))
         if path == "/api/next":
             return Response.json(next_json(config, next_azaan(config, now, state), now, state))
         return NOT_FOUND
@@ -208,8 +211,12 @@ def status_handler(config_path, default_azaan):
     return Handler
 
 
-def status_html(config, now, state):
-    """The status page: the next azaan, buttons to skip or mute, and today's times."""
+def status_html(config, now, state, last=None, synchronised=None):
+    """The status page: the next azaan, buttons to skip or mute, and today's times.
+
+    Problems are shown at the top: the last azaan didn't play as it should have, or the clock isn't set from the
+    network (synchronised False).
+    """
     upcoming = next_azaan(config, now, state)
     playing = next_playing(config, now, state)
     muted = state.muted_at(now)
@@ -237,6 +244,11 @@ def status_html(config, now, state):
         buttons.append(("/mute", "", "secondary", "Mute today"))
     if muted or state.skip:
         buttons.append(("/resume", "", "secondary", "Resume"))
+    if last and last.problem:
+        hero += '<div class="notice">{}.</div>'.format(escape(describe_last(last, now)))
+    if synchronised is False:
+        hero += '<div class="notice">{}</div>'.format(escape(clock.NOT_SYNCHRONISED))
+
     hero += '<div class="actions">{}</div>'.format("".join(
         '<form method="post" action="{}" class="{}"><button class="{}">{}</button></form>'.format(
             action, form_class, button_class, label)
@@ -246,7 +258,8 @@ def status_html(config, now, state):
                        times=times_list(schedule(config, now.date(), state), upcoming, now),
                        date="{:%A} {} {:%B}".format(now, now.day, now),
                        details=escape(timezone_name(config, now.date())) + "<br>" +
-                       escape("{} method · {} Asr".format(config.method, config.asr_time)),
+                       escape("{} method · {} Asr".format(config.method, config.asr_time)) +
+                       ("<br>" + escape("Last azaan: " + describe_last(last, now)) if last else ""),
                        updated=now.strftime("%H:%M"))
 
 

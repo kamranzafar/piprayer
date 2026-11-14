@@ -9,10 +9,10 @@ from datetime import timedelta
 
 from . import clock
 from .config import DEFAULT_AZAAN, SCRIPT_DIR, Config
-from .player import play_event
+from . import player
 from .schedule import next_event
 from .mqtt import MqttBridge
-from .state import State, state_file, tidy_state
+from .state import FAILED, MISSED, PLAYED, PLAYED_LOCALLY, LastAzaan, State, last_file, state_file, tidy_state
 from .web import StatusPage
 
 log = logging.getLogger("piprayer")
@@ -24,8 +24,30 @@ MAX_LATENESS = timedelta(minutes=5)
 # Longest single sleep while waiting, so clock changes and config edits are noticed
 MAX_SLEEP_SECONDS = 60
 
+# Connect the speaker this long before an azaan or reminder, so it starts on time
+CONNECT_AHEAD_SECONDS = 30
+
+# When the speaker doesn't connect or the sound doesn't play, try again after this long, while the azaan is still
+# within MAX_LATENESS of its time
+RETRY_SECONDS = 30
+
 # After an update, wait until the code has stayed the same this long before restarting, so a git pull has finished
 UPDATE_SETTLE_SECONDS = 5
+
+
+class ClockWatch:
+    """Logs when the clock stops or starts being set from the network."""
+
+    def __init__(self):
+        self.synchronised = None
+
+    def check(self):
+        synchronised = clock.synchronised()
+        if synchronised is False and self.synchronised is not False:
+            log.warning("%s", clock.NOT_SYNCHRONISED)
+        elif synchronised and self.synchronised is False:
+            log.info("The clock is set from the network again")
+        self.synchronised = synchronised
 
 
 class Updated(Exception):
@@ -65,6 +87,7 @@ def run(config_path, default_azaan):
     state_path = state_file(config_path)
     status_page = StatusPage(config_path, default_azaan)
     mqtt = MqttBridge(config_path, default_azaan)
+    clock_watch = ClockWatch()
     started = None
     # Events already played or passed over. Another may fall due while one plays, e.g. Fajr at the same minute
     # as Isha on a short summer night, so the next event is looked for from a little before now.
@@ -87,7 +110,7 @@ def run(config_path, default_azaan):
             if event is None:
                 log.warning("No prayer times found for today or tomorrow, checking again in an hour")
                 clock.sleep(3600)
-            elif wait_and_play(config_path, config, mtime, state_path, event, version):
+            elif wait_and_play(config_path, config, mtime, state_path, event, version, clock_watch):
                 handled.add(event.key)
             else:
                 log.info("Configuration changed, reloading")
@@ -96,37 +119,97 @@ def run(config_path, default_azaan):
         mqtt.configure(None)
 
 
-def wait_and_play(config_path, config, mtime, state_path, event, version=None):
+def wait_and_play(config_path, config, mtime, state_path, event, version=None, clock_watch=None):
     """Wait for the event and play it. Returns False if the configuration changed while waiting.
 
-    Raises Updated if PiPrayer's code changed from the given version while waiting.
+    The speaker is connected a little ahead, so the azaan starts on time. Raises Updated if PiPrayer's code changed
+    from the given version while waiting.
     """
     log.info("Next: %s", event)
+    tried_connecting = False
+    connected = None  # the speaker connected ahead, until play-azaan.sh disconnects it after playing
 
+    try:
+        while True:
+            remaining = (event.at - clock.now(config.tz)).total_seconds()
+            if remaining <= 0:
+                break
+            if config_mtime(config_path) != mtime:
+                return False
+            if version:
+                check_for_update(version)
+            if clock_watch:
+                clock_watch.check()
+            if remaining <= CONNECT_AHEAD_SECONDS and not tried_connecting:
+                tried_connecting = True
+                connected = connect_ahead(config, state_path, event)
+                continue
+            ahead = 0 if tried_connecting else CONNECT_AHEAD_SECONDS
+            clock.sleep(min(remaining - ahead, MAX_SLEEP_SECONDS))
+
+        late = clock.now(config.tz) - event.at
+        if late > MAX_LATENESS:
+            log.warning("Skipping %s, noticed %d minutes late (clock changed?)",
+                        event, late.total_seconds() // 60)
+            record(config_path, event, MISSED, "noticed {} minutes late, the clock may have changed"
+                   .format(int(late.total_seconds() // 60)))
+            return True
+
+        # Read just before playing, so skip and mute apply however recently they were set
+        silenced = State.load(state_path).silenced(event.azaan_at)
+        if silenced:
+            log.info("Not playing %s, it is %s", event, silenced)
+            record(config_path, event, silenced)
+            return True
+
+        connected = None  # play-azaan.sh disconnects it once it has played
+        play_with_retries(config_path, config, state_path, event)
+        return True
+    finally:
+        if connected:
+            player.disconnect(connected)
+
+
+def connect_ahead(config, state_path, event):
+    """Connect the speaker for an event that will play. Returns its address, or None."""
+    if State.load(state_path).silenced(event.azaan_at):
+        return None
+    speaker = player.connect(config.speaker)
+    if speaker:
+        log.info("Connected to speaker %s", speaker)
+    else:
+        log.info("Can't connect to the speaker yet, trying again at %s", event.at.strftime("%H:%M"))
+    return speaker
+
+
+def play_with_retries(config_path, config, state_path, event):
+    """Play the event, trying again while it is within MAX_LATENESS of its time, and record how it went."""
     while True:
-        remaining = (event.at - clock.now(config.tz)).total_seconds()
-        if remaining <= 0:
-            break
-        if config_mtime(config_path) != mtime:
-            return False
-        if version:
-            check_for_update(version)
-        clock.sleep(min(remaining, MAX_SLEEP_SECONDS))
+        played = player.play_event(config, event)
+        if played.ok:
+            record(config_path, event, PLAYED_LOCALLY if played.local else PLAYED,
+                   "played on the Raspberry Pi's own audio output, as the speaker couldn't be reached"
+                   if played.local else None)
+            return
+        if not played.worth_retrying or \
+                clock.now(config.tz) + timedelta(seconds=RETRY_SECONDS) - event.at > MAX_LATENESS:
+            log.error("Couldn't play %s: %s", event, played.message)
+            record(config_path, event, FAILED, played.message)
+            return
 
-    late = clock.now(config.tz) - event.at
-    if late > MAX_LATENESS:
-        log.warning("Skipping %s, noticed %d minutes late (clock changed?)",
-                    event, late.total_seconds() // 60)
-        return True
+        log.warning("Couldn't play %s: %s. Trying again in %d seconds", event, played.message, RETRY_SECONDS)
+        clock.sleep(RETRY_SECONDS)
+        silenced = State.load(state_path).silenced(event.azaan_at)
+        if silenced:
+            log.info("Not trying %s again, it is %s now", event, silenced)
+            record(config_path, event, silenced)
+            return
 
-    # Read just before playing, so skip and mute apply however recently they were set
-    silenced = State.load(state_path).silenced(event.azaan_at)
-    if silenced:
-        log.info("Not playing %s, it is %s", event, silenced)
-        return True
 
-    play_event(config, event)
-    return True
+def record(config_path, event, result, error=None):
+    """Remember how an azaan went. Reminders aren't recorded."""
+    if not event.reminder:
+        LastAzaan(event.prayer, event.at, result, error).save(last_file(config_path))
 
 
 def config_mtime(path):

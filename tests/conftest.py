@@ -35,6 +35,21 @@ def write_config(tmp_path):
     return write
 
 
+class FakeResult:
+    """What subprocess.run returns."""
+
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+@pytest.fixture(autouse=True)
+def clock_synchronised(monkeypatch):
+    """The clock is set from the network, unless a test says otherwise, so results don't depend on this computer."""
+    monkeypatch.setattr(clock, "synchronised", lambda: True)
+
+
 class Stop(Exception):
     """Raised by the fake clock to end a simulated service run."""
 
@@ -46,6 +61,10 @@ class FakeClock:
         self.now = start.replace(tzinfo=tz).astimezone(timezone.utc)
         self.tz = tz
         self.played = []
+        self.bluetooth = []  # (local time, "--connect" or "--disconnect", speaker or None)
+        self.failures = []  # (exit code, message) for the next plays to fail with
+        self.connect_fails = False
+        self.play_output = "Played on speaker AA:AA:AA:AA:AA:01"
         self.events = []  # (utc datetime, callback)
         self.stop_at = None
         self.play_duration = timedelta(minutes=4)
@@ -65,15 +84,23 @@ class FakeClock:
         if self.stop_at and self.now >= self.stop_at:
             raise Stop
 
-    def run_player(self, cmd):
+    def run_player(self, cmd, **kwargs):
+        args = cmd[1:]
+        minute = self.local_now().replace(second=0, microsecond=0)
+        if args[0] in ("--connect", "--disconnect"):
+            self.bluetooth.append((minute, args[0], args[1] if len(args) > 1 else None))
+            if args[0] == "--connect" and self.connect_fails:
+                return FakeResult(2, "Can't connect to bluetooth\n")
+            return FakeResult(0, (args[1] if len(args) > 1 else "AA:AA:AA:AA:AA:01") + "\n")
+        if args[0] == "--fallback":
+            args = args[1:]
+        if self.failures:
+            code, message = self.failures.pop(0)
+            return FakeResult(code, message + "\n")
         # (local time, azaan number or sound file, volume)
-        self.played.append((self.local_now().replace(second=0, microsecond=0), cmd[1], cmd[2]))
+        self.played.append((minute, args[0], args[1]))
         self.now += self.play_duration
-
-        class Result:
-            returncode = 0
-
-        return Result()
+        return FakeResult(0, self.play_output + "\n")
 
     def run_service(self, config_path, hours, azaan=1):
         self.stop_at = self.now + timedelta(hours=hours)
