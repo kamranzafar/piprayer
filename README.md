@@ -23,8 +23,8 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
   disconnects afterwards
 - ⏸️ **Skip the next Azaan or mute for a few days**, from the command line, an optional status page or Home Assistant
 
-Tested on a **Raspberry Pi 3** with an **Amazon Echo Pop** speaker. Google Home and Nest speakers work as
-Bluetooth speakers too.
+Tested on a **Raspberry Pi 3** with an **Amazon Echo Pop** speaker and a **Yamaha Bluetooth soundbar**. Google
+Home and Nest speakers work as Bluetooth speakers too.
 
 ## Quick start
 
@@ -58,6 +58,8 @@ Put the speaker in pairing mode first. For a smart speaker, use its app:
   **Bluetooth Devices → Pair a new device**
 - **Google Home or Nest:** in the Google Home app, open the speaker's settings, then **Audio → Paired Bluetooth
   devices → Enable pairing mode**
+- **Soundbar or other Bluetooth speaker:** switch its input to Bluetooth, then hold the Bluetooth or pairing
+  button until the light flashes (see its manual)
 
 The setup in the next step can find and pair the speaker for you. To pair it yourself:
 
