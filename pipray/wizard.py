@@ -13,14 +13,16 @@ import praytimes
 
 from . import bluetooth, clock
 from .bluetooth import SCAN_SECONDS
-from .config import (AZAAN, ASR_TIME, DEFAULT_HIGH_LATITUDE, DEFAULT_MQTT_PORT, DEFAULT_VOLUME, DST, FAJR_AZAAN,
+from .config import (AZAAN, ASR_TIME, DEFAULT_HIGH_LATITUDE, DEFAULT_MQTT_PORT, DEFAULT_VOLUME, DST, DUA, DUA_FILE,
+                     FAJR_AZAAN,
                      GMT_OFFSET, HIGH_LATITUDE, HIJRI_ADJUST, LAT, LNG, MAC_ADDRESS, MAX_HIJRI_ADJUST, MAX_SUHOOR,
                      METHOD, MQTT_HOST, MQTT_PASSWORD, MQTT_PORT, MQTT_USERNAME, PRAYERS, REMINDER, SPEAKER,
-                     STATUS_PORT, SUHOOR, TIMEZONE, VOLUME, Config, ConfigError,
-                     check_azaan_file, check_range, parse_prayers, parse_volume)
+                     SETTINGS_PIN, STATUS_PORT, SUHOOR, TIMEZONE, VOLUME, Config, ConfigError,
+                     check_azaan_file, check_range, parse_dua, parse_prayers, parse_volume)
 from .hijri import HijriDate
 from .mqtt import INSTALL_HINT, load_paho
 from .output import format_times
+from .pin import hash_pin, valid_pin
 from .service import installed_azaan, service_file
 
 # Answers in the speaker and method menus
@@ -186,6 +188,16 @@ def volume_option(value):
     return ", ".join(item.strip() for item in value.split(",") if item.strip())
 
 
+def dua_option(value):
+    """on, off, or per prayer, e.g. on, Fajr:off. Returns "" for off, so the option is removed."""
+    if value.lower() in ("", "off", "none"):
+        return ""
+    default, duas = parse_dua(value)
+    if not default and not any(duas.values()):
+        return ""
+    return ", ".join(item.strip() for item in value.split(",") if item.strip())
+
+
 def number_option(what, minimum, maximum, blank_ok=False):
     def parse(value):
         if blank_ok and value.lower() in ("", "none"):
@@ -226,6 +238,22 @@ class Wizard:
         if not answer.strip():
             return current
         return "" if answer.strip().lower() == "none" else answer
+
+    def ask_pin(self, question, current):
+        """Ask for a PIN without showing it, until it is 4 to 8 digits. Enter keeps the current one, none removes it.
+
+        Returns it hashed, as saved in .piprayer.
+        """
+        hint = "Enter to keep it, none for no PIN" if current else "Enter or none for no PIN"
+        while True:
+            answer = self.ask_secret("{} ({}): ".format(question, hint)).strip()
+            if not answer:
+                return current
+            if answer.lower() == "none":
+                return ""
+            if valid_pin(answer):
+                return hash_pin(answer)
+            self.say("  Use 4 to 8 digits, e.g. 4826")
 
     def confirm(self, question, default=True):
         answer = self.ask_input("{} [{}]: ".format(question, "Y/n" if default else "y/N")).strip().lower()
@@ -335,7 +363,7 @@ def choose_speaker(wizard, current):
 
 # Options the wizard asks about, so they are saved only when answered, and the legacy ones timezone replaces
 NOT_KEPT = (GMT_OFFSET, DST, FAJR_AZAAN, SPEAKER, STATUS_PORT, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
-            HIJRI_ADJUST, SUHOOR)
+            HIJRI_ADJUST, SUHOOR, SETTINGS_PIN, DUA)
 
 
 def choose_method(wizard, default):
@@ -479,6 +507,11 @@ def configure(path, wizard=None, next_step=True):
                             number_option("fajr-azaan", 1, 99, blank_ok=True))
     volume = wizard.ask("Volume in percent, e.g. 80 or 80, Fajr:40", current.get(VOLUME, str(DEFAULT_VOLUME)),
                         volume_option)
+    dua = ""
+    if os.path.isfile(DUA_FILE):
+        dua = wizard.ask("Dua after the azaan (on, off, or e.g. on, Fajr:off)", current.get(DUA, "off"), dua_option,
+                         hint="\nThe dua after the azaan can play straight after it. Try it with: "
+                              "python3 piprayer.py play --dua")
     reminder = wizard.ask("Reminder chime, minutes before each azaan (0 for none)", current.get(REMINDER, "0"),
                           number_option("reminder", 0, 60))
     hijri_adjust = ask_hijri_adjust(wizard, current, tz_name)
@@ -489,17 +522,22 @@ def configure(path, wizard=None, next_step=True):
 
     wizard.say("")
     wizard.say("The status page shows the times in a browser, with buttons to skip or mute the azaan.")
-    wizard.say("It has no password, so anyone on your network can use it.")
+    wizard.say("It has no password, so anyone on your network can use it, but changing the settings needs a PIN.")
     status_port = wizard.ask("Status page port, e.g. 8080 (none for off)", current.get(STATUS_PORT, ""),
                              number_option(STATUS_PORT, 1, 65535, blank_ok=True))
+    settings_pin = ""
+    if status_port:
+        wizard.say("")
+        wizard.say("With a PIN, the settings can be changed on the status page too. It asks for the PIN first.")
+        settings_pin = wizard.ask_pin("Settings PIN, 4 to 8 digits", current.get(SETTINGS_PIN, ""))
 
     mqtt = ask_mqtt(wizard, current)
 
     settings = [(TIMEZONE, tz_name), (LAT, lat), (LNG, lng), (METHOD, method), (ASR_TIME, asr),
                 (PRAYERS, prayers), (AZAAN, azaan), (FAJR_AZAAN, fajr_azaan), (VOLUME, volume),
-                (REMINDER, reminder), (SPEAKER, speaker), (HIGH_LATITUDE, high_latitude),
+                (DUA, dua), (REMINDER, reminder), (SPEAKER, speaker), (HIGH_LATITUDE, high_latitude),
                 (HIJRI_ADJUST, hijri_adjust), (SUHOOR, "" if suhoor == "0" else suhoor),
-                (STATUS_PORT, status_port)] + mqtt
+                (STATUS_PORT, status_port), (SETTINGS_PIN, settings_pin)] + mqtt
 
     # Keep any other options, but timezone replaces the legacy ones
     result = configparser.RawConfigParser()

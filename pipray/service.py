@@ -11,7 +11,8 @@ import os
 from datetime import timedelta
 
 from . import clock
-from .config import DEFAULT_AZAAN, SCRIPT_DIR, Config, ConfigError
+from .config import DEFAULT_AZAAN, SCRIPT_DIR, SETTINGS_PIN, Config, ConfigError, save_option
+from .pin import hash_pin, is_hash
 from . import player
 from .schedule import next_event
 from .mqtt import MqttBridge
@@ -108,6 +109,7 @@ def run(config_path, default_azaan):
                 # Nothing to play yet: wait for the configuration to be fixed
                 wait_for_change(config_path, mtime, version)
                 continue
+            secure_pin(config_path, config)
             now = clock.now(config.tz)
             started = started or now
             status_page.serve(config.status_port)
@@ -146,6 +148,18 @@ def load_config(config_path, default_azaan, previous=None):
     for warning in config.warnings:
         log.warning("%s", warning)
     return config
+
+
+def secure_pin(config_path, config):
+    """Replace a settings page PIN typed into .piprayer with its hash, so the file doesn't show it."""
+    if not config.settings_pin or is_hash(config.settings_pin):
+        return
+    try:
+        # The file changes, so it is read again before the next azaan
+        save_option(config_path, SETTINGS_PIN, hash_pin(config.settings_pin))
+        log.info("Saved the settings page PIN in %s as a hash", config_path)
+    except (ConfigError, OSError) as e:
+        log.error("Can't save the settings page PIN as a hash: %s", e)
 
 
 def wait_for_change(config_path, mtime, version=None):

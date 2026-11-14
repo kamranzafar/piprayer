@@ -8,10 +8,18 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- A settings page, `/settings`, linked from the status page, to change the settings from a phone or computer: prayer
+  times (showing the times they give before saving), the prayers with each one's offset, volume, fade in and dua,
+  the Azaan and sound with a Listen link for each, Ramadan, the speaker, and Home Assistant. Each section saves on
+  its own, changing only the options that changed in `.piprayer` and keeping its comments; a cleared option is
+  removed. Settings are checked as they are typed, with the same checks as `.piprayer`, and a mistake is shown next
+  to its field. It needs a PIN, `settings-pin`, which `piprayer.py config` asks for when the status page is on, and
+  which is saved as a hash. Each wrong PIN makes the next try wait twice as long, up to 15 minutes. The status
+  page refuses requests over 64 KB ([#13](https://github.com/kamranzafar/piprayer/issues/13)).
 - Optional `dua` option to play the dua after the Azaan straight after it, in the same speaker connection and at
   the same volume, e.g. `dua = on` or `dua = on, Fajr:off`. It is skipped and muted with the Azaan, and Stop stops
   it. `piprayer.py times` shows a Dua column when it is on, the JSON has `dua` for each prayer, and
-  `piprayer.py play --dua` plays it. The recording, `media/dua.opus`, is recited by Mishary Rashid Alafasy, see
+  `piprayer.py play --dua` plays it, and `piprayer.py config` asks for it. The recording, `media/dua.opus`, is recited by Mishary Rashid Alafasy, see
   `media/CREDITS.md`. `play-azaan.sh` takes `--then` to play a sound straight after another
   ([#12](https://github.com/kamranzafar/piprayer/issues/12)).
 - Ramadan mode. `suhoor = 30` sounds an alarm 30 minutes before Fajr on the days of Ramadan, with its own sound,

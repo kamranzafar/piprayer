@@ -76,3 +76,42 @@ footer { color: var(--muted); font-size: .8rem; text-align: center; line-height:
 button:disabled { opacity: .35; cursor: default; }
 .htmx-request button { opacity: .6; cursor: progress; }
 #problem { margin: 0 0 14px; }
+
+/* The settings page */
+:root { --error: #b3261e; --ok: #1f7a4d; }
+@media (prefers-color-scheme: dark) { :root { --error: #ff8a80; --ok: #3fb07a; } }
+footer a, .top a.brand { color: inherit; }
+.settings > .detail { color: var(--muted); font-size: .9rem; margin: 4px 0 0; }
+.settings form { margin: 0; }
+.field { margin-top: 14px; }
+.field-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+.field-head label { font-weight: 600; font-size: .95rem; }
+.field .hint { color: var(--muted); font-size: .8rem; margin: 4px 0 0; }
+input[type=text], input[type=password], select {
+  display: block; width: 100%; min-height: 44px; font: inherit; font-size: 1rem; padding: 8px 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text); }
+input[aria-invalid=true] { border-color: var(--error); }
+input[type=checkbox] { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); vertical-align: middle; }
+label.check { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; margin-top: 8px; }
+.error { display: block; color: var(--error); font-size: .85rem; }
+.error:empty { display: none; }
+.error:not(:empty) { margin-top: 4px; }
+.saved { color: var(--ok); font-weight: 600; margin: 14px 0 0; }
+.listen { flex: none; font-size: .85rem; color: var(--accent); }
+.settings .actions > :only-child { grid-column: 1 / -1; }
+a.button { display: flex; align-items: center; justify-content: center; min-height: 48px; border-radius: 12px;
+           border: 1px solid var(--line); color: var(--text); text-decoration: none; font-weight: 600; }
+.preview { margin-top: 16px; }
+pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; }
+pre { background: var(--bg); border-radius: 10px; padding: 10px 12px; overflow-x: auto; }
+.logout { margin-bottom: 14px; }
+
+.prayer-table { margin-top: 14px; }
+.prayer-row { display: grid; grid-template-columns: minmax(6.5rem, 1fr) repeat(3, 4rem); gap: 8px;
+              align-items: center; margin-top: 8px; }
+.prayer-row.with-dua { grid-template-columns: minmax(5.5rem, 1fr) repeat(3, 3.4rem) 2.2rem; }
+.prayer-row.head { color: var(--muted); font-size: .72rem; font-weight: 600; line-height: 1.2; margin-top: 0; }
+.prayer-row.head .listen { display: block; font-size: .9rem; text-decoration: none; }
+.prayer-row label.check { margin-top: 0; }
+.prayer-row input[type=text] { min-height: 40px; padding: 6px 8px; text-align: center; }
+.prayer-row input[type=checkbox] { justify-self: center; }

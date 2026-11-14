@@ -8,10 +8,13 @@ import math
 import os
 import re
 import stat
+import tempfile
 import threading
 from datetime import timedelta, timezone
 
 import praytimes
+
+from .pin import is_hash, valid_pin
 
 LAT = "lat"
 LNG = "lng"
@@ -39,10 +42,11 @@ HIJRI_ADJUST = "hijri-adjust"
 RAMADAN = "ramadan"
 SUHOOR = "suhoor"
 DUA = "dua"
+SETTINGS_PIN = "settings-pin"
 
 OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, FADE_IN, REMINDER,
            SPEAKER, FALLBACK_OUTPUT, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
-           MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR, DUA)
+           MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR, DUA, SETTINGS_PIN)
 
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_MQTT_TOPIC = "piprayer"
@@ -125,6 +129,7 @@ class Config:
         self.hijri_adjust = parse_number(section, HIJRI_ADJUST, 0, -MAX_HIJRI_ADJUST, MAX_HIJRI_ADJUST)
         self.ramadan = parse_choice(section.get(RAMADAN, "auto"), RAMADAN, RAMADAN_MODES)
         self.suhoor = parse_number(section, SUHOOR, 0, 0, MAX_SUHOOR)  # minutes before Fajr, 0 for no alarm
+        self.settings_pin = parse_settings_pin(section.get(SETTINGS_PIN, ""))
         # Not errors, as PiPrayer still works, but e.g. status_port for status-port would silently do nothing
         self.warnings = [unknown_option(option, path) for option in section if option not in OPTIONS]
         self.default_azaan = default_azaan
@@ -203,6 +208,16 @@ def save_option(path, option, value):
     configparser would drop the comments when writing the file. The option is added at the end of [Default] if it
     isn't there. The running service picks the change up within a minute, as for any edit.
     """
+    save_options(path, {option: value})
+
+
+def save_options(path, changes, check=None):
+    """Change options in the configuration file at once, keeping its comments and order.
+
+    changes maps each option to its new value, or to None to remove it, so its default applies. check, if given, is
+    called with the path of the changed file before it replaces this one, e.g. to read it with Config: if it raises,
+    nothing is saved.
+    """
     with _saving:
         try:
             with open(path, encoding="utf-8") as f:
@@ -211,42 +226,65 @@ def save_option(path, option, value):
         except (OSError, UnicodeDecodeError) as e:
             raise ConfigError("Can't read {}: {}".format(path, getattr(e, "strerror", None) or e))
 
-        new_line = "{} = {}\n".format(option, value)
-        section = None
-        end_of_default = None  # after the last line of [Default] that isn't blank or a comment
-        found = False
-        result = []
-        replacing = False  # skipping the indented lines that continue the old value
-        for line in lines:
-            if replacing and line.strip() and line[0].isspace():
-                continue
-            replacing = False
-            header = SECTION_LINE.match(line)
-            if header:
-                section = header.group("name")
-            elif section == "Default":
-                name = OPTION_LINE.match(line)
-                if name and name.group("name").strip().lower() == option and not found:
-                    found = replacing = True
-                    line = new_line
-            result.append(line)
-            if section == "Default" and line.strip() and not line.lstrip().startswith(("#", ";")):
-                end_of_default = len(result)
-
-        if end_of_default is None:
-            raise ConfigError("Prayer configuration is missing: {} needs a [Default] section".format(path))
-        if not found:
-            if not result[end_of_default - 1].endswith("\n"):
-                result[end_of_default - 1] += "\n"
-            result.insert(end_of_default, new_line)
+        result = changed_lines(path, lines, changes)
 
         # Write then rename, so the service never reads a half written file, keeping who can read it, as it can
         # hold the MQTT password
-        saving = path + ".saving"
-        with open(saving, "w", encoding="utf-8") as f:
-            os.chmod(saving, mode)
-            f.writelines(result)
-        os.replace(saving, path)
+        directory = os.path.dirname(os.path.abspath(path))
+        handle, saving = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".saving", dir=directory)
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8") as f:
+                os.chmod(saving, mode)
+                f.writelines(result)
+            if check:
+                check(saving)
+            os.replace(saving, path)
+        finally:
+            if os.path.exists(saving):
+                os.remove(saving)
+
+
+def changed_lines(path, lines, changes):
+    """The lines of the configuration file with the changes made. path is for messages."""
+    changes = {option.lower(): value for option, value in changes.items()}
+    for option, value in changes.items():
+        if value is not None and re.search(r"[\r\n]", str(value)):
+            raise ConfigError("Invalid {}: it can't have a line break, which would start another option".format(
+                option))
+    section = None
+    end_of_default = None  # after the last line of [Default] that isn't blank or a comment
+    found = set()
+    result = []
+    replacing = False  # skipping the indented lines that continue the old value
+    for line in lines:
+        if replacing and line.strip() and line[0].isspace():
+            continue
+        replacing = False
+        header = SECTION_LINE.match(line)
+        if header:
+            section = header.group("name")
+        elif section == "Default":
+            name = OPTION_LINE.match(line)
+            option = name.group("name").strip().lower() if name else None
+            if option in changes and option not in found:
+                found.add(option)
+                replacing = True
+                if changes[option] is None:
+                    continue
+                line = "{} = {}\n".format(option, changes[option])
+        result.append(line)
+        if section == "Default" and line.strip() and not line.lstrip().startswith(("#", ";")):
+            end_of_default = len(result)
+
+    if end_of_default is None:
+        raise ConfigError("Prayer configuration is missing: {} needs a [Default] section".format(path))
+    added = ["{} = {}\n".format(option, value) for option, value in changes.items()
+             if option not in found and value is not None]
+    if added:
+        if not result[end_of_default - 1].endswith("\n"):
+            result[end_of_default - 1] += "\n"
+        result[end_of_default:end_of_default] = added
+    return result
 
 
 def set_hijri_adjust(path, value):
@@ -432,6 +470,17 @@ def parse_fallback(value):
     if value not in ("local", "off"):
         raise ConfigError("Invalid {}: {}, use local or off".format(FALLBACK_OUTPUT, value))
     return value == "local"
+
+
+def parse_settings_pin(value):
+    """The settings page PIN as saved: a hash, or digits not hashed yet. None when there is none."""
+    value = value.strip()
+    if not value:
+        return None
+    if not (is_hash(value) or valid_pin(value)):
+        raise ConfigError("Invalid {}: use 4 to 8 digits, e.g. 4826. Set it with python3 piprayer.py config, which "
+                          "saves it as a hash".format(SETTINGS_PIN))
+    return value
 
 
 def unknown_option(option, path):

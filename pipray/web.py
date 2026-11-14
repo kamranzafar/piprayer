@@ -8,6 +8,7 @@ import os
 import threading
 from dataclasses import dataclass
 from html import escape
+from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
@@ -96,6 +97,7 @@ class Response:
     body: object = ""  # text, or bytes for an image
     location: str = None
     cache_seconds: int = 0  # the page and the API are never cached, so they're always up to date
+    headers: dict = None  # others, e.g. Set-Cookie
 
     @classmethod
     def json(cls, data):
@@ -118,20 +120,28 @@ class Response:
 
 NOT_FOUND = Response(404, body="Not found")
 
+# The largest form or API request read, far more than the settings page sends, so a large one can't fill the memory
+MAX_FORM_BYTES = 64 * 1024
+
 
 class StatusRoutes:
     """What each request does, without the HTTP plumbing."""
 
     def __init__(self, config_path, default_azaan):
+        from .settings import SettingsRoutes  # here, as settings.py uses this module
+
         self.config_path = config_path
+        self.settings = SettingsRoutes(config_path, default_azaan)
         self.state_path = state_file(config_path)
         self.last_path = last_file(config_path)
         self.playing_path = playing_file(config_path)
         self.default_azaan = default_azaan
 
-    def get(self, path):
+    def get(self, path, query=None, cookies=None, htmx=False):
         if path in STATIC_FILES:
             return Response.static(path)
+        if path == "/settings" or path.startswith(("/settings/", "/media/")):
+            return self.settings.get(path, query or {}, cookies or {}, htmx) or NOT_FOUND
         if path == "/manifest.webmanifest":
             return Response(200, "application/manifest+json", json.dumps(MANIFEST, indent=2), cache_seconds=3600)
         config, now = self.load()
@@ -146,11 +156,13 @@ class StatusRoutes:
             return Response.json(next_json(config, next_azaan(config, now, state), now, state))
         return NOT_FOUND
 
-    def post(self, path, query):
+    def post(self, path, query, cookies=None, htmx=False):
         """/stop, /skip, /mute, /resume and /hijri-adjust come from the page's buttons and go back to it.
 
-        /api/... answer in JSON.
+        /api/... answer in JSON. /settings/... are the settings page's.
         """
+        if path.startswith("/settings/"):
+            return self.settings.post(path, query, cookies or {}, htmx) or NOT_FOUND
         api = path.startswith("/api/")
         action = path[len("/api"):] if api else path
         config, now = self.load()
@@ -198,7 +210,8 @@ def status_handler(config_path, default_azaan):
             log.debug("Status page: " + format, *args)
 
         def do_GET(self):
-            self.answer(lambda: routes.get(urlsplit(self.path).path))
+            url = urlsplit(self.path)
+            self.answer(lambda: routes.get(url.path, parse_qs(url.query), self.cookies(), self.htmx()))
 
         def do_POST(self):
             # Refuse forms submitted from other sites. Home Assistant and curl don't send Origin
@@ -208,9 +221,24 @@ def status_handler(config_path, default_azaan):
 
             url = urlsplit(self.path)
             query = parse_qs(url.query)
-            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                length = -1
+            if not 0 <= length <= MAX_FORM_BYTES:
+                return self.send(Response(413, body="Too large"))
             query.update(parse_qs(self.rfile.read(length).decode("utf-8", "replace")))
-            self.answer(lambda: routes.post(url.path, query))
+            self.answer(lambda: routes.post(url.path, query, self.cookies(), self.htmx()))
+
+        def cookies(self):
+            try:
+                cookie = SimpleCookie(self.headers.get("Cookie") or "")
+            except CookieError:
+                return {}
+            return {name: morsel.value for name, morsel in cookie.items()}
+
+        def htmx(self):
+            return self.headers.get("HX-Request") == "true"
 
         def answer(self, route):
             try:
@@ -224,6 +252,8 @@ def status_handler(config_path, default_azaan):
             self.send_response(response.status)
             if response.location:
                 self.send_header("Location", response.location)
+            for name, value in (response.headers or {}).items():
+                self.send_header(name, value)
             self.send_header("Content-Type", response.content_type)
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Cache-Control",
@@ -461,7 +491,7 @@ PAGE = """<!doctype html>
 {times}
 </section>
 {hijri}
-<footer>{details} · updated {updated}</footer>
+<footer>{details} · updated {updated}<br><a href="/settings">Settings</a></footer>
 </main>
 <script src="/{htmx}"></script>
 <script>{script}</script>

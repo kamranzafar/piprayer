@@ -24,6 +24,7 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 - 🌙 **The Hijri date**, by the Umm al-Qura calendar, adjustable by a day or two to match moon sighting
 - 🤲 **The dua after the Azaan**, optionally played straight after it, for every prayer or some
 - 🍽️ **Ramadan mode**: an optional suhoor alarm before Fajr, and a countdown to iftar
+- 📱 **Change the settings from your phone**, on the status page's settings page, protected by a PIN
 - ⏸️ **Stop the Azaan, skip the next one or mute for a few days**, from the command line, an optional status page or
   Home Assistant
 - ⚙️ **And more**, e.g. fading in the Azaan at Fajr. See [Configuration](#configuration) for all the options
@@ -182,6 +183,7 @@ the file directly. The running service picks up changes within a minute, no rest
 | `high-latitude` | How to set Fajr and Isha when summer nights are too short for their angles, see [below](#short-summer-nights) | `NightMiddle` | `AngleBased` |
 | `hijri-adjust` | Days to move the [Hijri date](#hijri-date) on from the Umm al-Qura calendar, from -2 to 2 | `0` | `-1` |
 | `suhoor` | In [Ramadan](#ramadan), sound an alarm this many minutes before Fajr, up to 180, to wake for suhoor. `0` turns it off | `0` | `30` |
+| `settings-pin` | The PIN for the [settings page](#settings-page), 4 to 8 digits. PiPrayer saves it as a hash | none, off | `4826` |
 | `ramadan` | Which days are [days of fasting](#ramadan): `auto` for the days of Ramadan by the Hijri date, `on` for every day, `off` for none | `auto` | `on` |
 
 For example, to play azaan 5, a quieter azaan 14 for Fajr that fades in over 15 seconds, and a chime 10 minutes
@@ -329,7 +331,8 @@ Azaans **14 to 17 are Fajr azaans**: they include *as-salatu khayrun min an-nawm
 sleep"), so use them as the `fajr-azaan` only. Azaans 16 and 17 are recorded at the Malmö Mosque and in the medina
 of Marrakesh, and are used under Creative Commons licences, see [media/CREDITS.md](media/CREDITS.md).
 
-The dua after the Azaan, `dua.opus`, is recited by Mishary Rashid Alafasy. It plays after the Azaan with `dua = on`.
+The dua after the Azaan, `dua.opus`, is recited by Mishary Rashid Alafasy. It plays after the Azaan with `dua = on`,
+which `python3 piprayer.py config` asks about.
 To use another recording, replace `media/dua.opus` with it, e.g. converted with
 `ffmpeg -i my-dua.mp3 -ac 1 -c:a libopus -b:a 64k media/dua.opus`.
 
@@ -357,8 +360,32 @@ It stays up to date by itself, and when you open it again. The buttons and updat
 with [htmx](https://htmx.org), which is served from the Raspberry Pi, so it works without internet access. Without
 JavaScript, the page reloads instead.
 
-The page has no password: anyone on your network can see the times, and skip or mute the Azaan. Don't make the
-port reachable from the internet.
+The page has no password: anyone on your network can see the times, and skip or mute the Azaan. Changing the
+settings needs a PIN, see below. Don't make the port reachable from the internet.
+
+### Settings page
+
+The **Settings** link at the bottom of the status page opens `/settings`, to change the settings without logging in
+to the Raspberry Pi. It has a section for each group of settings, each with its own **Save**: prayer times (showing
+the times the new settings give before saving), the prayers with each one's offset, volume, fade in and dua, the
+Azaan and sound, with **Listen** to hear each one, Ramadan, the speaker, and Home Assistant. Each setting is checked
+as it is typed, with the same checks as `.piprayer`, and a mistake is shown next to it rather than saved.
+
+Saving changes only the options that changed in `.piprayer`, keeping its comments and order, and an option that is
+cleared is removed, so its default applies. The service uses the new settings within a minute. The MQTT password
+isn't shown, and is kept unless a new one is entered. `status-port` isn't on the page, as changing it could cut the
+page off, and neither is the PIN, which is changed on the Raspberry Pi.
+
+The settings page needs a PIN, which `python3 piprayer.py config` asks for once the status page is on. Or add it to
+`.piprayer`, and the service replaces it with a hash within a minute:
+
+```ini
+settings-pin = 4826
+```
+
+Each phone or computer asks for the PIN once, and stays logged in for 30 days, or until the PIN is changed. After a
+wrong PIN, the next try has to wait, twice as long after each wrong one, up to 15 minutes, so the PIN can't be found
+by trying them all.
 
 It also answers JSON requests, e.g. for Home Assistant:
 
