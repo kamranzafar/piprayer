@@ -143,7 +143,11 @@ def read_section(path):
         raise ConfigError("{} must start with [Default], found on line {}: {}".format(
             path, e.lineno, e.line.strip()))
     except configparser.ParsingError as e:
-        lines = ", ".join("line {}: {}".format(number, line.strip()) for number, line in e.errors)
+        # The line is read from the file, as ParsingError holds it as its repr() before Python 3.13
+        with open(path, encoding="utf-8") as f:
+            text = f.read().splitlines()
+        lines = ", ".join("line {}: {}".format(number, text[number - 1].strip() if number <= len(text) else "")
+                          for number, _ in e.errors)
         raise ConfigError("Can't read {}, use option = value on each line. Check {}".format(path, lines))
     except configparser.Error as e:
         raise ConfigError("Can't read {}: {}".format(path, " ".join(str(e).split())))
