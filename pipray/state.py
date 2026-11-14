@@ -137,6 +137,7 @@ FAILED = "failed"
 MISSED = "missed"
 SKIPPED = "skipped"
 MUTED = "muted"
+STOPPED = "stopped"
 
 
 @dataclass
@@ -144,7 +145,7 @@ class LastAzaan:
     """How the last azaan went, to show on the status page, in piprayer.py times and in Home Assistant."""
     prayer: str
     at: datetime  # when it was due
-    result: str  # played, played locally, failed, missed, skipped or muted
+    result: str  # played, played locally, failed, missed, skipped, muted or stopped
     error: Optional[str] = None  # why it failed or was missed
 
     @property
@@ -175,3 +176,61 @@ class LastAzaan:
             os.replace(path + ".new", path)
         except OSError as e:
             log.error("Can't save how the azaan went to %s: %s", path, e)
+
+
+# ------------------------------------------------------------------ what is playing
+
+def playing_file(config_path):
+    """e.g. .piprayer-playing for .piprayer."""
+    return config_path + "-playing"
+
+
+@dataclass
+class Playing:
+    """The azaan or reminder the service is playing, or trying again to play, so it can be stopped.
+
+    The service keeps the file while it plays, and removes it once done.
+    """
+    prayer: str
+    reminder: bool
+    at: datetime
+    pid: Optional[int] = None  # play-azaan.sh's process, None between attempts
+    stopped: bool = False  # piprayer.py stop, the status page or Home Assistant asked to stop it
+
+    def describe(self):
+        """e.g. "the azaan for Asr"."""
+        return "the {} for {}".format("reminder" if self.reminder else "azaan", self.prayer.capitalize())
+
+    def to_json(self):
+        return {"prayer": self.prayer, "reminder": self.reminder, "time": self.at.isoformat()}
+
+    @classmethod
+    def load(cls, path):
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            return cls(data["prayer"], bool(data["reminder"]), datetime.fromisoformat(data["time"]),
+                       data.get("pid"), bool(data.get("stopped")))
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as e:
+            log.warning("Ignoring %s, it can't be read: %s", path, e)
+            return None
+
+    def save(self, path):
+        data = dict(self.to_json(), pid=self.pid, stopped=self.stopped)
+        try:
+            with open(path + ".new", "w") as f:
+                json.dump(data, f, indent=2)
+            os.replace(path + ".new", path)
+        except OSError as e:
+            log.error("Can't save what is playing to %s: %s", path, e)
+
+    @staticmethod
+    def clear(path):
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            log.error("Can't remove %s: %s", path, e)

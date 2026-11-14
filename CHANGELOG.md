@@ -8,6 +8,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- `piprayer.py stop` stops the Azaan or reminder that is playing and disconnects the speaker, and it isn't tried
+  again. The status page has a Stop button while one plays, and `POST /api/stop`; Home Assistant has a Stop button,
+  a `stop` command, and a "Playing" binary sensor. `/api/times` says what is `playing`
+  ([#8](https://github.com/kamranzafar/piprayer/issues/8)).
 - The speaker is connected 30 seconds before each Azaan and reminder, so they start on time, and play on the
   speaker's own audio output once it is ready, instead of waiting a fixed 5 seconds after connecting
   ([#6](https://github.com/kamranzafar/piprayer/issues/6)).
@@ -26,7 +30,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 - `play-azaan.sh` exits with 2 when no speaker connects and 3 when the sound doesn't play, instead of 1, and takes
-  `--fallback`, `--connect` and `--disconnect`.
+  `--fallback`, `--connect` and `--disconnect`. Stopped with SIGTERM, it stops playing, disconnects the speaker and
+  exits with 4.
 - Every source file now carries a copyright notice (2021-2026) and an `SPDX-License-Identifier: GPL-3.0-or-later` line;
   the bundled `praytimes.py` is marked `LGPL-3.0-only`.
 

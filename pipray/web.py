@@ -15,7 +15,9 @@ from . import clock
 from .config import Config, ConfigError
 from .output import describe_day, describe_last, describe_mute, format_duration, next_json, times_json
 from .schedule import next_azaan, schedule, timezone_name
-from .state import LastAzaan, State, last_file, mute_days, next_playing, resume, skip_next, state_file
+from .player import stop
+from .state import (LastAzaan, Playing, State, last_file, mute_days, next_playing, playing_file, resume, skip_next,
+                    state_file)
 
 log = logging.getLogger("piprayer")
 
@@ -118,6 +120,7 @@ class StatusRoutes:
         self.config_path = config_path
         self.state_path = state_file(config_path)
         self.last_path = last_file(config_path)
+        self.playing_path = playing_file(config_path)
         self.default_azaan = default_azaan
 
     def get(self, path):
@@ -129,21 +132,24 @@ class StatusRoutes:
         state = State.load(self.state_path)
         if path == "/":
             return Response.html(status_html(config, now, state, LastAzaan.load(self.last_path),
-                                             clock.synchronised()))
+                                             clock.synchronised(), Playing.load(self.playing_path)))
         if path == "/api/times":
             return Response.json(times_json(config, now.date(), now, state, LastAzaan.load(self.last_path),
-                                            clock.synchronised()))
+                                            clock.synchronised(), Playing.load(self.playing_path)))
         if path == "/api/next":
             return Response.json(next_json(config, next_azaan(config, now, state), now, state))
         return NOT_FOUND
 
     def post(self, path, query):
-        """/skip, /mute and /resume come from the page's buttons and go back to it. /api/... answer in JSON."""
+        """/stop, /skip, /mute and /resume come from the page's buttons and go back to it. /api/... answer in JSON."""
         api = path.startswith("/api/")
         action = path[len("/api"):] if api else path
         config, now = self.load()
 
-        if action == "/skip":
+        if action == "/stop":
+            playing = stop(self.config_path)
+            result = {"stopped": playing.to_json() if playing else None}
+        elif action == "/skip":
             entry = skip_next(config, self.state_path, now)
             result = {"skipped": entry.to_json() if entry else None}
         elif action == "/mute":
@@ -211,14 +217,14 @@ def status_handler(config_path, default_azaan):
     return Handler
 
 
-def status_html(config, now, state, last=None, synchronised=None):
+def status_html(config, now, state, last=None, synchronised=None, playing=None):
     """The status page: the next azaan, buttons to skip or mute, and today's times.
 
     Problems are shown at the top: the last azaan didn't play as it should have, or the clock isn't set from the
-    network (synchronised False).
+    network (synchronised False). While an azaan or reminder plays, there is a button to stop it.
     """
     upcoming = next_azaan(config, now, state)
-    playing = next_playing(config, now, state)
+    next_to_play = next_playing(config, now, state)
     muted = state.muted_at(now)
 
     if upcoming:
@@ -236,10 +242,13 @@ def status_html(config, now, state, last=None, synchronised=None):
         hero += '<div class="notice">This azaan will be skipped.</div>'
 
     buttons = []
-    if playing:
-        when = "{} {}".format(playing.at.strftime("%H:%M"), describe_day(playing.at.date(), now.date()))
-        buttons.append(('/skip', "primary", "wide", 'Skip {}<span class="sub">{}</span>'.format(
-            escape(playing.prayer.capitalize()), escape(when))))
+    if playing and not playing.stopped:
+        hero = '<div class="notice" data-playing>Playing {}</div>'.format(escape(playing.describe())) + hero
+        buttons.append(("/stop", "primary", "wide", "Stop the " + ("reminder" if playing.reminder else "azaan")))
+    if next_to_play:
+        when = "{} {}".format(next_to_play.at.strftime("%H:%M"), describe_day(next_to_play.at.date(), now.date()))
+        buttons.append(('/skip', "" if buttons else "primary", "wide", 'Skip {}<span class="sub">{}</span>'.format(
+            escape(next_to_play.prayer.capitalize()), escape(when))))
     if not muted:
         buttons.append(("/mute", "", "secondary", "Mute today"))
     if muted or state.skip:
@@ -309,7 +318,8 @@ SCRIPT = """
     countdown.querySelector(".in").textContent = duration(left);
   }
   setInterval(tick, 30000);
-  setTimeout(function () { location.reload(); }, 600000);
+  // while playing, reload soon, so the stop button goes once it has finished
+  setTimeout(function () { location.reload(); }, document.querySelector("[data-playing]") ? 15000 : 600000);
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible" && Date.now() - loaded > 60000) location.reload();
   });

@@ -12,7 +12,8 @@ from .config import DEFAULT_AZAAN, SCRIPT_DIR, Config
 from . import player
 from .schedule import next_event
 from .mqtt import MqttBridge
-from .state import FAILED, MISSED, PLAYED, PLAYED_LOCALLY, LastAzaan, State, last_file, state_file, tidy_state
+from .state import (FAILED, MISSED, PLAYED, PLAYED_LOCALLY, STOPPED, LastAzaan, Playing, State, last_file,
+                    playing_file, state_file, tidy_state)
 from .web import StatusPage
 
 log = logging.getLogger("piprayer")
@@ -88,6 +89,7 @@ def run(config_path, default_azaan):
     status_page = StatusPage(config_path, default_azaan)
     mqtt = MqttBridge(config_path, default_azaan)
     clock_watch = ClockWatch()
+    Playing.clear(playing_file(config_path))  # left over if the service was stopped while playing
     started = None
     # Events already played or passed over. Another may fall due while one plays, e.g. Fajr at the same minute
     # as Isha on a short summer night, so the next event is looked for from a little before now.
@@ -110,7 +112,7 @@ def run(config_path, default_azaan):
             if event is None:
                 log.warning("No prayer times found for today or tomorrow, checking again in an hour")
                 clock.sleep(3600)
-            elif wait_and_play(config_path, config, mtime, state_path, event, version, clock_watch):
+            elif wait_and_play(config_path, config, mtime, state_path, event, version, clock_watch, mqtt.refresh):
                 handled.add(event.key)
             else:
                 log.info("Configuration changed, reloading")
@@ -119,11 +121,11 @@ def run(config_path, default_azaan):
         mqtt.configure(None)
 
 
-def wait_and_play(config_path, config, mtime, state_path, event, version=None, clock_watch=None):
+def wait_and_play(config_path, config, mtime, state_path, event, version=None, clock_watch=None, notify=None):
     """Wait for the event and play it. Returns False if the configuration changed while waiting.
 
     The speaker is connected a little ahead, so the azaan starts on time. Raises Updated if PiPrayer's code changed
-    from the given version while waiting.
+    from the given version while waiting. notify is called when playing starts and ends, e.g. to update MQTT.
     """
     log.info("Next: %s", event)
     tried_connecting = False
@@ -163,7 +165,7 @@ def wait_and_play(config_path, config, mtime, state_path, event, version=None, c
             return True
 
         connected = None  # play-azaan.sh disconnects it once it has played
-        play_with_retries(config_path, config, state_path, event)
+        play_with_retries(config_path, config, state_path, event, notify)
         return True
     finally:
         if connected:
@@ -182,28 +184,64 @@ def connect_ahead(config, state_path, event):
     return speaker
 
 
-def play_with_retries(config_path, config, state_path, event):
-    """Play the event, trying again while it is within MAX_LATENESS of its time, and record how it went."""
-    while True:
-        played = player.play_event(config, event)
-        if played.ok:
-            record(config_path, event, PLAYED_LOCALLY if played.local else PLAYED,
-                   "played on the Raspberry Pi's own audio output, as the speaker couldn't be reached"
-                   if played.local else None)
-            return
-        if not played.worth_retrying or \
-                clock.now(config.tz) + timedelta(seconds=RETRY_SECONDS) - event.at > MAX_LATENESS:
-            log.error("Couldn't play %s: %s", event, played.message)
-            record(config_path, event, FAILED, played.message)
-            return
+def play_with_retries(config_path, config, state_path, event, notify=None):
+    """Play the event, trying again while it is within MAX_LATENESS of its time, and record how it went.
 
-        log.warning("Couldn't play %s: %s. Trying again in %d seconds", event, played.message, RETRY_SECONDS)
-        clock.sleep(RETRY_SECONDS)
-        silenced = State.load(state_path).silenced(event.azaan_at)
-        if silenced:
-            log.info("Not trying %s again, it is %s now", event, silenced)
-            record(config_path, event, silenced)
-            return
+    While it plays, it can be stopped with piprayer.py stop, the status page or Home Assistant.
+    """
+    playing_path = playing_file(config_path)
+    Playing(event.prayer, event.reminder, event.at).save(playing_path)
+    if notify:
+        notify()
+    try:
+        while True:
+            played = player.play_event(config, event, on_start=lambda pid: started_playing(playing_path, pid))
+            if played.stopped or stop_requested(playing_path):
+                log.info("Stopped %s", event)
+                record(config_path, event, STOPPED)
+                return
+            if played.ok:
+                record(config_path, event, PLAYED_LOCALLY if played.local else PLAYED,
+                       "played on the Raspberry Pi's own audio output, as the speaker couldn't be reached"
+                       if played.local else None)
+                return
+            if not played.worth_retrying or \
+                    clock.now(config.tz) + timedelta(seconds=RETRY_SECONDS) - event.at > MAX_LATENESS:
+                log.error("Couldn't play %s: %s", event, played.message)
+                record(config_path, event, FAILED, played.message)
+                return
+
+            log.warning("Couldn't play %s: %s. Trying again in %d seconds", event, played.message, RETRY_SECONDS)
+            clock.sleep(RETRY_SECONDS)
+            if stop_requested(playing_path):
+                log.info("Not trying %s again, it was stopped", event)
+                record(config_path, event, STOPPED)
+                return
+            silenced = State.load(state_path).silenced(event.azaan_at)
+            if silenced:
+                log.info("Not trying %s again, it is %s now", event, silenced)
+                record(config_path, event, silenced)
+                return
+    finally:
+        Playing.clear(playing_path)
+        if notify:
+            notify()
+
+
+def started_playing(path, pid):
+    """Remember play-azaan.sh's process, so it can be stopped. Stop it straight away if that was asked already."""
+    playing = Playing.load(path)
+    if playing is None:
+        return
+    playing.pid = pid
+    playing.save(path)
+    if playing.stopped:
+        player.terminate(pid)
+
+
+def stop_requested(path):
+    playing = Playing.load(path)
+    return bool(playing and playing.stopped)
 
 
 def record(config_path, event, result, error=None):

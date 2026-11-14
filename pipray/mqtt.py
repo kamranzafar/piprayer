@@ -17,7 +17,8 @@ from . import clock
 from .config import Config, ConfigError
 from .schedule import next_azaan
 from .output import describe_last
-from .state import LastAzaan, State, last_file, mute_days, resume, skip_next, state_file
+from .player import stop
+from .state import LastAzaan, Playing, State, last_file, mute_days, playing_file, resume, skip_next, state_file
 
 log = logging.getLogger("piprayer")
 
@@ -78,6 +79,12 @@ def discovery_messages(topics, node):
         entity("binary_sensor", "problem", "Problem", device_class="problem", entity_category="diagnostic",
                value_template="{{ 'ON' if value_json.problem else 'OFF' }}", json_attributes_topic=topics.state,
                json_attributes_template="{{ {'problem': value_json.problem} | tojson }}", **state),
+        entity("binary_sensor", "playing", "Playing", icon="mdi:speaker",
+               value_template="{{ 'ON' if value_json.playing else 'OFF' }}", json_attributes_topic=topics.state,
+               json_attributes_template="{{ {'prayer': value_json.playing, "
+                                        "'reminder': value_json.playing_reminder} | tojson }}", **state),
+        entity("button", "stop", "Stop", icon="mdi:stop",
+               command_topic=topics.command, payload_press="stop"),
         entity("button", "skip", "Skip next azaan", icon="mdi:skip-next",
                command_topic=topics.command, payload_press="skip"),
         entity("button", "mute_today", "Mute today", icon="mdi:volume-off",
@@ -87,7 +94,7 @@ def discovery_messages(topics, node):
     ]
 
 
-def state_payload(config, now, state, last=None, synchronised=None):
+def state_payload(config, now, state, last=None, synchronised=None, playing=None):
     """What Home Assistant shows: the next azaan and prayer, the end of a mute, how the last azaan went, and any
     problem: the last azaan didn't play as it should have, or the clock isn't set from the network."""
     entry = next_azaan(config, now, state)
@@ -105,11 +112,13 @@ def state_payload(config, now, state, last=None, synchronised=None):
         "last_error": last.error if last else None,
         "clock_synchronised": synchronised,
         "problem": ". ".join(problems) or None,
+        "playing": playing.prayer.capitalize() if playing else None,
+        "playing_reminder": bool(playing and playing.reminder),
     }, sort_keys=True)
 
 
 def handle_command(text, config_path, default_azaan):
-    """Do what a command message asks: skip, mute, mute <days> or resume. Returns a log message."""
+    """Do what a command message asks: stop, skip, mute, mute <days> or resume. Returns a log message."""
     words = text.strip().lower().split()
     if not words:
         return "Ignoring an empty MQTT command"
@@ -117,6 +126,9 @@ def handle_command(text, config_path, default_azaan):
     now = clock.now(config.tz)
     path = state_file(config_path)
 
+    if words == ["stop"]:
+        playing = stop(config_path)
+        return "MQTT: " + ("stopping " + playing.describe() if playing else "nothing is playing to stop")
     if words == ["skip"]:
         entry = skip_next(config, path, now)
         return "MQTT: skipping {}".format(entry.prayer + " at " + entry.at.strftime("%H:%M") if entry else "nothing")
@@ -129,7 +141,7 @@ def handle_command(text, config_path, default_azaan):
     if words == ["resume"]:
         resume(path)
         return "MQTT: skip and mute cleared"
-    return "Ignoring unknown MQTT command {!r}, use skip, mute, mute <days> or resume".format(text)
+    return "Ignoring unknown MQTT command {!r}, use stop, skip, mute, mute <days> or resume".format(text)
 
 
 # ------------------------------------------------------------------ connection
@@ -300,7 +312,8 @@ class MqttBridge:
             config = Config(self.config_path, self.default_azaan)
             now = clock.now(config.tz)
             payload = state_payload(config, now, State.load(state_file(self.config_path)),
-                                    LastAzaan.load(last_file(self.config_path)), clock.synchronised())
+                                    LastAzaan.load(last_file(self.config_path)), clock.synchronised(),
+                                    Playing.load(playing_file(self.config_path)))
         except ConfigError as e:
             log.error("Can't update MQTT state, configuration error: %s", e)
             return

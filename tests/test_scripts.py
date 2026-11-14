@@ -4,9 +4,11 @@
 """play-azaan.sh and setup-piprayer.sh, run with fake system commands on the PATH."""
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import textwrap
+import time
 
 import pytest
 
@@ -87,6 +89,25 @@ def bluetooth(tmp_path):
 
         def run(self, *args):
             return run([os.path.join(ROOT, "play-azaan.sh")] + list(args), bin_dir)
+
+        def paplay_blocks(self):
+            """paplay plays until it is stopped."""
+            make_command(bin_dir, "paplay", """\
+                echo "play $*" >> {state}/log
+                touch {state}/playing
+                while true; do /bin/sleep 0.05; done
+                """.format(state=state))
+
+        def start(self, *args):
+            env = dict(os.environ, PATH="{}:{}".format(bin_dir, os.environ["PATH"]))
+            return subprocess.Popen([os.path.join(ROOT, "play-azaan.sh")] + list(args), env=env,
+                                    stdout=subprocess.PIPE, text=True, start_new_session=True)
+
+        def wait_until_playing(self, timeout=10):
+            deadline = time.monotonic() + timeout
+            while not (state / "playing").exists():
+                assert time.monotonic() < deadline, "paplay didn't start"
+                time.sleep(0.05)
 
         def play(self, *args):
             return run([os.path.join(ROOT, "play-azaan.sh")] + list(args or ["3"]), bin_dir)
@@ -222,6 +243,18 @@ def test_connect_ahead_fails_when_no_speaker_connects(bluetooth):
 def test_connected_speaker_plays_without_connecting_again(bluetooth):
     bluetooth.run("--connect")
     bluetooth.play("3")
+    assert bluetooth.log() == ["connect " + SPEAKER_1, azaan_file(3), "disconnect " + SPEAKER_1]
+
+
+def test_stopping_stops_playing_and_disconnects(bluetooth):
+    bluetooth.paplay_blocks()
+    process = bluetooth.start("3")
+    bluetooth.wait_until_playing()
+    os.killpg(process.pid, signal.SIGTERM)  # as piprayer.py stop does
+    output, _ = process.communicate(timeout=10)
+
+    assert process.returncode == 4
+    assert output.strip().endswith("Stopped")
     assert bluetooth.log() == ["connect " + SPEAKER_1, azaan_file(3), "disconnect " + SPEAKER_1]
 
 

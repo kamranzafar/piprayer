@@ -21,7 +21,8 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 - 🔁 **Runs as a background service** that starts at boot and picks up configuration changes on its own
 - 📶 **Connects to your Bluetooth speaker**, e.g. an Amazon Echo or Google Home, just before the Azaan and
   disconnects afterwards
-- ⏸️ **Skip the next Azaan or mute for a few days**, from the command line, an optional status page or Home Assistant
+- ⏸️ **Stop the Azaan, skip the next one or mute for a few days**, from the command line, an optional status page or
+  Home Assistant
 
 Tested on a **Raspberry Pi 3** with an **Amazon Echo Pop** speaker and a **Yamaha Bluetooth soundbar**. Google
 Home and Nest speakers work as Bluetooth speakers too.
@@ -258,6 +259,7 @@ dst = 1            # 1 during daylight saving, otherwise 0
 | `python3 piprayer.py play` | Play the Azaan now, to test the speaker |
 | `python3 piprayer.py play -p fajr` | Play the Azaan and volume set for a prayer |
 | `python3 piprayer.py play -r` | Play the reminder chime |
+| `python3 piprayer.py stop` | Stop the Azaan or reminder that is playing, and disconnect the speaker |
 | `python3 piprayer.py skip` | Don't play the next Azaan or its reminder. Run it again to skip the one after too |
 | `python3 piprayer.py mute` | Don't play any Azaan until the end of today. `-d 3` mutes today and the next 2 days, `-u 2026-12-25` until the end of a date, up to 30 days |
 | `python3 piprayer.py resume` | Clear skip and mute, so every Azaan plays again |
@@ -286,7 +288,8 @@ status-port = 8080
 ```
 
 Within a minute, the page is at `http://raspberrypi.local:8080` (use your Raspberry Pi's hostname or address). It
-shows the next Azaan with a countdown and today's times, with buttons to skip the next Azaan, mute today, or resume.
+shows the next Azaan with a countdown and today's times, with buttons to skip the next Azaan, mute today, or resume,
+and to stop the Azaan while it plays.
 It warns when the last Azaan didn't play, or the clock isn't set from the network.
 
 **On your phone**, add it to the home screen to use it like an app, full screen with its own icon:
@@ -304,6 +307,7 @@ It also answers JSON requests, e.g. for Home Assistant:
 |---|---|
 | `GET /api/next` | The next Azaan, the same as `piprayer.py times next -f json` |
 | `GET /api/times` | Today's times, the same as `piprayer.py times -f json` |
+| `POST /api/stop` | Stop the Azaan or reminder that is playing, and return it, or `null` if nothing is |
 | `POST /api/skip` | Skip the next Azaan that would play, and return it |
 | `POST /api/mute?days=1` | Mute until the end of today, or for up to 30 days counting today |
 | `POST /api/resume` | Clear skip and mute |
@@ -323,7 +327,8 @@ time the mute ends. `/api/times` also has `last`, how the last Azaan went, with 
 | Muted | On while muted, with the time the mute ends |
 | Last azaan | How the last Azaan went, e.g. played or failed, with the prayer, time and error |
 | Problem | On when the last Azaan didn't play as it should have, or the clock isn't set from the network. Use it in an automation to send yourself a notification |
-| Skip next azaan, Mute today, Resume | Buttons |
+| Playing | On while an Azaan or reminder plays, with the prayer. Use it e.g. to pause the TV |
+| Stop, Skip next azaan, Mute today, Resume | Buttons |
 
 To set it up with the Mosquitto broker add-on:
 
@@ -344,7 +349,7 @@ while the Raspberry Pi or the service is off. The password is saved in `.pipraye
 makes readable only by you. Skip and mute from Home Assistant, the status page and the command line all apply
 to the same Azaans.
 
-Automations can also publish `skip`, `mute`, `mute 3` (days, up to 30) or `resume` to `piprayer/command`. The state
+Automations can also publish `stop`, `skip`, `mute`, `mute 3` (days, up to 30) or `resume` to `piprayer/command`. The state
 is published to `piprayer/state` as JSON. MQTT is off unless `mqtt-host` is set, so PiPrayer doesn't need
 `paho-mqtt` otherwise.
 
@@ -419,7 +424,8 @@ shell_command:
 `setup-piprayer.sh` installs `piprayer.py run` as a systemd user service and turns on lingering, so it starts at boot.
 While waiting for the next prayer, the service checks `.piprayer` at least once a minute and reloads it when it
 changes, so new settings apply without a restart. Skip and mute are saved in `.piprayer-state`, which the service
-reads just before each Azaan, so they apply straight away and survive a restart.
+reads just before each Azaan, so they apply straight away and survive a restart. While an Azaan plays, the service
+keeps `play-azaan.sh`'s process id in `.piprayer-playing`, so `piprayer.py stop` can stop it, and it isn't tried again.
 Prayer times are calculated with the [PrayTimes.org](http://praytimes.org) library, included as `praytimes.py`.
 
 If the clock jumps forward after boot (the Raspberry Pi has no hardware clock), any Azaan missed by more than

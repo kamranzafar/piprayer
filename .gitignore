@@ -170,6 +170,7 @@ cython_debug/
 .piprayer
 .piprayer-state*
 .piprayer-last*
+.piprayer-playing*
 
 # graphify knowledge graph
 graphify-out/

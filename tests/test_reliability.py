@@ -174,7 +174,7 @@ def test_fallback_output_option(write_config):
 
 def test_fallback_is_passed_to_play_azaan(write_config, monkeypatch):
     commands = []
-    monkeypatch.setattr(player.subprocess, "run", lambda cmd, **kwargs: commands.append(cmd[1:]) or FakeResult())
+    monkeypatch.setattr(player, "run_player", lambda args, on_start=None: commands.append(args) or (0, []))
     config = Config(write_config(MELBOURNE_CONFIG + "fallback-output = local\nspeaker = AA:BB:CC:DD:EE:FF\n"))
 
     player.play_event(config, Event(ASR, "asr"))

@@ -13,7 +13,7 @@ from pipray.cli import main
 from pipray.config import Config, ConfigError
 from pipray.player import REMINDER_SOUND, play_event
 from pipray.schedule import Event, next_event
-from conftest import MELBOURNE_CONFIG, FakeResult
+from conftest import MELBOURNE_CONFIG
 
 MELBOURNE = ZoneInfo("Australia/Melbourne")
 
@@ -173,11 +173,11 @@ def test_late_reminder_is_skipped_but_azaan_plays(write_config, fake_clock):
 def played_commands(monkeypatch):
     commands = []
 
-    def fake_run(cmd, **kwargs):
-        commands.append(cmd[1:])
-        return FakeResult()
+    def fake_run(args, on_start=None):
+        commands.append(args)
+        return 0, []
 
-    monkeypatch.setattr(player.subprocess, "run", fake_run)
+    monkeypatch.setattr(player, "run_player", fake_run)
     return commands
 
 

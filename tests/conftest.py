@@ -65,6 +65,9 @@ class FakeClock:
         self.failures = []  # (exit code, message) for the next plays to fail with
         self.connect_fails = False
         self.play_output = "Played on speaker AA:AA:AA:AA:AA:01"
+        self.pid = 4242  # play-azaan.sh's process
+        self.stopped_while_playing = False  # set by terminate(), as if play-azaan.sh was stopped
+        self.terminated = []
         self.events = []  # (utc datetime, callback)
         self.stop_at = None
         self.play_duration = timedelta(minutes=4)
@@ -77,30 +80,43 @@ class FakeClock:
         return self.now.astimezone(self.tz)
 
     def sleep(self, seconds):
-        self.now += timedelta(seconds=seconds)
-        for event in [e for e in self.events if self.now >= e[0]]:
-            self.events.remove(event)
-            event[1]()
+        self.advance(timedelta(seconds=seconds))
         if self.stop_at and self.now >= self.stop_at:
             raise Stop
 
-    def run_player(self, cmd, **kwargs):
-        args = cmd[1:]
+    def advance(self, delta):
+        """Move the clock on, running the callbacks due by then."""
+        self.now += delta
+        for event in [e for e in self.events if self.now >= e[0]]:
+            self.events.remove(event)
+            event[1]()
+
+    def run_player(self, args, on_start=None):
+        """Replaces player.run_player: returns play-azaan.sh's exit code and the lines it printed."""
         minute = self.local_now().replace(second=0, microsecond=0)
         if args[0] in ("--connect", "--disconnect"):
             self.bluetooth.append((minute, args[0], args[1] if len(args) > 1 else None))
             if args[0] == "--connect" and self.connect_fails:
-                return FakeResult(2, "Can't connect to bluetooth\n")
-            return FakeResult(0, (args[1] if len(args) > 1 else "AA:AA:AA:AA:AA:01") + "\n")
+                return 2, ["Can't connect to bluetooth"]
+            return 0, [args[1] if len(args) > 1 else "AA:AA:AA:AA:AA:01"]
         if args[0] == "--fallback":
             args = args[1:]
+        if on_start:
+            on_start(self.pid)
         if self.failures:
             code, message = self.failures.pop(0)
-            return FakeResult(code, message + "\n")
+            return code, [message]
         # (local time, azaan number or sound file, volume)
         self.played.append((minute, args[0], args[1]))
-        self.now += self.play_duration
-        return FakeResult(0, self.play_output + "\n")
+        self.advance(self.play_duration)
+        if self.stopped_while_playing:
+            self.stopped_while_playing = False
+            return 4, ["Stopped"]
+        return 0, self.play_output.splitlines()
+
+    def terminate(self, pid):
+        self.terminated.append(pid)
+        self.stopped_while_playing = True
 
     def run_service(self, config_path, hours, azaan=1):
         self.stop_at = self.now + timedelta(hours=hours)
@@ -118,7 +134,8 @@ def fake_clock(monkeypatch):
 
         monkeypatch.setattr(clock, "now", lambda tz: fake.now.astimezone(tz))
         monkeypatch.setattr(clock, "sleep", fake.sleep)
-        monkeypatch.setattr(player.subprocess, "run", fake.run_player)
+        monkeypatch.setattr(player, "run_player", fake.run_player)
+        monkeypatch.setattr(player, "terminate", fake.terminate)
         return fake
 
     return create

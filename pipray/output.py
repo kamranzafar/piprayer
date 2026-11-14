@@ -135,7 +135,7 @@ def muted_until_json(state, now):
     return muted.isoformat() if muted else None
 
 
-def times_json(config, day, now, state=None, last=None, synchronised=None):
+def times_json(config, day, now, state=None, last=None, synchronised=None, playing=None):
     entries = schedule(config, day, state)
     upcoming = next((e for e in entries if e.at > now), None) if day == now.date() else None
     return {
@@ -148,6 +148,7 @@ def times_json(config, day, now, state=None, last=None, synchronised=None):
         "prayers": [entry.to_json() for entry in entries],
         "last": last.to_json() if last else None,
         "clock_synchronised": synchronised,
+        "playing": playing.to_json() if playing else None,
     }
 
 

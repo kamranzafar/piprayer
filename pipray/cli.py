@@ -1,7 +1,7 @@
 # PiPrayer - Azaan for Raspberry Pi
 # Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The command line: piprayer.py times, run, play, skip, mute, resume and config."""
+"""The command line: piprayer.py times, run, play, stop, skip, mute, resume and config."""
 import argparse
 import json
 import logging
@@ -13,10 +13,11 @@ from . import clock
 from .config import DEFAULT_AZAAN, DEFAULT_CONFIG, DEFAULT_VOLUME, Config, ConfigError, azaan_file
 from .output import (RESUME_HINT, describe_azaan, describe_mute, format_next, format_plain, format_times,
                      next_json, times_json)
-from .player import REMINDER_SOUND, play
+from .player import REMINDER_SOUND, play, stop
 from .schedule import next_azaan
 from .service import Updated, installed_azaan, run
-from .state import MAX_MUTE_DAYS, LastAzaan, State, last_file, mute, resume, skip_next, state_file
+from .state import MAX_MUTE_DAYS, LastAzaan, Playing, State, last_file, mute, playing_file, resume, skip_next, \
+    state_file
 from .wizard import configure
 
 PRAYERS = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
@@ -48,7 +49,8 @@ def times_command(args):
     day = args.date or now.date()
     last = LastAzaan.load(last_file(args.config))
     if args.format == "json":
-        print(json.dumps(times_json(config, day, now, state, last, synchronised), indent=2))
+        print(json.dumps(times_json(config, day, now, state, last, synchronised,
+                                    Playing.load(playing_file(args.config))), indent=2))
     elif args.format == "plain":
         print(format_plain(config, day))
     else:
@@ -82,6 +84,15 @@ def play_command(args):
 
     azaan = args.azaan or (config.azaan_for(args.prayer) if config else DEFAULT_AZAAN)
     return play(azaan, volume, speaker=speaker, fallback=fallback).returncode
+
+
+def stop_command(args):
+    playing = stop(args.config)
+    if playing is None:
+        print("Nothing is playing")
+        return 1
+    print("Stopped {}.".format(playing.describe()))
+    return 0
 
 
 def skip_command(args):
@@ -183,6 +194,8 @@ def parser():
                              help="play the azaan and volume set for this prayer")
     play_parser.add_argument("-r", "--reminder", action="store_true", help="play the reminder sound")
     play_parser.set_defaults(func=play_command)
+
+    commands.add_parser("stop", help="stop the azaan or reminder that is playing").set_defaults(func=stop_command)
 
     commands.add_parser("skip", help="don't play the next azaan or its reminder").set_defaults(func=skip_command)
 

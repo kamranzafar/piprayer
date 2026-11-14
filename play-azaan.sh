@@ -25,7 +25,9 @@
 #    own audio output (headphone jack or HDMI) when no speaker connects. --connect connects a speaker ahead of
 #    time, so the azaan starts on time, and prints its address.
 #
-#    Exit codes: 0 played, 1 invalid arguments, 2 no speaker connected, 3 the sound didn't play
+#    Stop it with SIGTERM (piprayer.py stop does): it stops playing and disconnects the speaker.
+#
+#    Exit codes: 0 played, 1 invalid arguments, 2 no speaker connected, 3 the sound didn't play, 4 stopped
 
 # How long to wait for a speaker to connect, and then for its audio output to appear
 CONNECT_SECONDS=10
@@ -152,6 +154,21 @@ if ! [[ "$VOLUME" =~ ^[0-9]+$ ]] || [ "$VOLUME" -gt 100 ]; then
   exit 1
 fi
 
+PAPLAY=""
+BLUETOOTH_MAC=""
+
+stop() {
+  if [ -n "$PAPLAY" ]; then
+    kill "$PAPLAY" 2>/dev/null
+  fi
+  if [ -n "$BLUETOOTH_MAC" ]; then
+    echo "disconnect $BLUETOOTH_MAC" | bluetoothctl >/dev/null
+  fi
+  echo "Stopped"
+  exit 4
+}
+trap stop TERM INT
+
 if BLUETOOTH_MAC=$(connect_speaker); then
   DEVICE=$(speaker_sink "$BLUETOOTH_MAC")
   WHERE="speaker $BLUETOOTH_MAC"
@@ -165,9 +182,13 @@ else
   exit 2
 fi
 
-# 65536 is 100%, on the same scale as the system volume control
-paplay --volume=$((VOLUME * 65536 / 100)) ${DEVICE:+"--device=$DEVICE"} "$SOUND_FILE"
+# 65536 is 100%, on the same scale as the system volume control. In the background, so a stop is handled straight
+# away rather than once paplay has finished
+paplay --volume=$((VOLUME * 65536 / 100)) ${DEVICE:+"--device=$DEVICE"} "$SOUND_FILE" &
+PAPLAY=$!
+wait "$PAPLAY"
 STATUS=$?
+PAPLAY=""
 if [ -n "$BLUETOOTH_MAC" ]; then
   echo "disconnect $BLUETOOTH_MAC" | bluetoothctl >/dev/null
 fi
