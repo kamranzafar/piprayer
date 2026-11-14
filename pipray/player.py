@@ -1,3 +1,5 @@
+# PiPrayer - Azaan for Raspberry Pi
+# Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Playing an azaan or the reminder chime through play-azaan.sh."""
 import logging

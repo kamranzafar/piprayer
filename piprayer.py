@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """
     PiPrayer - Azaan for Raspberry Pi
-    Copyright (C) 2021  Kamran Zafar
+    Copyright (C) 2021-2026  Kamran Zafar
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by

@@ -1,3 +1,6 @@
+# PiPrayer - Azaan for Raspberry Pi
+# Copyright (C) 2021-2026 Kamran Zafar
+# SPDX-License-Identifier: GPL-3.0-or-later
 """play-azaan.sh and setup-piprayer.sh, run with fake system commands on the PATH."""
 import os
 import shutil

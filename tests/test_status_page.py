@@ -1,3 +1,6 @@
+# PiPrayer - Azaan for Raspberry Pi
+# Copyright (C) 2021-2026 Kamran Zafar
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The status page and its JSON API, served over real HTTP on a free local port."""
 import json
 import socket

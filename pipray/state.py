@@ -1,3 +1,5 @@
+# PiPrayer - Azaan for Raspberry Pi
+# Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Skip and mute, saved next to the configuration so they survive restarts."""
 import json

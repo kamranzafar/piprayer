@@ -1,3 +1,6 @@
+# PiPrayer - Azaan for Raspberry Pi
+# Copyright (C) 2021-2026 Kamran Zafar
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Restarting the service when PiPrayer is updated, and warnings about unknown options."""
 import os
 from datetime import datetime

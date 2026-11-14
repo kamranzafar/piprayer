@@ -1,3 +1,6 @@
+# PiPrayer - Azaan for Raspberry Pi
+# Copyright (C) 2021-2026 Kamran Zafar
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Reading and validating the .piprayer configuration."""
 from datetime import timedelta, timezone
 from zoneinfo import ZoneInfo

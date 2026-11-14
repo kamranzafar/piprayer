@@ -1,3 +1,5 @@
+# PiPrayer - Azaan for Raspberry Pi
+# Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The times as a table, as text, and as JSON."""
 from datetime import datetime, time, timedelta

@@ -1,3 +1,6 @@
+# PiPrayer - Azaan for Raspberry Pi
+# Copyright (C) 2021-2026 Kamran Zafar
+# SPDX-License-Identifier: GPL-3.0-or-later
 """MQTT for Home Assistant, with a fake paho-mqtt so the tests don't need it or a broker.
 
 It was also checked against a real broker with paho-mqtt 1.6.1 and 2.2.0.

@@ -1,3 +1,5 @@
+# PiPrayer - Azaan for Raspberry Pi
+# Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The service: wait for each azaan and reminder, and play it. setup-piprayer.sh installs it with systemd."""
 import glob

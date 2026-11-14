@@ -1,3 +1,6 @@
+# PiPrayer - Azaan for Raspberry Pi
+# Copyright (C) 2021-2026 Kamran Zafar
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The service loop, run against a simulated clock so a day takes milliseconds."""
 import os
 from datetime import datetime, timedelta
