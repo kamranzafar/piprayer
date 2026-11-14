@@ -33,6 +33,15 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   automations that send a notification.
 
 ### Changed
+- Every setting in `.piprayer` is checked, with a message saying what is wrong and what to use, e.g. for a latitude
+  out of range, an unknown `method` or `asr-time` (which used to fall back to MWL and Standard without a word), a
+  prayer listed twice, an offset of more than 180 minutes, or no prayers. `method` and `asr-time` can be in any
+  case. Only Fajr, Dhuhr, Asr, Maghrib and Isha are accepted as prayers.
+- A mistake that makes `.piprayer` unreadable, e.g. an option set twice or a line without `=`, is reported with its
+  line instead of a Python error, and a `%` in a value, e.g. `volume = 80%`, is read as written.
+- When `.piprayer` is changed with a mistake while the service runs, it logs the error and keeps using the previous
+  settings until the file is fixed, instead of stopping, so the Azaan still plays. If it starts with a mistake, it
+  waits for the file to be fixed instead of restarting every 30 seconds.
 - `play-azaan.sh` exits with 2 when no speaker connects and 3 when the sound doesn't play, instead of 1, and takes
   `--fallback`, `--connect` and `--disconnect`. Stopped with SIGTERM, it stops playing, disconnects the speaker and
   exits with 4.

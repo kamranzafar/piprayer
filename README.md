@@ -156,7 +156,7 @@ the file directly. The running service picks up changes within a minute, no rest
 | `timezone` | [IANA timezone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) of the place. Daylight saving is applied automatically | `Australia/Melbourne` |
 | `method` | Calculation method, see below | `MWL` |
 | `asr-time` | Asr calculation: `Standard` or `Hanafi` | `Hanafi` |
-| `prayers` | Comma separated prayers to play the Azaan for. Add `:minutes` to shift a time earlier (negative) or later | `Fajr:-10, Dhuhr:5, Asr, Maghrib, Isha` |
+| `prayers` | Comma separated prayers to play the Azaan for. Add `:minutes` to shift a time earlier (negative) or later, up to 180 | `Fajr:-10, Dhuhr:5, Asr, Maghrib, Isha` |
 
 ### Optional settings
 
@@ -426,7 +426,9 @@ shell_command:
 
 `setup-piprayer.sh` installs `piprayer.py run` as a systemd user service and turns on lingering, so it starts at boot.
 While waiting for the next prayer, the service checks `.piprayer` at least once a minute and reloads it when it
-changes, so new settings apply without a restart. Skip and mute are saved in `.piprayer-state`, which the service
+changes, so new settings apply without a restart. Every setting is checked: if a change has a mistake, the log says
+what is wrong, e.g. `Invalid asr-time: Hanafy, use Standard or Hanafi`, and the service keeps using the previous
+settings until it is fixed, so the Azaan still plays. `python3 piprayer.py times` shows the same message. Skip and mute are saved in `.piprayer-state`, which the service
 reads just before each Azaan, so they apply straight away and survive a restart. While an Azaan plays, the service
 keeps `play-azaan.sh`'s process id in `.piprayer-playing`, so `piprayer.py stop` can stop it, and it isn't tried again.
 Prayer times are calculated with the [PrayTimes.org](http://praytimes.org) library, included as `praytimes.py`.

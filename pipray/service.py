@@ -8,7 +8,7 @@ import os
 from datetime import timedelta
 
 from . import clock
-from .config import DEFAULT_AZAAN, SCRIPT_DIR, Config
+from .config import DEFAULT_AZAAN, SCRIPT_DIR, Config, ConfigError
 from . import player
 from .schedule import next_event
 from .mqtt import MqttBridge
@@ -90,6 +90,7 @@ def run(config_path, default_azaan):
     mqtt = MqttBridge(config_path, default_azaan)
     clock_watch = ClockWatch()
     Playing.clear(playing_file(config_path))  # left over if the service was stopped while playing
+    config = None
     started = None
     # Events already played or passed over. Another may fall due while one plays, e.g. Fajr at the same minute
     # as Isha on a short summer night, so the next event is looked for from a little before now.
@@ -98,9 +99,12 @@ def run(config_path, default_azaan):
     try:
         while True:
             mtime = config_mtime(config_path)
-            config = Config(config_path, default_azaan)
-            for warning in config.warnings:
-                log.warning("%s", warning)
+            try:
+                config = load_config(config_path, default_azaan, config)
+            except ConfigError:
+                # Nothing to play yet: wait for the configuration to be fixed
+                wait_for_change(config_path, mtime, version)
+                continue
             now = clock.now(config.tz)
             started = started or now
             status_page.serve(config.status_port)
@@ -119,6 +123,34 @@ def run(config_path, default_azaan):
     finally:
         status_page.serve(None)
         mqtt.configure(None)
+
+
+def load_config(config_path, default_azaan, previous=None):
+    """Read the configuration, logging its warnings.
+
+    If it is invalid, e.g. after a mistake while editing it, the error is logged and the previous configuration is
+    used until it is fixed, so the azaan still plays. With no previous configuration, raises the ConfigError.
+    """
+    try:
+        config = Config(config_path, default_azaan)
+    except ConfigError as e:
+        if previous:
+            log.error("Can't use the new settings in %s, keeping the previous ones until it is fixed: %s",
+                      config_path, e)
+            return previous
+        log.error("Can't start: %s. Waiting for %s to be fixed", e, config_path)
+        raise
+    for warning in config.warnings:
+        log.warning("%s", warning)
+    return config
+
+
+def wait_for_change(config_path, mtime, version=None):
+    """Wait until the configuration file changes. Raises Updated if PiPrayer is updated meanwhile."""
+    while config_mtime(config_path) == mtime:
+        if version:
+            check_for_update(version)
+        clock.sleep(MAX_SLEEP_SECONDS)
 
 
 def wait_and_play(config_path, config, mtime, state_path, event, version=None, clock_watch=None, notify=None):

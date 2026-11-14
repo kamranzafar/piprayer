@@ -4,6 +4,7 @@
 """Reading and checking the configuration file, .piprayer."""
 import configparser
 import difflib
+import math
 import os
 import re
 from datetime import timedelta, timezone
@@ -46,6 +47,14 @@ MQTT_TOPIC_NAME = re.compile(r"^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$")
 HIGH_LATITUDE_RULES = ["NightMiddle", "AngleBased", "OneSeventh", "None"]
 DEFAULT_HIGH_LATITUDE = "NightMiddle"
 
+# The prayers an azaan can be played for, as named by praytimes.py
+PRAYER_NAMES = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
+
+# Largest offset in prayers, in minutes either way
+MAX_OFFSET = 180
+
+ASR_TIMES = ["Standard", "Hanafi"]
+
 MAC_ADDRESS = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
 
 # The project folder, which holds piprayer.py, play-azaan.sh and the media folder
@@ -71,26 +80,16 @@ class Config:
     """
 
     def __init__(self, path, default_azaan=DEFAULT_AZAAN):
-        parser = configparser.ConfigParser()
-
-        if not parser.read(path):
-            raise ConfigError("File not found or is inaccessible: " + path)
-
-        if not parser.has_section("Default"):
-            raise ConfigError("Prayer configuration is missing")
-
-        section = parser["Default"]
+        section = read_section(path)
 
         try:
-            self.lat = float(section[LAT])
-            self.lng = float(section[LNG])
-            self.method = section[METHOD]
-            self.asr_time = section[ASR_TIME]
+            self.lat = parse_coordinate(section[LAT], LAT, "latitude", 90, "-37.909499")
+            self.lng = parse_coordinate(section[LNG], LNG, "longitude", 180, "144.751876")
+            self.method = parse_method(section[METHOD])
+            self.asr_time = parse_choice(section[ASR_TIME], ASR_TIME, ASR_TIMES)
             self.prayers, self.offsets = parse_prayers(section[PRAYERS])
         except KeyError as e:
             raise ConfigError("Missing configuration option: " + e.args[0])
-        except ValueError as e:
-            raise ConfigError("Invalid configuration value: " + str(e))
 
         self.tz = parse_timezone(section)
 
@@ -128,18 +127,83 @@ class Config:
         return bool(self.fade_in or any(self.fade_ins.values()))
 
 
+def read_section(path):
+    """The [Default] section of the configuration file. Any problem reading it is a ConfigError."""
+    # Without % substitution, so a value such as "volume = 80%" or a password is read as it is written
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        if not parser.read(path, encoding="utf-8"):
+            raise ConfigError("File not found or is inaccessible: " + path)
+    except configparser.DuplicateOptionError as e:
+        raise ConfigError("{} is set twice in {}, on line {}. Remove one of them".format(e.option, path, e.lineno))
+    except configparser.DuplicateSectionError as e:
+        raise ConfigError("[{}] appears twice in {}, on line {}. Put all the options in one [{}] section".format(
+            e.section, path, e.lineno, e.section))
+    except configparser.MissingSectionHeaderError as e:
+        raise ConfigError("{} must start with [Default], found on line {}: {}".format(
+            path, e.lineno, e.line.strip()))
+    except configparser.ParsingError as e:
+        lines = ", ".join("line {}: {}".format(number, line.strip()) for number, line in e.errors)
+        raise ConfigError("Can't read {}, use option = value on each line. Check {}".format(path, lines))
+    except configparser.Error as e:
+        raise ConfigError("Can't read {}: {}".format(path, " ".join(str(e).split())))
+    except UnicodeDecodeError:
+        raise ConfigError("Can't read {}, it isn't a text file in UTF-8".format(path))
+
+    if not parser.has_section("Default"):
+        raise ConfigError("Prayer configuration is missing: {} needs a [Default] section".format(path))
+    return parser["Default"]
+
+
+def parse_coordinate(value, option, what, limit, example):
+    """A latitude or longitude, in decimal degrees."""
+    try:
+        number = float(value)
+    except ValueError:
+        number = math.nan
+    if not -limit <= number <= limit:  # also false for nan
+        raise ConfigError("Invalid {}: {}, use the {} in decimal degrees from -{} to {}, e.g. {}".format(
+            option, shown(value), what, limit, limit, example))
+    return number
+
+
+def parse_method(value):
+    """A calculation method, as praytimes.py names it, in any case."""
+    methods = list(praytimes.PrayTimes.methods)
+    for method in methods:
+        if method.lower() == value.strip().lower():
+            return method
+    close = difflib.get_close_matches(value.strip().lower(), [m.lower() for m in methods], n=1)
+    hint = " Did you mean {}?".format(next(m for m in methods if m.lower() == close[0])) if close else ""
+    raise ConfigError("Unknown {}: {}, use one of: {}.{}".format(METHOD, shown(value), ", ".join(methods), hint))
+
+
+def parse_choice(value, option, choices):
+    """One of the choices, in any case."""
+    for choice in choices:
+        if choice.lower() == value.strip().lower():
+            return choice
+    raise ConfigError("Invalid {}: {}, use {}".format(option, shown(value), " or ".join(choices)))
+
+
+def shown(value):
+    """A value as written, for a message."""
+    return value.strip() or "(empty)"
+
+
 def parse_prayers(value):
     """Parse "Fajr:-11, Dhuhr, ..." into prayer names and offsets in minutes (default 0)."""
     offsets = {}
     prayers = []
 
     for name, offset in parse_list(value):
-        try:
-            offsets[name] = int(offset) if offset else 0
-        except ValueError:
-            raise ConfigError("Invalid offset for " + name.capitalize() + ": " + offset)
+        what = "offset for " + name.capitalize()
+        offsets[name] = check_range(offset, what, -MAX_OFFSET, MAX_OFFSET) if offset else 0
         prayers.append(name)
 
+    if not prayers:
+        raise ConfigError("No prayers in {}, list the prayers to play the azaan for, e.g. {}".format(
+            PRAYERS, ", ".join(p.capitalize() for p in PRAYER_NAMES)))
     return prayers, offsets
 
 
@@ -152,7 +216,7 @@ def parse_volume(value):
         what = "volume" if name is None else name.capitalize() + " volume"
         if name is not None and not volume:
             raise ConfigError("Missing " + what + ", e.g. " + name.capitalize() + ":50")
-        number = check_range(volume, what, 0, 100)
+        number = check_range(volume[:-1] if volume.endswith("%") else volume, what, 0, 100)
         if name is None:
             default = number
         else:
@@ -180,7 +244,7 @@ def parse_fade_in(value):
 
 
 def parse_list(value, allow_bare_value=False):
-    """Split "Name:value, ..." into (prayer, value) pairs.
+    """Split "Name:value, ..." into (prayer, value) pairs. Each prayer, and the bare value, can be given once.
 
     With allow_bare_value, an item that isn't a prayer name, e.g. "80", is returned as (None, "80").
     """
@@ -194,12 +258,18 @@ def parse_list(value, allow_bare_value=False):
         name = name.strip()
         prayer = name.lower()
 
-        if allow_bare_value and not colon and prayer not in praytimes.PrayTimes.timeNames:
+        if allow_bare_value and not colon and prayer not in PRAYER_NAMES:
+            if any(given is None for given, _ in result):
+                raise ConfigError("Two values without a prayer in {!r}, give one, and Prayer:value for the others"
+                                  .format(value.strip()))
             result.append((None, name))
             continue
 
-        if prayer not in praytimes.PrayTimes.timeNames:
-            raise ConfigError("Unknown prayer: " + name)
+        if prayer not in PRAYER_NAMES:
+            raise ConfigError("Unknown prayer: {}, use {}".format(
+                name, ", ".join(p.capitalize() for p in PRAYER_NAMES[:-1]) + " or Isha"))
+        if any(given == prayer for given, _ in result):
+            raise ConfigError("{} is listed twice in {!r}".format(name.capitalize(), value.strip()))
         result.append((prayer, setting.strip()))
 
     return result
@@ -289,7 +359,8 @@ def check_range(value, what, minimum, maximum):
     try:
         number = int(value)
     except ValueError:
-        raise ConfigError("Invalid {}: {}, use a whole number from {} to {}".format(what, value, minimum, maximum))
+        raise ConfigError("Invalid {}: {}, use a whole number from {} to {}".format(
+            what, shown(value), minimum, maximum))
     if not minimum <= number <= maximum:
         raise ConfigError("Invalid {}: {}, use a number from {} to {}".format(what, value, minimum, maximum))
     return number
@@ -307,14 +378,22 @@ def parse_timezone(section):
         try:
             return ZoneInfo(section[TIMEZONE].strip())
         except (ZoneInfoNotFoundError, ValueError):
-            raise ConfigError("Unknown timezone: " + section[TIMEZONE])
+            raise ConfigError("Unknown timezone: {}, use a name from the tz database, e.g. Australia/Melbourne"
+                              .format(shown(section[TIMEZONE])))
 
     # Legacy configuration: fixed offset and manual daylight saving flag
-    try:
-        hours = float(section[GMT_OFFSET]) + (1 if int(section.get(DST, "0")) else 0)
-    except KeyError:
+    if GMT_OFFSET not in section:
         raise ConfigError("Missing configuration option: timezone")
-    except ValueError as e:
-        raise ConfigError("Invalid configuration value: " + str(e))
+    value = section[GMT_OFFSET].strip()
+    try:
+        hours = float(value)
+    except ValueError:
+        hours = math.nan
+    if not -12 <= hours <= 14:  # also false for nan
+        raise ConfigError("Invalid {}: {}, use the hours from GMT from -12 to 14, e.g. 10 or 5.5. "
+                          "Better, set timezone instead".format(GMT_OFFSET, shown(value)))
+    dst = section.get(DST, "0").strip()
+    if dst not in ("0", "1"):
+        raise ConfigError("Invalid {}: {}, use 1 during daylight saving, otherwise 0".format(DST, shown(dst)))
 
-    return timezone(timedelta(hours=hours))
+    return timezone(timedelta(hours=hours + int(dst)))

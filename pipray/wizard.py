@@ -393,8 +393,8 @@ def read_existing(path):
     # Without % substitution, so values such as passwords are kept exactly as written
     parser = configparser.RawConfigParser()
     try:
-        parser.read(path)
-    except configparser.Error:
+        parser.read(path, encoding="utf-8")
+    except (configparser.Error, UnicodeDecodeError):
         return configparser.RawConfigParser()
     return parser
 

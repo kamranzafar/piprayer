@@ -77,7 +77,7 @@ def test_config_missing_option(write_config):
 
 def test_config_invalid_number(write_config):
     text = piprayer_config().replace("lat = -37.909499", "lat = north")
-    with pytest.raises(ConfigError, match="Invalid configuration value"):
+    with pytest.raises(ConfigError, match="Invalid lat: north, use the latitude in decimal degrees from -90 to 90"):
         Config(write_config(text))
 
 
