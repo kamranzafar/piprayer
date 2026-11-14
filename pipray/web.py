@@ -14,8 +14,9 @@ from urllib.parse import parse_qs, urlsplit
 from . import clock
 from .config import MAX_HIJRI_ADJUST, Config, ConfigError, set_hijri_adjust
 from .hijri import describe_adjust, hijri_now
-from .output import describe_day, describe_last, describe_mute, format_duration, next_json, times_json
-from .schedule import next_azaan, schedule, timezone_name
+from .output import (describe_day, describe_last, describe_mute, fast_name, format_duration, next_json,
+                     times_json)
+from .schedule import IFTAR, fast_times, next_azaan, schedule, timezone_name, upcoming_fast
 from .player import stop
 from .state import (LastAzaan, Playing, State, last_file, mute_days, next_playing, playing_file, resume, skip_next,
                     state_file)
@@ -260,7 +261,7 @@ def status_html(config, now, state, last=None, synchronised=None, playing=None):
     buttons = []
     if playing and not playing.stopped:
         hero = '<div class="notice" data-playing>Playing {}</div>'.format(escape(playing.describe())) + hero
-        buttons.append(("/stop", "primary", "wide", "Stop the " + ("reminder" if playing.reminder else "azaan")))
+        buttons.append(("/stop", "primary", "wide", "Stop the " + playing.what))
     if next_to_play:
         when = "{} {}".format(next_to_play.at.strftime("%H:%M"), describe_day(next_to_play.at.date(), now.date()))
         buttons.append(('/skip', "" if buttons else "primary", "wide", 'Skip {}<span class="sub">{}</span>'.format(
@@ -278,7 +279,9 @@ def status_html(config, now, state, last=None, synchronised=None, playing=None):
         button_form(action, label, button_class, form_class) for action, button_class, form_class, label in buttons))
 
     return PAGE.format(style=STATUS_STYLE, hero=hero,
-                       times=times_list(schedule(config, now.date(), state), upcoming, now),
+                       times=times_list(schedule(config, now.date(), state), upcoming, now,
+                                        fast_times(config, now.date())),
+                       ramadan=ramadan_card(config, now),
                        hijri=hijri_card(config, now),
                        date="{:%A} {} {:%B}".format(now, now.day, now),
                        details=escape(timezone_name(config, now.date())) + "<br>" +
@@ -298,8 +301,11 @@ def button_form(action, label, button_class="", form_class="", fields=None, titl
         ' class="{}"'.format(button_class) if button_class else "", attributes, " disabled" if disabled else "", label)
 
 
-def times_list(entries, upcoming, now):
-    """Today's prayers, with the azaan and volume for each, and which is next or won't play."""
+def times_list(entries, upcoming, now, fast=None):
+    """Today's prayers, with the azaan and volume for each, and which is next or won't play.
+
+    On a day of fasting, Fajr is marked as the end of suhoor, with the suhoor alarm, and Maghrib as iftar.
+    """
     if not entries:
         return '<p class="countdown">No prayer times today</p>'
 
@@ -317,6 +323,11 @@ def times_list(entries, upcoming, now):
             if entry.silenced:
                 pill = '<span class="pill">{}</span>'.format(entry.silenced)
         detail = '<span class="detail">Azaan {} · {}%</span>'.format(entry.azaan, entry.volume)
+        label = fast.label(entry.prayer) if fast else None
+        if label:
+            alarm = " · alarm {}".format(fast.suhoor_alarm.strftime("%H:%M")) \
+                if entry.prayer == "fajr" and fast.suhoor_alarm else ""
+            detail += '<span class="detail fast">{}{}</span>'.format(label, alarm)
         if entry.at.date() != now.date():
             detail += '<span class="detail">After midnight</span>'
         rows.append('<li class="{}"><span class="name">{}{}</span>'
@@ -324,6 +335,32 @@ def times_list(entries, upcoming, now):
                         cls, escape(entry.prayer.capitalize()), detail, pill,
                         entry.at.isoformat(), entry.at.strftime("%H:%M")))
     return '<ol class="times">{}</ol>'.format("".join(rows))
+
+
+def ramadan_card(config, now):
+    """In Ramadan, a countdown to iftar, or to the end of suhoor, with the suhoor alarm, or nothing."""
+    upcoming = upcoming_fast(config, now)
+    if not upcoming:
+        return ""
+    what, at = min(upcoming.items(), key=lambda item: item[1])
+
+    fast = fast_times(config, at.date())
+    detail = ""
+    if what == IFTAR:
+        if fast.suhoor_ends and fast.suhoor_ends <= now:
+            detail = "The fast began at " + fast.suhoor_ends.strftime("%H:%M")
+    else:
+        if fast.suhoor_alarm and fast.suhoor_alarm > now:
+            detail = "Suhoor alarm at " + fast.suhoor_alarm.strftime("%H:%M")
+        if IFTAR in upcoming:
+            detail += (" · " if detail else "") + "Iftar at " + upcoming[IFTAR].strftime("%H:%M")
+
+    return ('<section class="card fast"><h2 class="label">{}</h2>'
+            '<div class="hero-row"><span class="hero-prayer">{}</span><span class="hero-time">{}</span></div>'
+            '<div class="countdown" data-at="{}">{}, in <span class="in">{}</span></div>{}</section>').format(
+        fast_name(config), escape(what), at.strftime("%H:%M"), at.isoformat(),
+        describe_day(at.date(), now.date()).capitalize(), format_duration(at - now),
+        '<div class="detail">{}</div>'.format(escape(detail)) if detail else "")
 
 
 def hijri_card(config, now):
@@ -344,7 +381,7 @@ def hijri_card(config, now):
         button(-1, "\u2212", "A day back"), button(1, "+", "A day forward"))
 
 
-# Keeps the page current: the countdown ticks, and the page is refreshed once the azaan is due, every ten minutes, and
+# Keeps the page current: the countdowns tick, and the page is refreshed once the azaan is due, every ten minutes, and
 # when reopened from the home screen, as phones keep a page open in the background without reloading it. With htmx,
 # the buttons and refreshes replace <main> in place, keeping the scroll position. Without it, the page reloads.
 SCRIPT = """
@@ -364,12 +401,14 @@ SCRIPT = """
     clearTimeout(refresher);
     refresher = setTimeout(refresh, document.querySelector("[data-playing]") ? 15000 : 600000);
   }
+  // the next azaan, and in Ramadan, iftar or the end of suhoor
   function tick() {
-    var countdown = document.querySelector("[data-at]");
-    if (!countdown) return;
-    var left = new Date(countdown.getAttribute("data-at")) - Date.now();
-    if (left <= 0) { refresh(); return; }
-    countdown.querySelector(".in").textContent = duration(left);
+    var countdowns = document.querySelectorAll("[data-at]");
+    for (var i = 0; i < countdowns.length; i++) {
+      var left = new Date(countdowns[i].getAttribute("data-at")) - Date.now();
+      if (left <= 0) { refresh(); return; }
+      countdowns[i].querySelector(".in").textContent = duration(left);
+    }
   }
   function problem(text) {
     var notice = document.getElementById("problem");
@@ -415,6 +454,7 @@ PAGE = """<!doctype html>
 <header class="top"><span class="brand">PiPrayer</span><span class="date">{date}</span></header>
 <div class="notice" id="problem" role="alert" hidden></div>
 <section class="card">{hero}</section>
+{ramadan}
 <section class="card">
 <h2 class="label">Today</h2>
 {times}

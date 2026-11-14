@@ -187,7 +187,7 @@ def playing_file(config_path):
 
 @dataclass
 class Playing:
-    """The azaan or reminder the service is playing, or trying again to play, so it can be stopped.
+    """The azaan, reminder or suhoor alarm the service is playing, or trying again to play, so it can be stopped.
 
     The service keeps the file while it plays, and removes it once done.
     """
@@ -196,13 +196,21 @@ class Playing:
     at: datetime
     pid: Optional[int] = None  # play-azaan.sh's process, None between attempts
     stopped: bool = False  # piprayer.py stop, the status page or Home Assistant asked to stop it
+    suhoor: bool = False
+
+    @property
+    def what(self):
+        """"azaan", "reminder" or "suhoor alarm"."""
+        return "suhoor alarm" if self.suhoor else "reminder" if self.reminder else "azaan"
 
     def describe(self):
-        """e.g. "the azaan for Asr"."""
-        return "the {} for {}".format("reminder" if self.reminder else "azaan", self.prayer.capitalize())
+        """e.g. "the azaan for Asr", or "the suhoor alarm"."""
+        if self.suhoor:
+            return "the suhoor alarm"
+        return "the {} for {}".format(self.what, self.prayer.capitalize())
 
     def to_json(self):
-        return {"prayer": self.prayer, "reminder": self.reminder, "time": self.at.isoformat()}
+        return {"prayer": self.prayer, "reminder": self.reminder, "suhoor": self.suhoor, "time": self.at.isoformat()}
 
     @classmethod
     def load(cls, path):
@@ -210,7 +218,7 @@ class Playing:
             with open(path) as f:
                 data = json.load(f)
             return cls(data["prayer"], bool(data["reminder"]), datetime.fromisoformat(data["time"]),
-                       data.get("pid"), bool(data.get("stopped")))
+                       data.get("pid"), bool(data.get("stopped")), bool(data.get("suhoor")))
         except FileNotFoundError:
             return None
         except (OSError, ValueError, TypeError, KeyError, AttributeError) as e:

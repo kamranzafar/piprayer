@@ -173,7 +173,7 @@ def test_times_json(write_config, monkeypatch, capsys, at_time):
     data = json.loads(out.out)
     assert {k: v for k, v in data.items() if k != "prayers"} == {
         "date": "2026-11-12", "timezone": "Australia/Melbourne", "method": "Jafari", "asr": "Hanafi", "next": "asr",
-        "muted_until": None, "last": None, "clock_synchronised": True, "playing": None,
+        "muted_until": None, "last": None, "clock_synchronised": True, "playing": None, "ramadan": None,
         "hijri": {"day": 2, "month": 6, "month_name": "Jumada al-Thani", "year": 1448, "evening": False, "adjust": 0,
                   "text": "2 Jumada al-Thani 1448"},
     }

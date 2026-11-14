@@ -1,7 +1,7 @@
 # PiPrayer - Azaan for Raspberry Pi
 # Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Playing an azaan or the reminder chime, and connecting the speaker, through play-azaan.sh."""
+"""Playing an azaan, the reminder chime or the suhoor alarm, and connecting the speaker, through play-azaan.sh."""
 import logging
 import os
 import signal
@@ -13,6 +13,7 @@ from .state import Playing, playing_file
 
 PLAYER = os.path.join(SCRIPT_DIR, "play-azaan.sh")
 REMINDER_SOUND = os.path.join(MEDIA_DIR, "reminder.wav")
+SUHOOR_SOUND = os.path.join(MEDIA_DIR, "suhoor.opus")
 
 # Exit codes of play-azaan.sh
 INVALID = 1
@@ -85,6 +86,8 @@ def play(sound, volume=DEFAULT_VOLUME, description=None, speaker=None, fallback=
 
 def play_event(config, event, on_start=None):
     volume = config.volume_for(event.prayer)
+    if event.suhoor:
+        return play(SUHOOR_SOUND, volume, "suhoor alarm", config.speaker, config.fallback_local, on_start)
     if event.reminder:
         return play(REMINDER_SOUND, volume, "reminder for " + event.prayer, config.speaker, config.fallback_local,
                     on_start)
@@ -126,7 +129,7 @@ def terminate(pid):
 
 
 def stop(config_path):
-    """Stop the azaan or reminder the service is playing, and don't try it again.
+    """Stop the azaan, reminder or suhoor alarm the service is playing, and don't try it again.
 
     Returns its Playing, or None if nothing is playing.
     """

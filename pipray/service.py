@@ -1,7 +1,10 @@
 # PiPrayer - Azaan for Raspberry Pi
 # Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The service: wait for each azaan and reminder, and play it. setup-piprayer.sh installs it with systemd."""
+"""The service: wait for each azaan, reminder and suhoor alarm, and play it.
+
+setup-piprayer.sh installs it with systemd.
+"""
 import glob
 import logging
 import os
@@ -190,7 +193,7 @@ def wait_and_play(config_path, config, mtime, state_path, event, version=None, c
             return True
 
         # Read just before playing, so skip and mute apply however recently they were set
-        silenced = State.load(state_path).silenced(event.azaan_at)
+        silenced = event.silenced(State.load(state_path))
         if silenced:
             log.info("Not playing %s, it is %s", event, silenced)
             record(config_path, event, silenced)
@@ -206,7 +209,7 @@ def wait_and_play(config_path, config, mtime, state_path, event, version=None, c
 
 def connect_ahead(config, state_path, event):
     """Connect the speaker for an event that will play. Returns its address, or None."""
-    if State.load(state_path).silenced(event.azaan_at):
+    if event.silenced(State.load(state_path)):
         return None
     speaker = player.connect(config.speaker)
     if speaker:
@@ -222,7 +225,7 @@ def play_with_retries(config_path, config, state_path, event, notify=None):
     While it plays, it can be stopped with piprayer.py stop, the status page or Home Assistant.
     """
     playing_path = playing_file(config_path)
-    Playing(event.prayer, event.reminder, event.at).save(playing_path)
+    Playing(event.prayer, event.reminder, event.at, suhoor=event.suhoor).save(playing_path)
     if notify:
         notify()
     try:
@@ -249,7 +252,7 @@ def play_with_retries(config_path, config, state_path, event, notify=None):
                 log.info("Not trying %s again, it was stopped", event)
                 record(config_path, event, STOPPED)
                 return
-            silenced = State.load(state_path).silenced(event.azaan_at)
+            silenced = event.silenced(State.load(state_path))
             if silenced:
                 log.info("Not trying %s again, it is %s now", event, silenced)
                 record(config_path, event, silenced)
@@ -277,8 +280,8 @@ def stop_requested(path):
 
 
 def record(config_path, event, result, error=None):
-    """Remember how an azaan went. Reminders aren't recorded."""
-    if not event.reminder:
+    """Remember how an azaan went. Reminders and suhoor alarms aren't recorded."""
+    if not event.reminder and not event.suhoor:
         LastAzaan(event.prayer, event.at, result, error).save(last_file(config_path))
 
 

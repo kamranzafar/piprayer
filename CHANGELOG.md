@@ -8,6 +8,13 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+- Ramadan mode. `suhoor = 30` sounds an alarm 30 minutes before Fajr on the days of Ramadan, with its own sound,
+  `media/suhoor.opus`, at the volume set for Fajr. Mute silences it, but skipping Fajr doesn't. `piprayer.py play -s`
+  plays it. `piprayer.py times` and the status page mark Fajr as the end of suhoor and Maghrib as iftar, and the
+  status page counts down to iftar, or to the end of suhoor. `times next` says when iftar is, the JSON has the day's
+  `ramadan` times, and Home Assistant has "Iftar" and "Suhoor ends" sensors. The days of Ramadan follow the Hijri
+  date and `hijri-adjust`, and `ramadan = on` or `off` sets them by hand. `piprayer.py config` asks for the suhoor
+  alarm ([#11](https://github.com/kamranzafar/piprayer/issues/11)).
 - Today's Hijri date, calculated with the Umm al-Qura calendar, in `piprayer.py times`, its JSON as `hijri`, on
   the status page, and in Home Assistant as a "Hijri date" sensor. From Maghrib it shows the next date, e.g.
   "Evening of 1 Ramadan 1448". `hijri-adjust = -1` (from -2 to 2) moves it by whole days to match a local calendar

@@ -1,15 +1,17 @@
 # PiPrayer - Azaan for Raspberry Pi
 # Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Prayer times, and the azaans and reminders to play at them."""
+"""Prayer times, and the azaans, reminders and suhoor alarms to play at them."""
 import heapq
 import logging
 import math
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
 import praytimes
+
+from .hijri import fasting
 
 log = logging.getLogger("piprayer")
 
@@ -58,11 +60,12 @@ def timezone_name(config, day):
 
 @dataclass
 class Event:
-    """Something to play: the azaan for a prayer, or the reminder before it."""
+    """Something to play: the azaan for a prayer, the reminder before it, or the suhoor alarm before Fajr."""
     at: datetime
     prayer: str
     reminder: bool = False
-    azaan_at: Optional[datetime] = None  # the time of the azaan, also for its reminder
+    azaan_at: Optional[datetime] = None  # the time of the azaan, also for its reminder and the suhoor alarm
+    suhoor: bool = False
 
     def __post_init__(self):
         if self.azaan_at is None:
@@ -71,9 +74,21 @@ class Event:
     @property
     def key(self):
         """Identifies the event, e.g. to remember it has been played."""
-        return self.at, self.prayer, self.reminder
+        return self.at, self.prayer, self.reminder, self.suhoor
+
+    def silenced(self, state):
+        """Why it won't play: "muted", "skipped", or None if it will.
+
+        Skipping an azaan skips its reminder too. The suhoor alarm is muted with the azaans, but skipping Fajr
+        doesn't skip it, as it is for waking up to eat rather than for the prayer.
+        """
+        if self.suhoor:
+            return "muted" if state.mute_until and self.at < state.mute_until else None
+        return state.silenced(self.azaan_at)
 
     def __str__(self):
+        if self.suhoor:
+            return "Suhoor alarm at " + self.at.strftime("%Y-%m-%d %H:%M %Z")
         return "{} for {} at {}".format("Reminder" if self.reminder else "Azaan", self.prayer,
                                         self.at.strftime("%Y-%m-%d %H:%M %Z"))
 
@@ -85,6 +100,9 @@ def events(config, day):
         if config.reminder:
             result.append(Event(at - timedelta(minutes=config.reminder), prayer, reminder=True, azaan_at=at))
         result.append(Event(at, prayer))
+    fast = fast_times(config, day) if config.suhoor else None
+    if fast and fast.suhoor_alarm:
+        result.append(Event(fast.suhoor_alarm, "fajr", azaan_at=fast.suhoor_ends, suhoor=True))
     return sorted(result, key=lambda event: event.at)
 
 
@@ -150,3 +168,62 @@ def upcoming_azaans(config, now, state=None, days=2):
 def next_azaan(config, now, state=None):
     """The first azaan after now, today or tomorrow, or None."""
     return next(upcoming_azaans(config, now, state), None)
+
+
+# ------------------------------------------------------------------ Ramadan
+
+SUHOOR_ENDS = "Suhoor ends"
+IFTAR = "Iftar"
+
+
+@dataclass
+class FastTimes:
+    """A day of fasting: the suhoor alarm, the end of suhoor at Fajr, and iftar at Maghrib.
+
+    The times are as the azaans', with any offsets in prayers, even when no azaan is played for Fajr or Maghrib.
+    """
+    day: date
+    suhoor_ends: Optional[datetime]  # None where there is no Fajr time, far from the equator
+    iftar: Optional[datetime]
+    suhoor_alarm: Optional[datetime] = None
+
+    def label(self, prayer):
+        """What the prayer's time means for the fast: "Suhoor ends" at Fajr, "Iftar" at Maghrib, otherwise None."""
+        return {"fajr": SUHOOR_ENDS, "maghrib": IFTAR}.get(prayer)
+
+    def to_json(self):
+        def iso(at):
+            return at.isoformat() if at else None
+
+        return {"suhoor_alarm": iso(self.suhoor_alarm), "suhoor_ends": iso(self.suhoor_ends), "iftar": iso(self.iftar)}
+
+
+def fast_times(config, day):
+    """The times of the fast on the given day, or None if it isn't a day of fasting."""
+    if not fasting(config, day):
+        return None
+    times = dict(prayer_times(config, day, ["fajr", "maghrib"]))
+    fajr = times.get("fajr")
+    return FastTimes(day, fajr, times.get("maghrib"),
+                     fajr - timedelta(minutes=config.suhoor) if fajr and config.suhoor else None)
+
+
+def upcoming_fast(config, now):
+    """The next end of suhoor and the next iftar, today or tomorrow, as {SUHOOR_ENDS: at, IFTAR: at}.
+
+    Either is left out when there isn't one, e.g. after Maghrib on the last day of Ramadan.
+    """
+    result = {}
+    for offset in (0, 1):
+        fast = fast_times(config, now.date() + timedelta(days=offset))
+        if fast:
+            for what, at in ((SUHOOR_ENDS, fast.suhoor_ends), (IFTAR, fast.iftar)):
+                if at and at > now and what not in result:
+                    result[what] = at
+    return result
+
+
+def next_fast_time(config, now):
+    """The next end of suhoor or iftar, as ("Suhoor ends" or "Iftar", at), or None."""
+    upcoming = upcoming_fast(config, now)
+    return min(upcoming.items(), key=lambda item: item[1]) if upcoming else None

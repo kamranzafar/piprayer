@@ -13,7 +13,7 @@ from . import clock
 from .config import DEFAULT_AZAAN, DEFAULT_CONFIG, DEFAULT_VOLUME, Config, ConfigError, azaan_file
 from .output import (RESUME_HINT, describe_azaan, describe_mute, format_next, format_plain, format_times,
                      next_json, times_json)
-from .player import REMINDER_SOUND, play, stop
+from .player import REMINDER_SOUND, SUHOOR_SOUND, play, stop
 from .schedule import next_azaan
 from .service import Updated, installed_azaan, run
 from .state import MAX_MUTE_DAYS, LastAzaan, Playing, State, last_file, mute, playing_file, resume, skip_next, \
@@ -81,6 +81,9 @@ def play_command(args):
     fallback = config.fallback_local if config else False
     if args.reminder:
         return play(REMINDER_SOUND, volume, "reminder", speaker, fallback).returncode
+    if args.suhoor:
+        volume = config.volume_for("fajr") if config else DEFAULT_VOLUME
+        return play(SUHOOR_SOUND, volume, "suhoor alarm", speaker, fallback).returncode
 
     azaan = args.azaan or (config.azaan_for(args.prayer) if config else DEFAULT_AZAAN)
     fade_in = config.fade_in_for(args.prayer) if config else 0
@@ -193,10 +196,14 @@ def parser():
                              help="azaan to play (default: the one in the configuration)")
     play_parser.add_argument("-p", "--prayer", choices=PRAYERS, type=str.lower,
                              help="play the azaan, volume and fade in set for this prayer")
-    play_parser.add_argument("-r", "--reminder", action="store_true", help="play the reminder sound")
+    play_sound = play_parser.add_mutually_exclusive_group()
+    play_sound.add_argument("-r", "--reminder", action="store_true", help="play the reminder sound")
+    play_sound.add_argument("-s", "--suhoor", action="store_true",
+                            help="play the suhoor alarm, at the volume set for Fajr")
     play_parser.set_defaults(func=play_command)
 
-    commands.add_parser("stop", help="stop the azaan or reminder that is playing").set_defaults(func=stop_command)
+    commands.add_parser("stop", help="stop the azaan, reminder or suhoor alarm that is playing") \
+        .set_defaults(func=stop_command)
 
     commands.add_parser("skip", help="don't play the next azaan or its reminder").set_defaults(func=skip_command)
 

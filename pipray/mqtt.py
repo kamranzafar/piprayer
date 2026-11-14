@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Optional MQTT for Home Assistant, turned on with mqtt-host in .piprayer.
 
-Publishes the next azaan, whether PiPrayer is muted and the Hijri date, with Home Assistant MQTT discovery so the
-entities appear on their own, and takes stop, skip, mute, resume and hijri-adjust commands. Needs paho-mqtt, which
-is only imported when MQTT is on:
+Publishes the next azaan, whether PiPrayer is muted, the Hijri date, and in Ramadan, iftar and the end of suhoor,
+with Home Assistant MQTT discovery so the entities appear on their own, and takes stop, skip, mute, resume and
+hijri-adjust commands. Needs paho-mqtt, which is only imported when MQTT is on:
 sudo apt install python3-paho-mqtt
 """
 import json
@@ -17,7 +17,7 @@ import threading
 from . import clock
 from .config import MAX_HIJRI_ADJUST, Config, ConfigError, set_hijri_adjust
 from .hijri import hijri_now
-from .schedule import next_azaan
+from .schedule import IFTAR, SUHOOR_ENDS, next_azaan, upcoming_fast
 from .output import describe_last
 from .player import stop
 from .state import LastAzaan, Playing, State, last_file, mute_days, playing_file, resume, skip_next, state_file
@@ -84,10 +84,16 @@ def discovery_messages(topics, node):
         entity("binary_sensor", "playing", "Playing", icon="mdi:speaker",
                value_template="{{ 'ON' if value_json.playing else 'OFF' }}", json_attributes_topic=topics.state,
                json_attributes_template="{{ {'prayer': value_json.playing, "
-                                        "'reminder': value_json.playing_reminder} | tojson }}", **state),
+                                        "'reminder': value_json.playing_reminder, "
+                                        "'suhoor': value_json.playing_suhoor} | tojson }}", **state),
         entity("sensor", "hijri_date", "Hijri date", icon="mdi:moon-waxing-crescent",
                value_template="{{ value_json.hijri_date }}", json_attributes_topic=topics.state,
                json_attributes_template="{{ (value_json.hijri or {}) | tojson }}", **state),
+        # Unknown outside Ramadan, so an automation can do something only during the fast
+        entity("sensor", "iftar", "Iftar", device_class="timestamp", icon="mdi:food-variant",
+               value_template="{{ value_json.iftar }}", **state),
+        entity("sensor", "suhoor_ends", "Suhoor ends", device_class="timestamp", icon="mdi:weather-sunset-up",
+               value_template="{{ value_json.suhoor_ends }}", **state),
         entity("number", "hijri_adjust", "Hijri date adjustment", icon="mdi:calendar-arrow-right",
                entity_category="config", min=-MAX_HIJRI_ADJUST, max=MAX_HIJRI_ADJUST, step=1, mode="box",
                unit_of_measurement="days", value_template="{{ value_json.hijri_adjust }}",
@@ -109,6 +115,7 @@ def state_payload(config, now, state, last=None, synchronised=None, playing=None
     entry = next_azaan(config, now, state)
     muted = state.muted_at(now)
     hijri = hijri_now(config, now)
+    fast = upcoming_fast(config, now)
     problems = ([describe_last(last, now)] if last and last.problem else []) + \
         ([clock.NOT_SYNCHRONISED] if synchronised is False else [])
     return json.dumps({
@@ -124,6 +131,9 @@ def state_payload(config, now, state, last=None, synchronised=None, playing=None
         "problem": ". ".join(problems) or None,
         "playing": playing.prayer.capitalize() if playing else None,
         "playing_reminder": bool(playing and playing.reminder),
+        "playing_suhoor": bool(playing and playing.suhoor),
+        "iftar": fast[IFTAR].isoformat() if IFTAR in fast else None,
+        "suhoor_ends": fast[SUHOOR_ENDS].isoformat() if SUHOOR_ENDS in fast else None,
         "hijri_date": str(hijri) if hijri else None,
         "hijri": hijri.to_json() if hijri else None,
         "hijri_adjust": config.hijri_adjust,

@@ -22,6 +22,7 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 - 📶 **Connects to your Bluetooth speaker**, e.g. an Amazon Echo or Google Home, just before the Azaan and
   disconnects afterwards
 - 🌙 **The Hijri date**, by the Umm al-Qura calendar, adjustable by a day or two to match moon sighting
+- 🍽️ **Ramadan mode**: an optional suhoor alarm before Fajr, and a countdown to iftar
 - ⏸️ **Stop the Azaan, skip the next one or mute for a few days**, from the command line, an optional status page or
   Home Assistant
 - ⚙️ **And more**, e.g. fading in the Azaan at Fajr. See [Configuration](#configuration) for all the options
@@ -178,6 +179,8 @@ the file directly. The running service picks up changes within a minute, no rest
 | `mqtt-topic` | Start of PiPrayer's MQTT topics | `piprayer` | `home/azaan` |
 | `high-latitude` | How to set Fajr and Isha when summer nights are too short for their angles, see [below](#short-summer-nights) | `NightMiddle` | `AngleBased` |
 | `hijri-adjust` | Days to move the [Hijri date](#hijri-date) on from the Umm al-Qura calendar, from -2 to 2 | `0` | `-1` |
+| `suhoor` | In [Ramadan](#ramadan), sound an alarm this many minutes before Fajr, up to 180, to wake for suhoor. `0` turns it off | `0` | `30` |
+| `ramadan` | Which days are [days of fasting](#ramadan): `auto` for the days of Ramadan by the Hijri date, `on` for every day, `off` for none | `auto` | `on` |
 
 For example, to play azaan 5, a quieter azaan 14 for Fajr that fades in over 15 seconds, and a chime 10 minutes
 before each prayer:
@@ -207,6 +210,27 @@ page, in Home Assistant, or with `python3 piprayer.py config`, all of which save
 ```ini
 hijri-adjust = -1
 ```
+
+### Ramadan
+
+During Ramadan, `piprayer.py times` and the status page mark Fajr as the end of suhoor and Maghrib as iftar, and
+the status page counts down to iftar, or to the end of suhoor before Fajr. Home Assistant has **Iftar** and
+**Suhoor ends** sensors.
+
+To be woken for suhoor, set an alarm some minutes before Fajr. It plays its own sound, a chime that gets louder,
+at the volume set for Fajr, even when no Azaan is played for Fajr:
+
+```ini
+suhoor = 30
+```
+
+The days of Ramadan follow the [Hijri date](#hijri-date), so if Ramadan starts a day later where you are, set
+`hijri-adjust = -1`, and the first suhoor alarm moves with it. The first is on the morning of 1 Ramadan, and there
+is none on Eid. To fast on other days, or to start or end Ramadan by hand, set `ramadan = on`, and back to
+`auto` afterwards. `ramadan = off` turns it off.
+
+Mute silences the suhoor alarm with the Azaans. Skipping Fajr doesn't, as the alarm is for eating before the fast,
+not for the prayer. `python3 piprayer.py play -s` plays the alarm, to try it.
 
 ### Calculation methods
 
@@ -281,7 +305,8 @@ dst = 1            # 1 during daylight saving, otherwise 0
 | `python3 piprayer.py play` | Play the Azaan now, to test the speaker |
 | `python3 piprayer.py play -p fajr` | Play the Azaan and volume set for a prayer |
 | `python3 piprayer.py play -r` | Play the reminder chime |
-| `python3 piprayer.py stop` | Stop the Azaan or reminder that is playing, and disconnect the speaker |
+| `python3 piprayer.py play -s` | Play the [suhoor alarm](#ramadan) |
+| `python3 piprayer.py stop` | Stop the Azaan, reminder or suhoor alarm that is playing, and disconnect the speaker |
 | `python3 piprayer.py skip` | Don't play the next Azaan or its reminder. Run it again to skip the one after too |
 | `python3 piprayer.py mute` | Don't play any Azaan until the end of today. `-d 3` mutes today and the next 2 days, `-u 2026-12-25` until the end of a date, up to 30 days |
 | `python3 piprayer.py resume` | Clear skip and mute, so every Azaan plays again |
@@ -293,7 +318,7 @@ dst = 1            # 1 during daylight saving, otherwise 0
 
 ### Azaan recordings
 
-The Azaan recordings and the reminder chime are in the [`media`](media) folder. The recordings are Opus files,
+The Azaan recordings, the reminder chime and the suhoor alarm are in the [`media`](media) folder. The recordings are Opus files,
 normalised to the same loudness (-16 LUFS), so they play at a similar level at the same volume.
 
 Azaans **14 to 17 are Fajr azaans**: they include *as-salatu khayrun min an-nawm* ("prayer is better than
@@ -314,6 +339,7 @@ shows the next Azaan with a countdown and today's times, with buttons to skip th
 and to stop the Azaan while it plays.
 It warns when the last Azaan didn't play, or the clock isn't set from the network.
 Below the times, the [Hijri date](#hijri-date) has **−** and **+** buttons to move it a day back or forward.
+In [Ramadan](#ramadan), it counts down to iftar, or to the end of suhoor.
 
 **On your phone**, add it to the home screen to use it like an app, full screen with its own icon:
 - iPhone: open the page in Safari, tap **Share**, then **Add to Home Screen**
@@ -332,7 +358,7 @@ It also answers JSON requests, e.g. for Home Assistant:
 |---|---|
 | `GET /api/next` | The next Azaan, the same as `piprayer.py times next -f json` |
 | `GET /api/times` | Today's times, the same as `piprayer.py times -f json` |
-| `POST /api/stop` | Stop the Azaan or reminder that is playing, and return it, or `null` if nothing is |
+| `POST /api/stop` | Stop the Azaan, reminder or suhoor alarm that is playing, and return it, or `null` if nothing is |
 | `POST /api/skip` | Skip the next Azaan that would play, and return it |
 | `POST /api/mute?days=1` | Mute until the end of today, or for up to 30 days counting today |
 | `POST /api/resume` | Clear skip and mute |
@@ -342,7 +368,8 @@ The JSON for each Azaan has `skipped` and `muted` set to `true` when it won't pl
 time the mute ends. `/api/times` also has `last`, how the last Azaan went, with its `prayer`, `time`, `result`
 (`played`, `played locally`, `failed`, `missed`, `skipped` or `muted`) and `error`, and `clock_synchronised`.
 `hijri` is the Hijri date, with its `day`, `month` (1 to 12), `month_name`, `year`, `evening` (`true` from Maghrib,
-when it is the next day's date), `adjust` and `text`, e.g. "Evening of 1 Ramadan 1448".
+when it is the next day's date), `adjust` and `text`, e.g. "Evening of 1 Ramadan 1448". On a day of fasting,
+`ramadan` has the day's `suhoor_alarm` (`null` without one), `suhoor_ends` and `iftar`, and is `null` on other days.
 
 ## Home Assistant
 
@@ -355,9 +382,10 @@ when it is the next day's date), `adjust` and `text`, e.g. "Evening of 1 Ramadan
 | Muted | On while muted, with the time the mute ends |
 | Last azaan | How the last Azaan went, e.g. played or failed, with the prayer, time and error |
 | Problem | On when the last Azaan didn't play as it should have, or the clock isn't set from the network. Use it in an automation to send yourself a notification |
-| Playing | On while an Azaan or reminder plays, with the prayer. Use it e.g. to pause the TV |
+| Playing | On while an Azaan, reminder or suhoor alarm plays, with the prayer. Use it e.g. to pause the TV |
 | Hijri date | e.g. 23 Jumada al-Awwal 1448, with the day, month and year. From Maghrib, "Evening of" the next date |
 | Hijri date adjustment | Days to move the Hijri date on from the Umm al-Qura calendar, from -2 to 2. Change it when the month starts a day earlier or later |
+| Iftar, Suhoor ends | In [Ramadan](#ramadan), the next iftar and the next end of suhoor. Unknown on other days |
 | Stop, Skip next azaan, Mute today, Resume | Buttons |
 
 To set it up with the Mosquitto broker add-on:

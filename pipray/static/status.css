@@ -59,9 +59,13 @@ button .sub { display: block; font-weight: 500; font-size: .8rem; opacity: .85; 
 .times time { font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .pill { font-size: .72rem; font-weight: 600; padding: 3px 8px; border-radius: 999px;
         background: var(--warn-bg); color: var(--warn); }
+.times .detail.fast { color: var(--accent); font-weight: 600; }
 .pill.next { background: var(--accent); color: var(--accent-text); }
 
 footer { color: var(--muted); font-size: .8rem; text-align: center; line-height: 1.6; margin-top: 4px; }
+
+.fast .hero-prayer, .fast .hero-time { font-size: 1.6rem; }
+.fast .detail { color: var(--muted); font-size: .9rem; margin-top: 2px; }
 
 .hijri { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 6px; }
 .hijri-date { font-size: 1.15rem; font-weight: 600; }

@@ -194,7 +194,7 @@ def test_status_page_stop(write_config, at_time, terminated):
 
     playing_asr(path)
     assert json.loads(routes.post("/api/stop", {}).body) == {
-        "stopped": {"prayer": "asr", "reminder": False, "time": "2026-11-12T18:03:00+11:00"}}
+        "stopped": {"prayer": "asr", "reminder": False, "suhoor": False, "time": "2026-11-12T18:03:00+11:00"}}
     assert terminated == [4242]
     playing_asr(path)
     assert routes.post("/stop", {}).status == 303  # back to the page
@@ -203,7 +203,7 @@ def test_status_page_stop(write_config, at_time, terminated):
 def test_times_json_says_what_is_playing(write_config):
     config = Config(write_config())
     data = times_json(config, NOW.date(), NOW, State(), playing=Playing("asr", True, ASR, 4242))
-    assert data["playing"] == {"prayer": "asr", "reminder": True, "time": "2026-11-12T18:03:00+11:00"}
+    assert data["playing"] == {"prayer": "asr", "reminder": True, "suhoor": False, "time": "2026-11-12T18:03:00+11:00"}
 
 
 def test_mqtt_stop_command_and_state(write_config, at_time, terminated):

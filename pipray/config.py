@@ -36,10 +36,12 @@ MQTT_TOPIC = "mqtt-topic"
 FALLBACK_OUTPUT = "fallback-output"
 FADE_IN = "fade-in"
 HIJRI_ADJUST = "hijri-adjust"
+RAMADAN = "ramadan"
+SUHOOR = "suhoor"
 
 OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, FADE_IN, REMINDER,
            SPEAKER, FALLBACK_OUTPUT, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
-           MQTT_TOPIC, HIJRI_ADJUST)
+           MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR)
 
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_MQTT_TOPIC = "piprayer"
@@ -73,6 +75,13 @@ MAX_FADE_IN = 30
 
 # Most days the Hijri date can be shifted either way from the Umm al-Qura calendar
 MAX_HIJRI_ADJUST = 2
+
+# auto: the days of Ramadan by the Hijri date are days of fasting. on: every day is, e.g. when Ramadan starts on another
+# day where you are, or to fast outside Ramadan. off: none are
+RAMADAN_MODES = ["auto", "on", "off"]
+
+# Longest time the suhoor alarm sounds before Fajr, in minutes
+MAX_SUHOOR = 180
 
 
 class ConfigError(Exception):
@@ -111,6 +120,8 @@ class Config:
         self.high_latitude = parse_high_latitude(section.get(HIGH_LATITUDE, DEFAULT_HIGH_LATITUDE))
         self.mqtt = parse_mqtt(section)
         self.hijri_adjust = parse_number(section, HIJRI_ADJUST, 0, -MAX_HIJRI_ADJUST, MAX_HIJRI_ADJUST)
+        self.ramadan = parse_choice(section.get(RAMADAN, "auto"), RAMADAN, RAMADAN_MODES)
+        self.suhoor = parse_number(section, SUHOOR, 0, 0, MAX_SUHOOR)  # minutes before Fajr, 0 for no alarm
         # Not errors, as PiPrayer still works, but e.g. status_port for status-port would silently do nothing
         self.warnings = [unknown_option(option, path) for option in section if option not in OPTIONS]
         self.default_azaan = default_azaan

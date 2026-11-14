@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Optional
 
-from .schedule import prayer_times
-
 MONTHS = ["Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani", "Jumada al-Awwal", "Jumada al-Thani", "Rajab",
           "Shaban", "Ramadan", "Shawwal", "Dhu al-Qadah", "Dhu al-Hijjah"]
+
+RAMADAN = 9
 
 # 1 Muharram 1400
 FIRST_YEAR = 1400
@@ -102,8 +102,23 @@ def hijri_now(config, now) -> Optional[HijriDay]:
 
 def after_maghrib(config, now):
     """True from Maghrib until midnight, even when the azaan isn't played for Maghrib."""
+    from .schedule import prayer_times  # here, as schedule.py uses fasting()
+
     times = prayer_times(config, now.date(), ["maghrib"])
     return bool(times) and now >= times[0][1] and times[0][1].date() == now.date()
+
+
+def fasting(config, day):
+    """True if the day is a day of fasting, from Fajr to Maghrib.
+
+    With ramadan = auto, the days of Ramadan by the Hijri date, shifted by hijri-adjust. The Hijri date of a day's
+    fast is its date until Maghrib, so suhoor on the morning of 1 Ramadan is the first, and there is none on Eid.
+    With ramadan = on, every day, and with off, none.
+    """
+    if config.ramadan != "auto":
+        return config.ramadan == "on"
+    hijri = hijri_day(config, day)
+    return bool(hijri) and hijri.date.month == RAMADAN
 
 
 def describe_adjust(adjust):

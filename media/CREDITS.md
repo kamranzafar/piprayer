@@ -1,5 +1,8 @@
 # Credits
 
+`suhoor.opus`, the suhoor alarm, was made for PiPrayer: three bell-like notes, synthesised with SoX, repeated and
+getting louder, normalised to -16 LUFS and encoded as Opus. It is under the same licence as PiPrayer.
+
 Azaans 16 and 17 are used under Creative Commons licences. They were trimmed to the azaan, faded in and out,
 normalised to -16 LUFS and encoded as Opus.
 

@@ -14,8 +14,9 @@ import praytimes
 from . import bluetooth, clock
 from .bluetooth import SCAN_SECONDS
 from .config import (AZAAN, ASR_TIME, DEFAULT_HIGH_LATITUDE, DEFAULT_MQTT_PORT, DEFAULT_VOLUME, DST, FAJR_AZAAN,
-                     GMT_OFFSET, HIGH_LATITUDE, HIJRI_ADJUST, LAT, LNG, MAC_ADDRESS, MAX_HIJRI_ADJUST, METHOD, MQTT_HOST,
-                     MQTT_PASSWORD, MQTT_PORT, MQTT_USERNAME, PRAYERS, REMINDER, SPEAKER, STATUS_PORT, TIMEZONE, VOLUME, Config, ConfigError,
+                     GMT_OFFSET, HIGH_LATITUDE, HIJRI_ADJUST, LAT, LNG, MAC_ADDRESS, MAX_HIJRI_ADJUST, MAX_SUHOOR,
+                     METHOD, MQTT_HOST, MQTT_PASSWORD, MQTT_PORT, MQTT_USERNAME, PRAYERS, REMINDER, SPEAKER,
+                     STATUS_PORT, SUHOOR, TIMEZONE, VOLUME, Config, ConfigError,
                      check_azaan_file, check_range, parse_prayers, parse_volume)
 from .hijri import HijriDate
 from .mqtt import INSTALL_HINT, load_paho
@@ -334,7 +335,7 @@ def choose_speaker(wizard, current):
 
 # Options the wizard asks about, so they are saved only when answered, and the legacy ones timezone replaces
 NOT_KEPT = (GMT_OFFSET, DST, FAJR_AZAAN, SPEAKER, STATUS_PORT, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
-            HIJRI_ADJUST)
+            HIJRI_ADJUST, SUHOOR)
 
 
 def choose_method(wizard, default):
@@ -481,6 +482,10 @@ def configure(path, wizard=None, next_step=True):
     reminder = wizard.ask("Reminder chime, minutes before each azaan (0 for none)", current.get(REMINDER, "0"),
                           number_option("reminder", 0, 60))
     hijri_adjust = ask_hijri_adjust(wizard, current, tz_name)
+    suhoor = wizard.ask("Suhoor alarm in Ramadan, minutes before Fajr (0 for none)", current.get(SUHOOR, "0"),
+                        number_option(SUHOOR, 0, MAX_SUHOOR),
+                        hint="\nIn Ramadan, the status page counts down to iftar, and an alarm can wake you for "
+                             "suhoor.")
 
     wizard.say("")
     wizard.say("The status page shows the times in a browser, with buttons to skip or mute the azaan.")
@@ -493,7 +498,8 @@ def configure(path, wizard=None, next_step=True):
     settings = [(TIMEZONE, tz_name), (LAT, lat), (LNG, lng), (METHOD, method), (ASR_TIME, asr),
                 (PRAYERS, prayers), (AZAAN, azaan), (FAJR_AZAAN, fajr_azaan), (VOLUME, volume),
                 (REMINDER, reminder), (SPEAKER, speaker), (HIGH_LATITUDE, high_latitude),
-                (HIJRI_ADJUST, hijri_adjust), (STATUS_PORT, status_port)] + mqtt
+                (HIJRI_ADJUST, hijri_adjust), (SUHOOR, "" if suhoor == "0" else suhoor),
+                (STATUS_PORT, status_port)] + mqtt
 
     # Keep any other options, but timezone replaces the legacy ones
     result = configparser.RawConfigParser()
