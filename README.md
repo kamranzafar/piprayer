@@ -23,6 +23,7 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
   disconnects afterwards
 - ⏸️ **Stop the Azaan, skip the next one or mute for a few days**, from the command line, an optional status page or
   Home Assistant
+- ⚙️ **And more**, e.g. fading in the Azaan at Fajr. See [Configuration](#configuration) for all the options
 
 Tested on a **Raspberry Pi 3** with an **Amazon Echo Pop** speaker and a **Yamaha Bluetooth soundbar**. Google
 Home and Nest speakers work as Bluetooth speakers too.
