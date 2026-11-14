@@ -27,8 +27,12 @@ STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 with open(os.path.join(STATIC_DIR, "status.css")) as _css:
     STATUS_STYLE = _css.read()
 
-# Files served as they are, for adding the page to a phone's home screen
+# htmx updates the page in place. Its version is in the name, so browsers fetch an update rather than the cached one
+HTMX = "htmx-2.0.4.min.js"
+
+# Files served as they are: htmx, and the icons for adding the page to a phone's home screen
 STATIC_FILES = {
+    "/" + HTMX: (HTMX, "text/javascript"),
     "/icon-180.png": ("icon-180.png", "image/png"),  # iOS home screen
     "/icon-192.png": ("icon-192.png", "image/png"),
     "/icon-512.png": ("icon-512.png", "image/png"),
@@ -271,9 +275,7 @@ def status_html(config, now, state, last=None, synchronised=None, playing=None):
         hero += '<div class="notice">{}</div>'.format(escape(clock.NOT_SYNCHRONISED))
 
     hero += '<div class="actions">{}</div>'.format("".join(
-        '<form method="post" action="{}" class="{}"><button class="{}">{}</button></form>'.format(
-            action, form_class, button_class, label)
-        for action, button_class, form_class, label in buttons))
+        button_form(action, label, button_class, form_class) for action, button_class, form_class, label in buttons))
 
     return PAGE.format(style=STATUS_STYLE, hero=hero,
                        times=times_list(schedule(config, now.date(), state), upcoming, now),
@@ -283,6 +285,17 @@ def status_html(config, now, state, last=None, synchronised=None, playing=None):
                        escape("{} method · {} Asr".format(config.method, config.asr_time)) +
                        ("<br>" + escape("Last azaan: " + describe_last(last, now)) if last else ""),
                        updated=now.strftime("%H:%M"))
+
+
+def button_form(action, label, button_class="", form_class="", fields=None, title=None, disabled=False):
+    """A button that posts to action. With htmx, the page is updated in place, otherwise it is reloaded."""
+    inputs = "".join('<input type="hidden" name="{}" value="{}">'.format(name, escape(str(value)))
+                     for name, value in (fields or {}).items())
+    attributes = ' aria-label="{0}" title="{0}"'.format(escape(title)) if title else ""
+    return ('<form method="post" action="{0}" hx-post="{0}" hx-disabled-elt="find button"{1}>{2}'
+            '<button{3}{4}{5}>{6}</button></form>').format(
+        action, ' class="{}"'.format(form_class) if form_class else "", inputs,
+        ' class="{}"'.format(button_class) if button_class else "", attributes, " disabled" if disabled else "", label)
 
 
 def times_list(entries, upcoming, now):
@@ -321,9 +334,8 @@ def hijri_card(config, now):
 
     def button(change, sign, label):
         days = config.hijri_adjust + change
-        disabled = " disabled" if abs(days) > MAX_HIJRI_ADJUST else ""
-        return ('<form method="post" action="/hijri-adjust"><input type="hidden" name="days" value="{}">'
-                '<button aria-label="{}" title="{}"{}>{}</button></form>').format(days, label, label, disabled, sign)
+        return button_form("/hijri-adjust", sign, fields={"days": days}, title=label,
+                           disabled=abs(days) > MAX_HIJRI_ADJUST)
 
     return ('<section class="card"><h2 class="label">Hijri date</h2><div class="hijri">'
             '<div><div class="hijri-date">{}</div><div class="detail">{}</div></div>'
@@ -332,28 +344,49 @@ def hijri_card(config, now):
         button(-1, "\u2212", "A day back"), button(1, "+", "A day forward"))
 
 
-# Keeps the page current: the countdown ticks, and the page reloads once the azaan is due, every ten minutes, and
-# when reopened from the home screen, as phones keep a page open in the background without reloading it.
+# Keeps the page current: the countdown ticks, and the page is refreshed once the azaan is due, every ten minutes, and
+# when reopened from the home screen, as phones keep a page open in the background without reloading it. With htmx,
+# the buttons and refreshes replace <main> in place, keeping the scroll position. Without it, the page reloads.
 SCRIPT = """
 (function () {
-  var loaded = Date.now();
-  var countdown = document.querySelector("[data-at]");
+  var loaded = Date.now(), refresher;
   function duration(ms) {
     var minutes = Math.max(1, Math.ceil(ms / 60000)), hours = Math.floor(minutes / 60);
     minutes = minutes % 60;
     return hours && minutes ? hours + " h " + minutes + " min" : hours ? hours + " h" : minutes + " min";
   }
+  function refresh() {
+    if (window.htmx) htmx.ajax("GET", "/", {source: "main", target: "main", select: "main", swap: "outerHTML"});
+    else location.reload();
+  }
+  // while playing, refresh soon, so the stop button goes once it has finished
+  function schedule() {
+    clearTimeout(refresher);
+    refresher = setTimeout(refresh, document.querySelector("[data-playing]") ? 15000 : 600000);
+  }
   function tick() {
+    var countdown = document.querySelector("[data-at]");
     if (!countdown) return;
     var left = new Date(countdown.getAttribute("data-at")) - Date.now();
-    if (left <= 0) { location.reload(); return; }
+    if (left <= 0) { refresh(); return; }
     countdown.querySelector(".in").textContent = duration(left);
   }
+  function problem(text) {
+    var notice = document.getElementById("problem");
+    notice.textContent = text;
+    notice.hidden = false;
+  }
   setInterval(tick, 30000);
-  // while playing, reload soon, so the stop button goes once it has finished
-  setTimeout(function () { location.reload(); }, document.querySelector("[data-playing]") ? 15000 : 600000);
+  schedule();
+  document.addEventListener("htmx:afterSwap", function () { loaded = Date.now(); schedule(); });
+  document.addEventListener("htmx:responseError", function (event) {
+    problem(event.detail.xhr.responseText || "PiPrayer answered with error " + event.detail.xhr.status);
+  });
+  document.addEventListener("htmx:sendError", function () {
+    problem("Can't reach PiPrayer. Check the Raspberry Pi is on and connected, and try again.");
+  });
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible" && Date.now() - loaded > 60000) location.reload();
+    if (document.visibilityState === "visible" && Date.now() - loaded > 60000) refresh();
   });
 })();
 """
@@ -378,8 +411,9 @@ PAGE = """<!doctype html>
 <style>{style}</style>
 </head>
 <body>
-<main>
+<main hx-target="this" hx-select="main" hx-swap="outerHTML">
 <header class="top"><span class="brand">PiPrayer</span><span class="date">{date}</span></header>
+<div class="notice" id="problem" role="alert" hidden></div>
 <section class="card">{hero}</section>
 <section class="card">
 <h2 class="label">Today</h2>
@@ -388,7 +422,8 @@ PAGE = """<!doctype html>
 {hijri}
 <footer>{details} · updated {updated}</footer>
 </main>
+<script src="/{htmx}"></script>
 <script>{script}</script>
 </body>
 </html>
-""".replace("{script}", SCRIPT.replace("{", "{{").replace("}", "}}"))
+""".replace("{script}", SCRIPT.replace("{", "{{").replace("}", "}}")).replace("{htmx}", HTMX)

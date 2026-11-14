@@ -214,3 +214,20 @@ def test_after_midnight_is_shown(tmp_path, at_time):
     body = status_html(Config(str(path)), datetime(2026, 6, 21, 22, 30, tzinfo=london), State())
     assert 'Isha<span class="detail">Azaan 1 · 100%</span><span class="detail">After midnight</span>' in body
     assert "Tomorrow, in" in body
+
+
+def test_buttons_update_the_page_in_place_with_htmx(page):
+    body = request(page, "/")[2]
+    assert '<main hx-target="this" hx-select="main" hx-swap="outerHTML">' in body
+    assert '<script src="/htmx-2.0.4.min.js"></script>' in body
+    # each button posts with htmx, and still as a form without JavaScript
+    assert body.count('<form method="post"') == body.count("hx-post=") == 4  # skip, mute, and the Hijri date's - and +
+    assert '<form method="post" action="/skip" hx-post="/skip" hx-disabled-elt="find button" class="wide">' in body
+    assert '<div class="notice" id="problem" role="alert" hidden></div>' in body
+
+
+def test_htmx_is_served_from_the_raspberry_pi(page):
+    status, headers, body = request(page, "/htmx-2.0.4.min.js")
+    assert (status, headers["Content-Type"]) == (200, "text/javascript")
+    assert headers["Cache-Control"] == "max-age=86400"
+    assert body.startswith("/* htmx 2.0.4 from https://htmx.org")

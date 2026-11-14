@@ -70,3 +70,5 @@ footer { color: var(--muted); font-size: .8rem; text-align: center; line-height:
 .stepper form { margin: 0; }
 .stepper button { width: 48px; padding: 0; font-size: 1.4rem; line-height: 1; }
 button:disabled { opacity: .35; cursor: default; }
+.htmx-request button { opacity: .6; cursor: progress; }
+#problem { margin: 0 0 14px; }

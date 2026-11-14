@@ -40,6 +40,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   automations that send a notification.
 
 ### Changed
+- The status page updates in place, with htmx, instead of reloading: its buttons, the refresh every 10 minutes
+  (15 seconds while playing), and when the countdown reaches the Azaan. The scroll position is kept, a button can't
+  be pressed twice while it is working, and the page says so when PiPrayer can't be reached or answers with an
+  error. htmx is served from the Raspberry Pi, and the page still works without JavaScript
+  ([#14](https://github.com/kamranzafar/piprayer/issues/14)).
 - Every setting in `.piprayer` is checked, with a message saying what is wrong and what to use, e.g. for a latitude
   out of range, an unknown `method` or `asr-time` (which used to fall back to MWL and Standard without a word), a
   prayer listed twice, an offset of more than 180 minutes, or no prayers. `method` and `asr-time` can be in any

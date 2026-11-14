@@ -175,9 +175,11 @@ def test_status_page_has_a_stop_button_while_playing(write_config):
     config = Config(write_config())
     page = status_html(config, NOW, State(), playing=Playing("asr", False, ASR, 4242))
     assert '<div class="notice" data-playing>Playing the azaan for Asr</div>' in page
-    assert '<form method="post" action="/stop" class="wide"><button class="primary">Stop the azaan</button>' in page
+    assert ('<form method="post" action="/stop" hx-post="/stop" hx-disabled-elt="find button" class="wide">'
+            '<button class="primary">Stop the azaan</button>') in page
     # the skip button is no longer the main one
-    assert '<form method="post" action="/skip" class="wide"><button class="">Skip Maghrib' in page
+    assert ('<form method="post" action="/skip" hx-post="/skip" hx-disabled-elt="find button" class="wide">'
+            '<button>Skip Maghrib') in page
 
     page = status_html(config, NOW, State())
     assert 'action="/stop"' not in page and '<div class="notice" data-playing' not in page

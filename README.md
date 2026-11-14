@@ -319,7 +319,9 @@ Below the times, the [Hijri date](#hijri-date) has **−** and **+** buttons to 
 - iPhone: open the page in Safari, tap **Share**, then **Add to Home Screen**
 - Android: open the page in Chrome, tap **⋮**, then **Add to Home screen** or **Install app**
 
-It stays up to date by itself, and reloads when you open it again.
+It stays up to date by itself, and when you open it again. The buttons and updates change the page in place,
+with [htmx](https://htmx.org), which is served from the Raspberry Pi, so it works without internet access. Without
+JavaScript, the page reloads instead.
 
 The page has no password: anyone on your network can see the times, and skip or mute the Azaan. Don't make the
 port reachable from the internet.
