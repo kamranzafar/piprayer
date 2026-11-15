@@ -24,9 +24,12 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 - 🌙 **The Hijri date**, by the Umm al-Qura calendar, adjustable by a day or two to match moon sighting
 - 🤲 **The dua after the Azaan**, optionally played straight after it, for every prayer or some
 - 🍽️ **Ramadan mode**: an optional suhoor alarm before Fajr, and a countdown to iftar
-- 📱 **Change the settings from your phone**, on the status page's settings page, protected by a PIN
-- ⏸️ **Stop the Azaan, skip the next one or mute for a few days**, from the command line, an optional status page or
-  Home Assistant
+- 📱 **Status and settings page**: an optional web page to see today's times and change the settings from your
+  phone, protected by a PIN
+- 🏠 **Home Assistant integration**: PiPrayer appears as a device, with the next Azaan, an alert when one doesn't
+  play, and Stop, Skip and Mute buttons
+- ⏸️ **Vacation pause**: stop the Azaan, skip the next one or mute it for a few days, from the command line, the
+  status page or Home Assistant
 - ⚙️ **And more**, e.g. fading in the Azaan at Fajr. See [Configuration](#configuration) for all the options
 
 Tested on a **Raspberry Pi 3** with an **Amazon Echo Pop** speaker and a **Yamaha Bluetooth soundbar**. Google
