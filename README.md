@@ -4,6 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/kamranzafar/piprayer/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/kamranzafar/piprayer/actions/workflows/tests.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/kamranzafar/piprayer/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/kamranzafar/piprayer?color=30D475"></a>
   <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white">
   <img alt="Raspberry Pi" src="https://img.shields.io/badge/Raspberry%20Pi-any-C51A4A?logo=raspberrypi&logoColor=white">
   <img alt="systemd service" src="https://img.shields.io/badge/runs%20as-systemd%20service-30D475">
@@ -31,6 +32,9 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 - ⏸️ **Vacation pause**: stop the Azaan, skip the next one or mute it for a few days, from the command line, the
   status page or Home Assistant
 - ⚙️ **And more**, e.g. fading in the Azaan at Fajr. See [Configuration](#configuration) for all the options
+
+**PiPrayer 1.0** completes the roadmap, with every planned feature now in place. See the
+[changelog](CHANGELOG.md#10---2026-11-15) for what's new and how to upgrade from 0.9.
 
 Tested on a **Raspberry Pi 3** and an original **Raspberry Pi Model B+ (rev 1.2)** with an **Amazon Echo Pop** speaker and a **Yamaha Bluetooth soundbar**. Google
 Home and Nest speakers work as Bluetooth speakers too.
