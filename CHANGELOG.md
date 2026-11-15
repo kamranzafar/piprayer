@@ -7,7 +7,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
-## [0.10] - 2026-11-15
+## [1.0] - 2026-11-15
 
 ### Upgrading from 0.9
 - `git pull` is enough: the service restarts itself within a minute to run the new version.
@@ -312,8 +312,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - First release: plays the Azaan on a Bluetooth speaker at calculated prayer times, scheduled with cron.
 - 15 Azaan recordings, selectable with an argument to the setup script.
 
-[Unreleased]: https://github.com/kamranzafar/piprayer/compare/v0.10...HEAD
-[0.10]: https://github.com/kamranzafar/piprayer/compare/v0.9...v0.10
+[Unreleased]: https://github.com/kamranzafar/piprayer/compare/v1.0...HEAD
+[1.0]: https://github.com/kamranzafar/piprayer/compare/v0.9...v1.0
 [0.9]: https://github.com/kamranzafar/piprayer/compare/v0.8...v0.9
 [0.8]: https://github.com/kamranzafar/piprayer/compare/v0.7...v0.8
 [0.7]: https://github.com/kamranzafar/piprayer/compare/v0.6...v0.7
