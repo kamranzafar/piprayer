@@ -1,7 +1,7 @@
 # PiPrayer - Azaan for Raspberry Pi
 # Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The command line: piprayer.py times, run, play, stop, skip, mute, resume and config."""
+"""The command line: piprayer.py times, run, play, stop, skip, mute, resume, config and version."""
 import argparse
 import json
 import logging
@@ -9,7 +9,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 
-from . import clock
+from . import __version__, clock
 from .config import DEFAULT_AZAAN, DEFAULT_CONFIG, DEFAULT_VOLUME, Config, ConfigError, azaan_file
 from .output import (RESUME_HINT, describe_azaan, describe_mute, format_next, format_plain, format_times,
                      next_json, times_json)
@@ -144,6 +144,11 @@ def config_command(args):
     return configure(args.config, next_step=args.next_step)
 
 
+def version_command(args):
+    print("PiPrayer " + __version__)
+    return 0
+
+
 # ------------------------------------------------------------------ arguments
 
 def parse_date(value):
@@ -185,6 +190,7 @@ def parser():
     result = argparse.ArgumentParser(description="PiPrayer - Azaan for Raspberry Pi")
     result.add_argument("-c", "--config", default=DEFAULT_CONFIG,
                         help="configuration file (default: %(default)s)")
+    result.add_argument("-V", "--version", action="version", version="PiPrayer " + __version__)
     commands = result.add_subparsers(dest="command")
 
     times = commands.add_parser("times", help="print today's azaan times (default)")
@@ -229,6 +235,8 @@ def parser():
     # setup-piprayer.sh installs the service next, so it doesn't need saying
     config_parser.add_argument("--no-next-step", dest="next_step", action="store_false", help=argparse.SUPPRESS)
     config_parser.set_defaults(func=config_command)
+
+    commands.add_parser("version", help="print the version of PiPrayer").set_defaults(func=version_command)
     return result
 
 

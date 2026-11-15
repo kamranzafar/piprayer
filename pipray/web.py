@@ -12,7 +12,7 @@ from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-from . import clock
+from . import __version__, clock
 from .config import MAX_HIJRI_ADJUST, Config, ConfigError, set_hijri_adjust
 from .hijri import describe_adjust, hijri_now
 from .output import (describe_day, describe_last, describe_mute, fast_name, format_duration, next_json,
@@ -491,10 +491,11 @@ PAGE = """<!doctype html>
 {times}
 </section>
 {hijri}
-<footer>{details} · updated {updated}<br><a href="/settings">Settings</a></footer>
+<footer>{details} · updated {updated}<br>PiPrayer {version} · <a href="/settings">Settings</a></footer>
 </main>
 <script src="/{htmx}"></script>
 <script>{script}</script>
 </body>
 </html>
-""".replace("{script}", SCRIPT.replace("{", "{{").replace("}", "}}")).replace("{htmx}", HTMX)
+""".replace("{script}", SCRIPT.replace("{", "{{").replace("}", "}}")).replace("{htmx}", HTMX) \
+    .replace("{version}", __version__)

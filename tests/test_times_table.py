@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from pipray import __version__
 from pipray.cli import main
 from pipray.config import Config
 from pipray.output import format_duration, format_next, format_times
@@ -207,3 +208,16 @@ def test_times_next_json(write_config, monkeypatch, capsys, at_time):
         "reminder": None, "skipped": False, "muted": False, "timezone": "Australia/Melbourne", "seconds_until": 22920,
         "muted_until": None,
     }
+
+
+
+def test_version_command(capsys):
+    assert main(["version"]) == 0
+    assert capsys.readouterr().out == "PiPrayer " + __version__ + "\n"
+
+
+def test_version_option(capsys):
+    with pytest.raises(SystemExit) as exit:
+        main(["--version"])
+    assert exit.value.code == 0
+    assert capsys.readouterr().out == "PiPrayer " + __version__ + "\n"

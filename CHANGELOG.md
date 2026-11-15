@@ -7,6 +7,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- `piprayer.py version`, or `piprayer.py --version`, prints the version of PiPrayer, and the status and settings
+  pages show it at the bottom.
+
 ## [1.0] - 2026-11-15
 
 ### Upgrading from 0.9

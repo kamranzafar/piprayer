@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from pipray import service
+from pipray import __version__, service
 from pipray.config import Config, ConfigError
 from pipray.pin import COOKIE, Throttle, check_pin, hash_pin, is_hash, session_cookie
 from pipray.settings import SettingsRoutes, per_prayer
@@ -96,6 +96,7 @@ def test_without_a_pin_the_page_says_how_to_set_one(settings):
 def test_asks_for_the_pin(settings):
     s = settings()
     assert "Enter the settings PIN" in s.get().body
+    assert "<footer>PiPrayer " + __version__ + "</footer>" in s.get().body
     assert s.post("sound", reminder="5").location == "/settings"
     assert "reminder = 10" in s.text()
 
@@ -106,6 +107,7 @@ def test_logging_in(settings):
     assert (response.status, response.location) == (303, "/settings")
     assert "Max-Age=2592000; Path=/; HttpOnly; SameSite=Strict" in response.headers["Set-Cookie"]
     assert '<section class="card settings" id="times">' in s.get().body
+    assert "<footer>PiPrayer " + __version__ + "</footer>" in s.get().body
 
 
 def test_wrong_pins_wait_longer_each_time(settings):

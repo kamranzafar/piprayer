@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 import praytimes
 
-from . import bluetooth, clock
+from . import __version__, bluetooth, clock
 from .config import (ASR_TIME, ASR_TIMES, AZAAN, DEFAULT_HIGH_LATITUDE, DEFAULT_MQTT_PORT, DEFAULT_MQTT_TOPIC,
                      DEFAULT_VOLUME, DST, DUA, FADE_IN, FAJR_AZAAN, FALLBACK_OUTPUT, GMT_OFFSET, HIGH_LATITUDE,
                      HIGH_LATITUDE_RULES, LAT, LNG, MAC_ADDRESS, MEDIA_DIR, MAX_FADE_IN, MAX_OFFSET, MAX_SUHOOR, METHOD,
@@ -672,9 +672,11 @@ SETTINGS_PAGE = """<!doctype html>
 <header class="top"><a class="brand" href="/">PiPrayer</a><span class="date">{title}</span></header>
 <div class="notice" id="problem" role="alert" hidden></div>
 {body}
+<footer>PiPrayer {version}</footer>
 </main>
 <script src="/{htmx}"></script>
 <script>{script}</script>
 </body>
 </html>
-""".replace("{script}", SCRIPT.replace("{", "{{").replace("}", "}}")).replace("{htmx}", HTMX)
+""".replace("{script}", SCRIPT.replace("{", "{{").replace("}", "}}")).replace("{htmx}", HTMX) \
+    .replace("{version}", __version__)

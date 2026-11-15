@@ -33,3 +33,6 @@ Modules, each depending only on the ones above it:
     wizard     piprayer.py config
     cli        the command line
 """
+
+# The release, set when a release is made (see CHANGELOG.md)
+__version__ = "1.0"

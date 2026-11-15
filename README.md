@@ -322,6 +322,7 @@ dst = 1            # 1 during daylight saving, otherwise 0
 | `python3 piprayer.py skip` | Don't play the next Azaan or its reminder. Run it again to skip the one after too |
 | `python3 piprayer.py mute` | Don't play any Azaan until the end of today. `-d 3` mutes today and the next 2 days, `-u 2026-12-25` until the end of a date, up to 30 days |
 | `python3 piprayer.py resume` | Clear skip and mute, so every Azaan plays again |
+| `python3 piprayer.py version` | Print the version of PiPrayer, which the status and settings pages also show. `--version` does the same |
 | `systemctl --user status piprayer` | Check the service is running, and when the next Azaan is |
 | `journalctl --user-unit piprayer -f` | Follow the logs |
 | `./setup-piprayer.sh [1-17]` | Set the default Azaan, and show the status page's address. The `azaan` setting takes precedence |

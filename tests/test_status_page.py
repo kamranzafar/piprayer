@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from pipray import __version__
 from pipray.config import Config, ConfigError
 from pipray.state import State, state_file
 from pipray.web import StatusPage
@@ -66,6 +67,7 @@ def test_page_shows_the_next_azaan_and_todays_times(page):
     assert body.count("<li class=") == 5
     assert body.count('<li class="is-past">') == 2  # Fajr and Dhuhr
     assert '<li class="is-next">' in body
+    assert "PiPrayer " + __version__ + ' · <a href="/settings">Settings</a>' in body
 
 
 def test_api_next_and_times(page):
