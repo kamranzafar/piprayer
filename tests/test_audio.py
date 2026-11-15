@@ -5,7 +5,6 @@
 import os
 import shutil
 import signal
-import stat
 import subprocess
 import sys
 import textwrap
@@ -13,19 +12,13 @@ import time
 
 import pytest
 
-from conftest import ROOT
-from pipray import audio
+from conftest import ROOT, make_command
+from pipray import audio, clock
 
 pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash for the fake commands")
 
 SPEAKER_1 = "AA:AA:AA:AA:AA:01"
 SPEAKER_2 = "BB:BB:BB:BB:BB:02"
-
-
-def make_command(directory, name, script):
-    path = directory / name
-    path.write_text("#!/bin/bash\n" + textwrap.dedent(script))
-    path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
 class Result:
@@ -77,7 +70,7 @@ def bluetooth(tmp_path, monkeypatch, capsys):
 
     paplay('echo "play $*" >> {}/log\n'.format(state))
     monkeypatch.setenv("PATH", "{}:{}".format(bin_dir, os.environ["PATH"]))
-    monkeypatch.setattr(audio, "sleep", lambda seconds: time.sleep(min(seconds, 0.01)))
+    monkeypatch.setattr(clock, "sleep", lambda seconds: time.sleep(min(seconds, 0.01)))
     monkeypatch.setattr(audio, "CHECK_SECONDS", 0.05)
 
     class Bluetooth:

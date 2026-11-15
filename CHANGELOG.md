@@ -20,7 +20,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   the same volume, e.g. `dua = on` or `dua = on, Fajr:off`. It is skipped and muted with the Azaan, and Stop stops
   it. `piprayer.py times` shows a Dua column when it is on, the JSON has `dua` for each prayer, and
   `piprayer.py play --dua` plays it, and `piprayer.py config` asks for it. The recording, `media/dua.opus`, is recited by Mishary Rashid Alafasy, see
-  `media/CREDITS.md`. `play-azaan.sh` takes `--then` to play a sound straight after another
+  `media/CREDITS.md`. The player, `python -m pipray.audio`, takes `--then` to play a sound straight after another
   ([#12](https://github.com/kamranzafar/piprayer/issues/12)).
 - Ramadan mode. `suhoor = 30` sounds an alarm 30 minutes before Fajr on the days of Ramadan, with its own sound,
   `media/suhoor.opus`, at the volume set for Fajr. Mute silences it, but skipping Fajr doesn't. `piprayer.py play -s`
@@ -38,7 +38,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   ([#10](https://github.com/kamranzafar/piprayer/issues/10)).
 - Optional `fade-in` option to start the Azaan quietly and raise it to its volume over a number of seconds, per
   prayer like `volume`, e.g. `fade-in = 5, Fajr:15`. Off unless set. `piprayer.py times` shows a Fade column when it
-  is set, and the JSON has `fade_in` for each prayer. `play-azaan.sh` takes `--fade-in`
+  is set, and the JSON has `fade_in` for each prayer. The player, `python -m pipray.audio`, takes `--fade-in`
   ([#9](https://github.com/kamranzafar/piprayer/issues/9)).
 - `piprayer.py stop` stops the Azaan or reminder that is playing and disconnects the speaker, and it isn't tried
   again. The status page has a Stop button while one plays, and `POST /api/stop`; Home Assistant has a Stop button,
@@ -82,9 +82,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - When `.piprayer` is changed with a mistake while the service runs, it logs the error and keeps using the previous
   settings until the file is fixed, instead of stopping, so the Azaan still plays. If it starts with a mistake, it
   waits for the file to be fixed instead of restarting every 30 seconds.
-- `play-azaan.sh` exits with 2 when no speaker connects and 3 when the sound doesn't play, instead of 1, and takes
-  `--fallback`, `--connect` and `--disconnect`. Stopped with SIGTERM, it stops playing, disconnects the speaker and
-  exits with 4.
+- The player, `python -m pipray.audio`, exits with 2 when no speaker connects and 3 when the sound doesn't play,
+  instead of 1, and takes `--fallback`, `--connect` and `--disconnect`. Stopped with SIGTERM, it stops playing,
+  disconnects the speaker and exits with 4.
 - Every source file now carries a copyright notice (2021-2026) and an `SPDX-License-Identifier: GPL-3.0-or-later` line;
   the bundled `praytimes.py` is marked `LGPL-3.0-only`.
 
@@ -97,7 +97,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   and it didn't connect again", and PiPrayer tries again every 30 seconds while it's within five minutes of the
   Azaan's time. If the connection drops during the dua, the Azaan still counts as played.
 - The start of the reminder chime and the suhoor alarm was cut off or faded in, so the reminder was hard to hear: a
-  Bluetooth speaker, or an audio output that was idle, takes a moment to start playing. `play-azaan.sh` now plays a
+  Bluetooth speaker, or an audio output that was idle, takes a moment to start playing. The player now plays a
   second of silence to wake the output before the sound.
 - A clearer reminder chime: three bell notes rising and ringing out over four seconds, as loud as the Azaans, in
   place of the short, quiet and low-quality chime.

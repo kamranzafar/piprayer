@@ -2,7 +2,9 @@
 # Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
 import os
+import stat
 import sys
+import textwrap
 from datetime import timedelta, timezone
 
 import pytest
@@ -33,6 +35,13 @@ def write_config(tmp_path):
         return str(path)
 
     return write
+
+
+def make_command(directory, name, script):
+    """Write a fake system command, a bash script, e.g. to put on the PATH in place of bluetoothctl."""
+    path = directory / name
+    path.write_text("#!/bin/bash\n" + textwrap.dedent(script))
+    path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
 class FakeResult:

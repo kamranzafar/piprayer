@@ -1,7 +1,7 @@
 # PiPrayer - Azaan for Raspberry Pi
 # Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Finding and pairing Bluetooth speakers with bluetoothctl."""
+"""Finding, pairing and connecting Bluetooth speakers with bluetoothctl."""
 import re
 import subprocess
 
@@ -12,14 +12,51 @@ ANSI_CODE = re.compile(r"\x1b\[[0-9;]*m|\x01|\x02")
 DEVICE_LINE = re.compile(r"Device ((?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}) (.+)$")
 
 
-def bluetoothctl(*args, timeout=10):
-    """Run bluetoothctl and return its output, without colours. Empty when it isn't available."""
+def bluetoothctl(*args, timeout=10, input=None, errors=False):
+    """Run bluetoothctl and return its output, without colours. Empty when it isn't available.
+
+    input is given to it as commands, e.g. "connect AA:BB:CC:DD:EE:FF\n". With errors, what it says on stderr is
+    included.
+    """
     try:
-        output = subprocess.run(["bluetoothctl"] + list(args), capture_output=True, text=True,
+        output = subprocess.run(["bluetoothctl"] + list(args), input=input, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT if errors else subprocess.PIPE, text=True,
                                 timeout=timeout).stdout
     except (OSError, subprocess.SubprocessError):
         return ""
     return ANSI_CODE.sub("", output)
+
+
+def device_info(mac):
+    return bluetoothctl("info", mac)
+
+
+def is_connected(mac):
+    return "Connected: yes" in device_info(mac)
+
+
+def is_paired(mac):
+    return "Paired: yes" in device_info(mac)
+
+
+def not_paired(mac):
+    """Whether bluetoothctl says the speaker isn't paired, e.g. after it was reset or paired with another device.
+
+    False when it can't tell, e.g. when bluetoothctl doesn't run.
+    """
+    info = bluetoothctl("info", mac, errors=True)
+    return "Paired: no" in info or "{} not available".format(mac) in info
+
+
+def send(command, mac):
+    """Give bluetoothctl a command, e.g. connect or disconnect, without waiting for it to finish."""
+    bluetoothctl(input="{} {}\n".format(command, mac))
+
+
+def device_addresses():
+    """The addresses of the devices bluetoothctl knows, paired or not."""
+    return [fields[1].upper() for fields in (line.split() for line in bluetoothctl("devices").splitlines())
+            if len(fields) >= 2 and fields[0] == "Device" and MAC_ADDRESS.match(fields[1].upper())]
 
 
 def bluetooth_available():

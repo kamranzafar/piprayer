@@ -30,8 +30,9 @@ import signal
 import subprocess
 import sys
 import threading
-import time
 
+from . import clock
+from .bluetooth import device_addresses, is_connected, is_paired, not_paired, send
 from .config import MAC_ADDRESS, MAX_FADE_IN, MEDIA_DIR
 
 # Exit codes
@@ -73,11 +74,6 @@ FULL_VOLUME = 65536
 COMMAND_TIMEOUT = 10
 
 
-def sleep(seconds):
-    """time.sleep, replaced in tests."""
-    time.sleep(seconds)
-
-
 class Stopped(Exception):
     """Raised by SIGTERM or SIGINT."""
 
@@ -86,10 +82,10 @@ def say(message):
     print(message, flush=True)
 
 
-def run(args, input=None):
+def run(args):
     """Run a command and return its output, or "" if it can't run, fails or takes too long."""
     try:
-        return subprocess.run(args, input=input, capture_output=True, text=True, timeout=COMMAND_TIMEOUT).stdout
+        return subprocess.run(args, capture_output=True, text=True, timeout=COMMAND_TIMEOUT).stdout
     except (OSError, subprocess.SubprocessError):
         return ""
 
@@ -107,43 +103,25 @@ def has_pactl():
 
 # ---------------------------------------------------------------- Bluetooth
 
-def device_info(mac):
-    return run(["bluetoothctl", "info", mac])
-
-
-def is_connected(mac):
-    return "Connected: yes" in device_info(mac)
-
-
-def send(command, mac):
-    """Give bluetoothctl a command, e.g. connect, without waiting for it to finish."""
-    run(["bluetoothctl"], input="{} {}\n".format(command, mac))
-
-
 def disconnect(mac):
     send("disconnect", mac)
-
-
-def paired_devices():
-    return [line.split()[1] for line in run(["bluetoothctl", "devices"]).splitlines()
-            if line.startswith("Device") and len(line.split()) > 1]
 
 
 def connect_speaker(speaker=None):
     """The address of a connected speaker: the given one, or one that is already connected, otherwise the first
     paired one that accepts the connection. None if none connects."""
-    devices = [speaker] if speaker else paired_devices()
+    devices = [speaker] if speaker else device_addresses()
     for mac in devices:
         if is_connected(mac):
             return mac
     for mac in devices:
-        if "Paired: yes" not in device_info(mac):
+        if not is_paired(mac):
             continue
         send("connect", mac)
         for _ in range(CONNECT_SECONDS):
             if is_connected(mac):
                 return mac
-            sleep(1)
+            clock.sleep(1)
     return None
 
 
@@ -169,7 +147,7 @@ def speaker_sink(mac):
         for _, name in sinks():
             if id_ in name:
                 return name
-        sleep(1)
+        clock.sleep(1)
     return None
 
 
@@ -191,7 +169,7 @@ def stream_of(pid):
                 number = line[len("Sink Input #"):]
             elif line == wanted and number:
                 return number
-        sleep(0.1)
+        clock.sleep(0.1)
     return None
 
 
@@ -228,7 +206,7 @@ class Fade(threading.Thread):
 
     def run(self):
         for i in range(1, self.steps + 1):
-            sleep(1 / FADE_STEPS_PER_SECOND)
+            clock.sleep(1 / FADE_STEPS_PER_SECOND)
             if self.cancelled or not succeeds(
                     ["pactl", "set-sink-input-volume", self.stream, str(self.level * i // self.steps)]):
                 return
@@ -239,8 +217,8 @@ class Fade(threading.Thread):
 
 # ---------------------------------------------------------------- playing
 
-class Player:
-    """Plays sounds on one output, keeping what is playing so a stop can end it."""
+class Output:
+    """Plays sounds on one audio output, keeping what is playing so a stop can end it."""
 
     def __init__(self, mac, device):
         self.mac = mac  # the speaker, None on the local output
@@ -331,19 +309,6 @@ def exit_code(code):
     return 128 - code if code < 0 else code
 
 
-def not_paired(mac):
-    """Whether bluetoothctl says the speaker isn't paired, e.g. after it was reset or paired with another device.
-
-    False when it can't tell, e.g. when bluetoothctl doesn't run.
-    """
-    try:
-        info = subprocess.run(["bluetoothctl", "info", mac], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              text=True, timeout=COMMAND_TIMEOUT).stdout
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return "Paired: no" in info or "{} not available".format(mac) in info
-
-
 def reconnect(mac):
     """Connect the speaker again after it stopped playing. Returns (whether it did, its audio output)."""
     for _ in range(RECONNECT_TRIES):
@@ -367,23 +332,23 @@ def not_connected(speaker):
 
 def play(sound, volume=100, speaker=None, fallback=False, fade_in=0, then=None):
     """Connect the speaker and play the sound, then the one after it. Returns the exit code."""
-    player = None
+    output = None
     try:
         mac = connect_speaker(speaker)
         if mac:
-            player = Player(mac, speaker_sink(mac))
+            output = Output(mac, speaker_sink(mac))
             where = "speaker " + mac
         elif fallback:
             say(not_connected(speaker) + ", playing on the local audio output instead")
-            player = Player(None, local_sink())
+            output = Output(None, local_sink())
             where = "the local audio output"  # PiPrayer looks for PLAYED_LOCALLY
         else:
             say(not_connected(speaker))
             return NOT_CONNECTED
 
         level = volume * FULL_VOLUME // 100
-        player.wake()
-        status, lost = player.play(sound, level, fade_in)
+        output.wake()
+        status, lost = output.play(sound, level, fade_in)
 
         # Connect again straight away and play it again from the start, rather than wait for PiPrayer to try again
         replays = 0
@@ -395,20 +360,20 @@ def play(sound, volume=100, speaker=None, fallback=False, fade_in=0, then=None):
                 break
             replays += 1
             say("Connected again, playing from the start")
-            player.device = device
-            player.wake()
-            status, lost = player.play(sound, level, fade_in)
+            output.device = device
+            output.wake()
+            status, lost = output.play(sound, level, fade_in)
 
         # The sound to play after it, while still connected. Stopping it stops this one too
         if status == 0 and not lost and then:
-            then_status, then_lost = player.play(then, level)
+            then_status, then_lost = output.play(then, level)
             if then_lost:
                 say("{} didn't play to the end: {}".format(os.path.basename(then), then_lost))
             elif then_status != 0:
                 say("{} didn't play: paplay failed with exit code {}".format(os.path.basename(then), then_status))
     except Stopped:
-        if player:
-            player.stop()
+        if output:
+            output.stop()
         say("Stopped")
         return STOPPED
 

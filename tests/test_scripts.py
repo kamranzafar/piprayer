@@ -4,22 +4,14 @@
 """setup-piprayer.sh, run with fake system commands on the PATH."""
 import os
 import shutil
-import stat
 import subprocess
-import textwrap
 
 import pytest
 
-from conftest import MELBOURNE_CONFIG, ROOT
+from conftest import MELBOURNE_CONFIG, ROOT, make_command
 
 pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
 
-
-
-def make_command(directory, name, script):
-    path = directory / name
-    path.write_text("#!/bin/bash\n" + textwrap.dedent(script))
-    path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
 def run(cmd, bin_dir, home=None, cwd=None, stdin=None):
