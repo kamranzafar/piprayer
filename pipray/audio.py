@@ -58,6 +58,12 @@ WAKE_BYTES_PER_SECOND = 48000 * 2 * 2
 CHECK_SECONDS = 2
 FAILED_CHECKS = 2
 
+# When the speaker stops playing the azaan, how many times to connect it again, each waiting up to CONNECT_SECONDS,
+# and how many times at most to play the azaan again from the start, so a speaker that keeps dropping doesn't keep it
+# going. After that, PiPrayer tries again a little later
+RECONNECT_TRIES = 2
+MAX_REPLAYS = 2
+
 # How often the volume is raised while fading in
 FADE_STEPS_PER_SECOND = 4
 
@@ -338,6 +344,20 @@ def not_paired(mac):
     return "Paired: no" in info or "{} not available".format(mac) in info
 
 
+def reconnect(mac):
+    """Connect the speaker again after it stopped playing. Returns (whether it did, its audio output)."""
+    for _ in range(RECONNECT_TRIES):
+        if connect_speaker(mac):
+            device = speaker_sink(mac)
+            if device or not has_pactl():
+                return True, device
+    return False, None
+
+
+def capitalised(text):
+    return text[:1].upper() + text[1:]
+
+
 def not_connected(speaker):
     message = "Can't connect to bluetooth" + (" speaker " + speaker if speaker else "")
     if speaker and not_paired(speaker):
@@ -364,6 +384,20 @@ def play(sound, volume=100, speaker=None, fallback=False, fade_in=0, then=None):
         level = volume * FULL_VOLUME // 100
         player.wake()
         status, lost = player.play(sound, level, fade_in)
+
+        # Connect again straight away and play it again from the start, rather than wait for PiPrayer to try again
+        replays = 0
+        while lost and replays < MAX_REPLAYS:
+            say(capitalised(lost) + ", connecting again")
+            connected, device = reconnect(mac)
+            if not connected:
+                lost += ", and it didn't connect again"
+                break
+            replays += 1
+            say("Connected again, playing from the start")
+            player.device = device
+            player.wake()
+            status, lost = player.play(sound, level, fade_in)
 
         # The sound to play after it, while still connected. Stopping it stops this one too
         if status == 0 and not lost and then:

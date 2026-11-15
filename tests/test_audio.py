@@ -404,6 +404,70 @@ def test_stops_and_fails_when_the_speaker_disconnects_while_playing(bluetooth):
     assert result.stdout.strip().endswith("Stopped playing, as speaker {} disconnected".format(SPEAKER_1))
 
 
+def drops_once(bluetooth):
+    """paplay carries on after the speaker disconnects partway through the first azaan, and plays the next one to the
+    end."""
+    make_command(bluetooth.bin_dir, "paplay", """\
+        if [ "$1" = --raw ]; then echo "wake" >> {state}/order; cat > /dev/null; exit 0; fi
+        echo "play" >> {state}/order
+        echo "play $*" >> {state}/log
+        [ -f {state}/dropped ] && exit 0
+        touch {state}/dropped
+        rm -f {state}/connected
+        for ((i = 0; i < 100; i++)); do /bin/sleep 0.05; done
+        """.format(state=bluetooth.state))
+
+
+def test_connects_again_and_plays_from_the_start_when_the_speaker_drops(bluetooth):
+    drops_once(bluetooth)
+    result = bluetooth.play("3")
+
+    assert result.returncode == 0, result.stdout
+    lines = result.stdout.strip().splitlines()
+    assert lines == ["Speaker {} disconnected, connecting again".format(SPEAKER_1),
+                     "Connected again, playing from the start",
+                     "Played on speaker " + SPEAKER_1]
+    assert bluetooth.log() == ["connect " + SPEAKER_1, azaan_file(3), "connect " + SPEAKER_1, azaan_file(3),
+                               "disconnect " + SPEAKER_1]
+    assert bluetooth.order() == ["wake", "play", "wake", "play"]  # woken again after connecting
+
+
+def test_plays_then_after_playing_the_azaan_again(bluetooth):
+    drops_once(bluetooth)
+    dua = os.path.join(ROOT, "media", "reminder.wav")
+    result = bluetooth.play("--then", dua, "3")
+
+    assert result.returncode == 0, result.stdout
+    assert bluetooth.log()[-2:] == ["play --volume=65536 " + dua, "disconnect " + SPEAKER_1]
+
+
+def test_fails_when_the_speaker_doesnt_connect_again(bluetooth):
+    drops_once(bluetooth)
+    make_command(bluetooth.bin_dir, "paplay", """\
+        if [ "$1" = --raw ]; then cat > /dev/null; exit 0; fi
+        echo "play $*" >> {state}/log
+        rm -f {state}/connected
+        echo {s1} > {state}/refuse
+        for ((i = 0; i < 100; i++)); do /bin/sleep 0.05; done
+        """.format(state=bluetooth.state, s1=SPEAKER_1))
+    result = bluetooth.play("3")
+
+    assert result.returncode == 3
+    assert result.stdout.strip().endswith(
+        "Stopped playing, as speaker {} disconnected, and it didn't connect again".format(SPEAKER_1))
+    assert [line for line in bluetooth.log() if line.startswith("play")] == [azaan_file(3)]
+    assert bluetooth.log().count("connect " + SPEAKER_1) == 3  # at first, then twice to connect again
+
+
+def test_plays_again_at_most_twice_when_the_speaker_keeps_dropping(bluetooth):
+    speaker_drops_while_playing(bluetooth)
+    result = bluetooth.play("3")
+
+    assert result.returncode == 3
+    assert [line for line in bluetooth.log() if line.startswith("play")] == [azaan_file(3)] * 3
+    assert result.stdout.count("Connected again, playing from the start") == 2
+
+
 def test_doesnt_play_then_when_the_speaker_disconnects_during_the_azaan(bluetooth):
     speaker_drops_while_playing(bluetooth)
     dua = os.path.join(ROOT, "media", "reminder.wav")
@@ -466,7 +530,7 @@ def test_stops_when_the_speakers_audio_output_goes(bluetooth):
 
     assert result.returncode == 3
     assert result.stdout.strip().endswith(
-        "Stopped playing, as the audio output of speaker {} went away".format(SPEAKER_1))
+        "Stopped playing, as the audio output of speaker {} went away, and it didn't connect again".format(SPEAKER_1))
 
 
 def test_one_failed_check_doesnt_stop_it(bluetooth):

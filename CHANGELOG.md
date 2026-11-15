@@ -92,9 +92,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - When the Bluetooth connection dropped partway through an Azaan, nothing was heard, but PiPrayer carried on as if it
   were playing and recorded it as played: the sound went to another audio output, or to nothing, until it ended.
   The player now checks every two seconds that the speaker is still connected and still playing the sound. If not,
-  for two checks in a row, it stops and says why, e.g. "Stopped playing, as speaker … disconnected", and PiPrayer
-  connects again and plays the Azaan again, if it's still within five minutes of its time. If the connection drops
-  during the dua, the Azaan still counts as played.
+  for two checks in a row, it connects the speaker again straight away and plays the Azaan again from the start, up
+  to twice. If the speaker doesn't come back, it stops and says why, e.g. "Stopped playing, as speaker … disconnected,
+  and it didn't connect again", and PiPrayer tries again every 30 seconds while it's within five minutes of the
+  Azaan's time. If the connection drops during the dua, the Azaan still counts as played.
 - The start of the reminder chime and the suhoor alarm was cut off or faded in, so the reminder was hard to hear: a
   Bluetooth speaker, or an audio output that was idle, takes a moment to start playing. `play-azaan.sh` now plays a
   second of silence to wake the output before the sound.

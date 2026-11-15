@@ -536,8 +536,9 @@ Skipping or muting the Azaan skips the dua too, and Stop stops whichever is play
 
 The speaker is connected 30 seconds before each Azaan, so it starts on time. If the speaker doesn't connect, or the
 sound doesn't play, the service tries again every 30 seconds for up to 5 minutes after the Azaan's time. While it
-plays, the speaker is checked every two seconds, and if it disconnects, the Azaan is stopped and tried again the same
-way, rather than carrying on unheard. With
+plays, the speaker is checked every two seconds. If it disconnects, rather than carrying on unheard, the Azaan stops,
+the speaker is connected again straight away, and the Azaan plays again from the start, up to twice. If the speaker
+doesn't come back, the service tries again as above. With
 `fallback-output = local`, it plays on the Raspberry Pi's own audio output straight away instead, e.g. through
 speakers plugged into the headphone jack.
 
