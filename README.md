@@ -32,7 +32,7 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
   status page or Home Assistant
 - ⚙️ **And more**, e.g. fading in the Azaan at Fajr. See [Configuration](#configuration) for all the options
 
-Tested on a **Raspberry Pi 3** with an **Amazon Echo Pop** speaker and a **Yamaha Bluetooth soundbar**. Google
+Tested on a **Raspberry Pi 3** and an original **Raspberry Pi Model B+ (rev 1.2)** with an **Amazon Echo Pop** speaker and a **Yamaha Bluetooth soundbar**. Google
 Home and Nest speakers work as Bluetooth speakers too.
 
 ## Quick start
