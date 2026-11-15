@@ -3,6 +3,10 @@
 `suhoor.opus`, the suhoor alarm, was made for PiPrayer: three bell-like notes, synthesised with SoX, repeated and
 getting louder, normalised to -16 LUFS and encoded as Opus. It is under the same licence as PiPrayer.
 
+`reminder.wav`, the reminder chime, was also made for PiPrayer: three bell notes rising, C5, E5 and G5, ringing out
+together over four seconds, synthesised in Python and normalised to -16 LUFS. It is under the same licence as
+PiPrayer.
+
 `dua.opus`, the dua after the Azaan, is recited by Mishary Rashid Alafasy. It is
 [Dua_after_Adhan.mp3](https://archive.org/details/adhan.notifications) from the Internet Archive item "Adhan
 Notifications", which its uploader marked Public Domain

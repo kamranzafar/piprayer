@@ -85,6 +85,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - The start of the reminder chime and the suhoor alarm was cut off or faded in, so the reminder was hard to hear: a
   Bluetooth speaker, or an audio output that was idle, takes a moment to start playing. `play-azaan.sh` now plays a
   second of silence to wake the output before the sound.
+- A clearer reminder chime: three bell notes rising and ringing out over four seconds, as loud as the Azaans, in
+  place of the short, quiet and low-quality chime.
 
 ## [0.9] - 2026-11-13
 
