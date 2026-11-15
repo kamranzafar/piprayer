@@ -401,7 +401,7 @@ def test_stops_and_fails_when_the_speaker_disconnects_while_playing(bluetooth):
     result = bluetooth.play("3")
 
     assert result.returncode == 3  # PiPrayer tries again
-    assert result.stdout.strip().endswith("Speaker {} disconnected while playing".format(SPEAKER_1))
+    assert result.stdout.strip().endswith("Stopped playing, as speaker {} disconnected".format(SPEAKER_1))
 
 
 def test_doesnt_play_then_when_the_speaker_disconnects_during_the_azaan(bluetooth):
@@ -445,7 +445,58 @@ def test_stops_when_the_sound_is_moved_off_the_speaker(bluetooth):
     result = bluetooth.play("3")
 
     assert result.returncode == 3
-    assert "disconnected while playing" in result.stdout
+    assert result.stdout.strip().endswith(
+        "Stopped playing, as the sound was moved off speaker {} to another output".format(SPEAKER_1))
+
+
+def test_stops_when_the_speakers_audio_output_goes(bluetooth):
+    """Bluetooth still says connected, but the speaker's audio output is gone."""
+    bluetooth.sinks(SINK_1)
+    make_command(bluetooth.bin_dir, "paplay", """\
+        if [ "$1" = --raw ]; then cat > /dev/null; exit 0; fi
+        echo "play $*" >> {state}/log
+        touch {state}/playing
+        for ((i = 0; i < 100; i++)); do /bin/sleep 0.05; done
+        """.format(state=bluetooth.state))
+    make_command(bluetooth.bin_dir, "pactl", """\
+        [ "$*" = "list short sinks" ] || exit 0
+        [ -f {state}/playing ] || printf '1\\t{sink}\\tPipeWire\\n'
+        """.format(sink=SINK_1, state=bluetooth.state))
+    result = bluetooth.play("3")
+
+    assert result.returncode == 3
+    assert result.stdout.strip().endswith(
+        "Stopped playing, as the audio output of speaker {} went away".format(SPEAKER_1))
+
+
+def test_one_failed_check_doesnt_stop_it(bluetooth):
+    """bluetoothctl says not connected once, e.g. as it was slow to answer, then connected again."""
+    make_command(bluetooth.bin_dir, "paplay", """\
+        if [ "$1" = --raw ]; then cat > /dev/null; exit 0; fi
+        echo "play $*" >> {state}/log
+        touch {state}/playing
+        /bin/sleep 0.5
+        """.format(state=bluetooth.state))
+    make_command(bluetooth.bin_dir, "bluetoothctl", """\
+        if [ "$1" = devices ]; then echo "Device {mac} Kitchen Speaker"; exit; fi
+        if [ "$1" = info ]; then
+          echo "	Paired: yes"
+          # not connected on the first check while playing, connected otherwise
+          if [ -f {state}/playing ] && [ ! -f {state}/blipped ]; then
+            touch {state}/blipped; echo "	Connected: no"
+          else
+            echo "	Connected: yes"
+          fi
+          exit
+        fi
+        read -r cmd mac
+        echo "$cmd $mac" >> {state}/log
+        """.format(mac=SPEAKER_1, state=bluetooth.state))
+    result = bluetooth.play("3")
+
+    assert (bluetooth.state / "blipped").exists()
+    assert result.returncode == 0, result.stdout
+    assert result.stdout.strip().endswith("Played on speaker " + SPEAKER_1)
 
 
 def test_keeps_playing_while_the_speaker_stays_connected(bluetooth):

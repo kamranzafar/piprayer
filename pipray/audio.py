@@ -53,8 +53,10 @@ WAKE_SECONDS = 1
 WAKE_FORMAT = ["--raw", "--rate=48000", "--channels=2", "--format=s16le"]
 WAKE_BYTES_PER_SECOND = 48000 * 2 * 2
 
-# How often to check that the speaker is still connected while it plays
+# How often to check that the speaker is still connected while it plays, and how many checks in a row must fail
+# before it is stopped, so a slow or failed bluetoothctl or pactl once doesn't stop it
 CHECK_SECONDS = 2
+FAILED_CHECKS = 2
 
 # How often the volume is raised while fading in
 FADE_STEPS_PER_SECOND = 4
@@ -187,26 +189,27 @@ def stream_of(pid):
     return None
 
 
-def speaker_playing(mac, device, stream):
-    """Whether the speaker is still connected and its audio output is playing the stream (if known).
+def not_playing(mac, device, stream):
+    """Why the speaker isn't playing the stream (if known) any more, e.g. "speaker AA:BB:CC:DD:EE:FF disconnected",
+    or None while it is.
 
     When the connection drops, the output goes and PipeWire moves the stream to another output, or leaves it playing
     to nothing, and paplay carries on as if it were heard.
     """
     if not is_connected(mac):
-        return False
+        return "speaker {} disconnected".format(mac)
     if not device or not has_pactl():
-        return True
+        return None
     sink = next((number for number, name in sinks() if name == device), None)
     if sink is None:
-        return False
+        return "the audio output of speaker {} went away".format(mac)
     if not stream:
-        return True
+        return None
     for line in run(["pactl", "list", "short", "sink-inputs"]).splitlines():
         fields = line.split()
         if len(fields) >= 2 and fields[0] == stream:
-            return fields[1] == sink
-    return True  # a stream that isn't listed has just finished
+            return None if fields[1] == sink else "the sound was moved off speaker {} to another output".format(mac)
+    return None  # a stream that isn't listed has just finished
 
 
 class Fade(threading.Thread):
@@ -255,7 +258,7 @@ class Player:
         self.paplay = subprocess.Popen(["paplay", "--volume={}".format(level)] + self.device_args() + [sound])
 
     def play(self, sound, level, fade_in=0):
-        """Play a sound to the end. Returns (paplay's exit code, whether the speaker stopped playing it)."""
+        """Play a sound to the end. Returns (paplay's exit code, why the speaker stopped playing it or None)."""
         try:
             stream = None
             if fade_in and has_pactl():
@@ -273,7 +276,7 @@ class Player:
                 self.start(level, sound)
         except OSError as e:
             say("Can't run paplay: {}".format(e))
-            return 127, False
+            return 127, None
         # Not cleared if stopped meanwhile, so stop() can end them
         result = self.wait(stream)
         self.paplay = None
@@ -284,16 +287,21 @@ class Player:
 
     def wait(self, stream):
         """Wait for paplay to finish, checking the speaker while it plays. Stops paplay if the speaker stops playing
-        it."""
+        it, for FAILED_CHECKS checks in a row. Returns (paplay's exit code, why it stopped or None)."""
         if self.mac and not stream and self.device and has_pactl():
             stream = stream_of(self.paplay.pid)
+        failed = 0
         while True:
             try:
-                return exit_code(self.paplay.wait(timeout=CHECK_SECONDS if self.mac else None)), False
+                return exit_code(self.paplay.wait(timeout=CHECK_SECONDS if self.mac else None)), None
             except subprocess.TimeoutExpired:
-                if self.paplay.poll() is None and not speaker_playing(self.mac, self.device, stream):
+                if self.paplay.poll() is not None:
+                    continue
+                why = not_playing(self.mac, self.device, stream)
+                failed = failed + 1 if why else 0
+                if failed >= FAILED_CHECKS:
                     self.kill()
-                    return exit_code(self.paplay.returncode), True
+                    return exit_code(self.paplay.returncode), why
 
     def kill(self):
         if self.paplay and self.paplay.poll() is None:
@@ -361,7 +369,7 @@ def play(sound, volume=100, speaker=None, fallback=False, fade_in=0, then=None):
         if status == 0 and not lost and then:
             then_status, then_lost = player.play(then, level)
             if then_lost:
-                say("{} didn't play to the end: speaker {} disconnected".format(os.path.basename(then), mac))
+                say("{} didn't play to the end: {}".format(os.path.basename(then), then_lost))
             elif then_status != 0:
                 say("{} didn't play: paplay failed with exit code {}".format(os.path.basename(then), then_status))
     except Stopped:
@@ -373,7 +381,7 @@ def play(sound, volume=100, speaker=None, fallback=False, fade_in=0, then=None):
     if mac:
         disconnect(mac)
     if lost:
-        say("Speaker {} disconnected while playing".format(mac))
+        say("Stopped playing, as {}".format(lost))
         return NOT_PLAYED
     if status != 0:
         say("paplay failed with exit code {}".format(status))
