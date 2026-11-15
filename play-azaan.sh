@@ -24,9 +24,10 @@
 #
 #    Without a speaker address, any paired speaker is used. With --fallback, the sound plays on the Raspberry Pi's
 #    own audio output (headphone jack or HDMI) when no speaker connects. --connect connects a speaker ahead of
-#    time, so the azaan starts on time, and prints its address. --fade-in raises the volume from silent over the
-#    first seconds. --then plays another sound straight after, e.g. the dua after the azaan, at the same volume and
-#    without disconnecting in between. If only that one doesn't play, it still exits with 0.
+#    time, so the azaan starts on time, and prints its address. A second of silence plays before the sound, so the
+#    speaker is awake and the start isn't cut off. --fade-in raises the volume from silent over the first seconds.
+#    --then plays another sound straight after, e.g. the dua after the azaan, at the same volume and without
+#    disconnecting in between. If only that one doesn't play, it still exits with 0.
 #
 #    Stop it with SIGTERM (piprayer.py stop does): it stops playing and disconnects the speaker.
 #
@@ -34,6 +35,10 @@
 
 # How long to wait for a speaker to connect, and then for its audio output to appear
 CONNECT_SECONDS=10
+
+# Silence played before the sound, so a Bluetooth speaker or an output that was idle is awake when the sound
+# starts, and its start isn't cut off or faded in
+WAKE_SECONDS=1
 
 # How often the volume is raised while fading in
 FADE_STEPS_PER_SECOND=4
@@ -243,6 +248,12 @@ start_paplay() {
   paplay --volume="$1" ${DEVICE:+"--device=$DEVICE"} "${2:-$SOUND_FILE}" &
   PAPLAY=$!
 }
+
+# Wake the output with silence first. In the background too, so a stop is handled straight away
+head -c $((WAKE_SECONDS * 48000 * 4)) /dev/zero |
+  paplay --raw --rate=48000 --channels=2 --format=s16le ${DEVICE:+"--device=$DEVICE"} &
+PAPLAY=$!
+wait "$PAPLAY"
 
 if [ "$FADE_IN" -gt 0 ] && command -v pactl >/dev/null; then
   start_paplay 0

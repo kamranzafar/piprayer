@@ -63,7 +63,19 @@ def bluetooth(tmp_path):
           echo "$mac" >> $STATE/connected
         fi
         """.format(state=state, s1=SPEAKER_1, s2=SPEAKER_2))
-    make_command(bin_dir, "paplay", 'echo "play $*" >> {}/log\n'.format(state))
+    def paplay(script):
+        """Fake paplay. The silence that wakes the output first is recorded apart from the sounds played."""
+        make_command(bin_dir, "paplay", """\
+            if [ "$1" = --raw ]; then
+              cat > /dev/null
+              echo "wake $*" >> {state}/wakes
+              echo "wake" >> {state}/order
+              exit 0
+            fi
+            echo "play" >> {state}/order
+            """.format(state=state) + textwrap.dedent(script))
+
+    paplay('echo "play $*" >> {}/log\n'.format(state))
     make_command(bin_dir, "sleep", "")
 
     class Bluetooth:
@@ -88,7 +100,7 @@ def bluetooth(tmp_path):
                 """.format(names=" ".join(names), state=state))
 
         def paplay_fails(self):
-            make_command(bin_dir, "paplay", 'echo "play $*" >> {}/log\nexit 1\n'.format(state))
+            paplay('echo "play $*" >> {}/log\nexit 1\n'.format(state))
 
         def run(self, *args):
             return run([os.path.join(ROOT, "play-azaan.sh")] + list(args), bin_dir)
@@ -98,7 +110,7 @@ def bluetooth(tmp_path):
             as number 7, and records volume changes."""
             (state / "steps").write_text(str(steps))
             make_command(bin_dir, "sleep", "/bin/sleep 0.01\n")  # time for paplay to start
-            make_command(bin_dir, "paplay", """\
+            paplay("""\
                 echo "play $*" >> {state}/log
                 echo $$ > {state}/paplay
                 for ((i = 0; i < 100; i++)); do
@@ -123,7 +135,7 @@ def bluetooth(tmp_path):
 
         def paplay_blocks(self):
             """paplay plays until it is stopped."""
-            make_command(bin_dir, "paplay", """\
+            paplay("""\
                 echo "play $*" >> {state}/log
                 touch {state}/playing
                 while true; do /bin/sleep 0.05; done
@@ -145,6 +157,16 @@ def bluetooth(tmp_path):
 
         def log(self):
             path = state / "log"
+            return path.read_text().splitlines() if path.exists() else []
+
+        def wakes(self):
+            """How the output was woken with silence, one line each time."""
+            path = state / "wakes"
+            return path.read_text().splitlines() if path.exists() else []
+
+        def order(self):
+            """Waking the output and playing sounds, in the order they happened."""
+            path = state / "order"
             return path.read_text().splitlines() if path.exists() else []
 
     result = Bluetooth()
@@ -192,6 +214,34 @@ def test_plays_a_sound_file(bluetooth):
     sound = os.path.join(ROOT, "media", "reminder.wav")
     assert bluetooth.play(sound, "100").returncode == 0
     assert "play --volume=65536 " + sound in bluetooth.log()
+
+
+WAKE = "wake --raw --rate=48000 --channels=2 --format=s16le"
+
+
+def test_wakes_the_output_with_silence_before_playing(bluetooth):
+    """A Bluetooth speaker, or an output that was idle, cuts off or fades in the start of a sound played straight
+    away, which loses most of the reminder chime."""
+    assert bluetooth.play(os.path.join(ROOT, "media", "reminder.wav"), "100").returncode == 0
+    assert bluetooth.wakes() == [WAKE]
+    assert bluetooth.order() == ["wake", "play"]
+
+
+def test_wakes_the_speakers_audio_output(bluetooth):
+    bluetooth.sinks(LOCAL_SINK, SINK_1)
+    assert bluetooth.play("3").returncode == 0
+    assert bluetooth.wakes() == [WAKE + " --device=" + SINK_1]
+
+
+def test_wakes_the_output_once_before_the_azaan_and_the_dua(bluetooth):
+    assert bluetooth.play("--then", os.path.join(ROOT, "media", "reminder.wav"), "3").returncode == 0
+    assert bluetooth.order() == ["wake", "play", "play"]
+
+
+def test_doesnt_wake_the_output_when_no_speaker_connects(bluetooth):
+    bluetooth.refuse(SPEAKER_1, SPEAKER_2)
+    assert bluetooth.play().returncode == 2
+    assert bluetooth.wakes() == []
 
 
 def test_plays_on_chosen_speaker_only(bluetooth):

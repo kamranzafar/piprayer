@@ -81,6 +81,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Every source file now carries a copyright notice (2021-2026) and an `SPDX-License-Identifier: GPL-3.0-or-later` line;
   the bundled `praytimes.py` is marked `LGPL-3.0-only`.
 
+### Fixed
+- The start of the reminder chime and the suhoor alarm was cut off or faded in, so the reminder was hard to hear: a
+  Bluetooth speaker, or an audio output that was idle, takes a moment to start playing. `play-azaan.sh` now plays a
+  second of silence to wake the output before the sound.
+
 ## [0.9] - 2026-11-13
 
 ### Upgrading from 0.8
