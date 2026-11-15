@@ -317,8 +317,24 @@ def exit_code(code):
     return 128 - code if code < 0 else code
 
 
+def not_paired(mac):
+    """Whether bluetoothctl says the speaker isn't paired, e.g. after it was reset or paired with another device.
+
+    False when it can't tell, e.g. when bluetoothctl doesn't run.
+    """
+    try:
+        info = subprocess.run(["bluetoothctl", "info", mac], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              text=True, timeout=COMMAND_TIMEOUT).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return "Paired: no" in info or "{} not available".format(mac) in info
+
+
 def not_connected(speaker):
-    return "Can't connect to bluetooth" + (" speaker " + speaker if speaker else "")
+    message = "Can't connect to bluetooth" + (" speaker " + speaker if speaker else "")
+    if speaker and not_paired(speaker):
+        message += ", which isn't paired (pair it again with python3 piprayer.py config)"
+    return message
 
 
 def play(sound, volume=100, speaker=None, fallback=False, fade_in=0, then=None):

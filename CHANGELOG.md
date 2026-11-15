@@ -65,6 +65,9 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   it with silence, playing at the volume, fading in, the dua, watching for the speaker disconnecting, and stopping.
   The service runs it in a process of its own, `python -m pipray.audio`, with the same options as the script, so
   stopping works as before. To play by hand, use `python3 piprayer.py play`.
+- When the chosen speaker can't connect because it is no longer paired, e.g. after it was reset or paired with
+  another device, the message says so, in the log, `piprayer.py times`, the status page and Home Assistant: "Can't
+  connect to bluetooth speaker …, which isn't paired (pair it again with python3 piprayer.py config)".
 - The status page updates in place, with htmx, instead of reloading: its buttons, the refresh every 10 minutes
   (15 seconds while playing), and when the countdown reaches the Azaan. The scroll position is kept, a button can't
   be pressed twice while it is working, and the page says so when PiPrayer can't be reached or answers with an

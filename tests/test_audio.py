@@ -260,6 +260,46 @@ def test_chosen_speaker_that_is_connected_is_used(bluetooth):
     assert bluetooth.log() == [azaan_file(3), "disconnect " + SPEAKER_2]
 
 
+def unpair(bluetooth, mac):
+    """bluetoothctl no longer knows the speaker, as when it was reset or paired with another device."""
+    make_command(bluetooth.bin_dir, "bluetoothctl", """\
+        if [ "$1" = info ] && [ "$2" = {mac} ]; then echo "Device $2 not available" >&2; exit 1; fi
+        if [ "$1" = info ]; then printf '\\tPaired: yes\\n\\tConnected: no\\n'; exit; fi
+        if [ "$1" = devices ]; then exit; fi
+        read -r cmd mac
+        echo "$cmd $mac" >> {state}/log
+        """.format(mac=mac, state=bluetooth.state))
+
+
+def test_says_when_the_chosen_speaker_isnt_paired(bluetooth):
+    unpair(bluetooth, SPEAKER_2)
+    result = bluetooth.play("3", "100", SPEAKER_2)
+    assert result.returncode == 2
+    assert result.stdout.strip() == "Can't connect to bluetooth speaker {}, which isn't paired (pair it again with " \
+                                    "python3 piprayer.py config)".format(SPEAKER_2)
+    assert bluetooth.log() == []  # not asked to connect
+
+
+def test_says_when_the_speaker_to_connect_ahead_isnt_paired(bluetooth):
+    unpair(bluetooth, SPEAKER_2)
+    result = bluetooth.run("--connect", SPEAKER_2)
+    assert result.returncode == 2
+    assert "which isn't paired" in result.stdout
+
+
+def test_fallback_says_the_chosen_speaker_isnt_paired(bluetooth):
+    unpair(bluetooth, SPEAKER_2)
+    result = bluetooth.play("--fallback", "3", "100", SPEAKER_2)
+    assert result.returncode == 0
+    assert "which isn't paired (pair it again with python3 piprayer.py config), playing on the local audio output " \
+           "instead" in result.stdout
+
+
+def test_a_paired_speaker_that_refuses_isnt_called_unpaired(bluetooth):
+    bluetooth.refuse(SPEAKER_2)
+    assert "isn't paired" not in bluetooth.play("3", "100", SPEAKER_2).stdout
+
+
 def test_fails_when_chosen_speaker_refuses(bluetooth):
     bluetooth.refuse(SPEAKER_2)
     result = bluetooth.play("3", "100", SPEAKER_2)
