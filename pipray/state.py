@@ -194,7 +194,7 @@ class Playing:
     prayer: str
     reminder: bool
     at: datetime
-    pid: Optional[int] = None  # play-azaan.sh's process, None between attempts
+    pid: Optional[int] = None  # the player's process, None between attempts
     stopped: bool = False  # piprayer.py stop, the status page or Home Assistant asked to stop it
     suhoor: bool = False
 

@@ -66,8 +66,8 @@ class FakeClock:
         self.failures = []  # (exit code, message) for the next plays to fail with
         self.connect_fails = False
         self.play_output = "Played on speaker AA:AA:AA:AA:AA:01"
-        self.pid = 4242  # play-azaan.sh's process
-        self.stopped_while_playing = False  # set by terminate(), as if play-azaan.sh was stopped
+        self.pid = 4242  # the player's process
+        self.stopped_while_playing = False  # set by terminate(), as if the player was stopped
         self.terminated = []
         self.events = []  # (utc datetime, callback)
         self.stop_at = None
@@ -93,7 +93,7 @@ class FakeClock:
             event[1]()
 
     def run_player(self, args, on_start=None):
-        """Replaces player.run_player: returns play-azaan.sh's exit code and the lines it printed."""
+        """Replaces player.run_player: returns the player's exit code and the lines it printed."""
         minute = self.local_now().replace(second=0, microsecond=0)
         if args[0] in ("--connect", "--disconnect"):
             self.bluetooth.append((minute, args[0], args[1] if len(args) > 1 else None))

@@ -26,7 +26,7 @@ def config_with(write_config, *lines):
 
 @pytest.fixture
 def commands(monkeypatch):
-    """The arguments play-azaan.sh is run with."""
+    """The arguments the player is run with."""
     run = []
     monkeypatch.setattr(player, "run_player", lambda args, on_start=None: run.append(args) or (0, []))
     return run

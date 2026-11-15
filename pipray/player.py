@@ -1,28 +1,24 @@
 # PiPrayer - Azaan for Raspberry Pi
 # Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Playing an azaan, the reminder chime or the suhoor alarm, and connecting the speaker, through play-azaan.sh."""
+"""Playing an azaan, the reminder chime or the suhoor alarm, and connecting the speaker, through pipray.audio in a
+process of its own."""
 import logging
 import os
 import signal
 import subprocess
+import sys
 from dataclasses import dataclass
 
+from .audio import NOT_CONNECTED, NOT_PLAYED, PLAYED_LOCALLY, STOPPED
 from .config import DEFAULT_VOLUME, DUA_FILE, MEDIA_DIR, SCRIPT_DIR
 from .state import Playing, playing_file
 
-PLAYER = os.path.join(SCRIPT_DIR, "play-azaan.sh")
+# How the player is run, and how its process is told apart from others
+PLAYER_MODULE = "pipray.audio"
+PLAYER = [sys.executable, "-m", PLAYER_MODULE]
 REMINDER_SOUND = os.path.join(MEDIA_DIR, "reminder.wav")
 SUHOOR_SOUND = os.path.join(MEDIA_DIR, "suhoor.opus")
-
-# Exit codes of play-azaan.sh
-INVALID = 1
-NOT_CONNECTED = 2
-NOT_PLAYED = 3
-STOPPED = 4
-
-# What play-azaan.sh says when it played on the Raspberry Pi's own audio output
-PLAYED_LOCALLY = "Played on the local audio output"
 
 log = logging.getLogger("piprayer")
 
@@ -31,7 +27,7 @@ log = logging.getLogger("piprayer")
 class Played:
     """How playing went."""
     returncode: int
-    message: str = ""  # the last thing play-azaan.sh said, e.g. why it failed
+    message: str = ""  # the last thing the player said, e.g. why it failed
     local: bool = False  # played on the Raspberry Pi's own audio output, as no speaker connected
 
     @property
@@ -49,12 +45,14 @@ class Played:
 
 
 def run_player(args, on_start=None):
-    """Run play-azaan.sh. Returns its exit code and the lines it printed.
+    """Run the player, python -m pipray.audio. Returns its exit code and the lines it printed.
 
     It runs in its own process group, so stopping it stops paplay too. on_start is called with its process id.
     """
-    process = subprocess.Popen([PLAYER] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                               start_new_session=True)
+    path = os.environ.get("PYTHONPATH")
+    env = dict(os.environ, PYTHONPATH=SCRIPT_DIR + (os.pathsep + path if path else ""))
+    process = subprocess.Popen(PLAYER + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                               start_new_session=True, env=env)
     if on_start:
         on_start(process.pid)
     try:
@@ -73,7 +71,7 @@ def play(sound, volume=DEFAULT_VOLUME, description=None, speaker=None, fallback=
 
     With fallback, play on the Raspberry Pi's own audio output when no speaker connects. fade_in is the seconds to
     raise the volume over at the start. With dua, the dua after the azaan plays straight after it, in the same
-    connection. on_start is called with play-azaan.sh's process id. Returns a Played.
+    connection. on_start is called with the player's process id. Returns a Played.
     """
     log.info("Playing %s at %d%% volume%s%s%s", description or "azaan " + str(sound), volume,
              ", fading in over {} seconds".format(fade_in) if fade_in else "", ", then the dua" if dua else "",
@@ -84,7 +82,7 @@ def play(sound, volume=DEFAULT_VOLUME, description=None, speaker=None, fallback=
     for line in lines:
         log.info("%s", line)
     if code not in (0, STOPPED):
-        log.error("%s failed with exit code %d", os.path.basename(PLAYER), code)
+        log.error("%s failed with exit code %d", PLAYER_MODULE, code)
     return Played(code, lines[-1] if lines else "", code == 0 and PLAYED_LOCALLY in lines)
 
 
@@ -111,13 +109,13 @@ def disconnect(speaker):
 
 
 def is_player(pid):
-    """Whether the process is play-azaan.sh, so a process id left over from before a restart isn't stopped.
+    """Whether the process is the player, so a process id left over from before a restart isn't stopped.
 
     Where /proc isn't available, the process is assumed to be it.
     """
     try:
         with open("/proc/{}/cmdline".format(pid), "rb") as f:
-            return os.path.basename(PLAYER).encode() in f.read()
+            return PLAYER_MODULE.encode() in f.read()
     except FileNotFoundError:
         return not os.path.isdir("/proc/self")
     except OSError:
@@ -125,7 +123,7 @@ def is_player(pid):
 
 
 def terminate(pid):
-    """Stop play-azaan.sh and paplay. It disconnects the speaker as it stops."""
+    """Stop the player and paplay. It disconnects the speaker as it stops."""
     try:
         os.killpg(pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError):

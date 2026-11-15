@@ -515,7 +515,7 @@ shell_command:
  .piprayer ──► piprayer.py run ──► sleeps until the next prayer time
                      │
                      ▼
-              play-azaan.sh ──► connects the speaker ──► plays media/azaan-N.opus ──► disconnects
+              pipray.audio ──► connects the speaker ──► plays media/azaan-N.opus ──► disconnects
 ```
 
 `setup-piprayer.sh` installs `piprayer.py run` as a systemd user service and turns on lingering, so it starts at boot.
@@ -523,18 +523,21 @@ While waiting for the next prayer, the service checks `.piprayer` at least once 
 changes, so new settings apply without a restart. Every setting is checked: if a change has a mistake, the log says
 what is wrong, e.g. `Invalid asr-time: Hanafy, use Standard or Hanafi`, and the service keeps using the previous
 settings until it is fixed, so the Azaan still plays. `python3 piprayer.py times` shows the same message. Skip and mute are saved in `.piprayer-state`, which the service
-reads just before each Azaan, so they apply straight away and survive a restart. While an Azaan plays, the service
-keeps `play-azaan.sh`'s process id in `.piprayer-playing`, so `piprayer.py stop` can stop it, and it isn't tried again.
+reads just before each Azaan, so they apply straight away and survive a restart. The service plays each Azaan in a
+process of its own, `python -m pipray.audio`, and while it plays, keeps its process id in `.piprayer-playing`, so
+`piprayer.py stop` can stop it, and it isn't tried again.
 Prayer times are calculated with the [PrayTimes.org](http://praytimes.org) library, included as `praytimes.py`.
 
 If the clock jumps forward after boot (the Raspberry Pi has no hardware clock), any Azaan missed by more than
 5 minutes is skipped rather than played late.
 
-With `dua` on, `play-azaan.sh` plays `media/dua.opus` straight after the Azaan, before disconnecting the speaker.
+With `dua` on, the player plays `media/dua.opus` straight after the Azaan, before disconnecting the speaker.
 Skipping or muting the Azaan skips the dua too, and Stop stops whichever is playing.
 
 The speaker is connected 30 seconds before each Azaan, so it starts on time. If the speaker doesn't connect, or the
-sound doesn't play, the service tries again every 30 seconds for up to 5 minutes after the Azaan's time. With
+sound doesn't play, the service tries again every 30 seconds for up to 5 minutes after the Azaan's time. While it
+plays, the speaker is checked every two seconds, and if it disconnects, the Azaan is stopped and tried again the same
+way, rather than carrying on unheard. With
 `fallback-output = local`, it plays on the Raspberry Pi's own audio output straight away instead, e.g. through
 speakers plugged into the headphone jack.
 

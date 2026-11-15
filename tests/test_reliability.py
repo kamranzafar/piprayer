@@ -41,7 +41,7 @@ def test_speaker_is_connected_before_the_azaan(write_config, fake_clock):
     clock_.run_service(write_config(), hours=1.5)
 
     assert [(at.strftime("%H:%M"), sound) for at, sound, _ in clock_.played] == [("18:03", "1")]
-    # 30 seconds ahead, at 18:02:30, and play-azaan.sh disconnects it after playing
+    # 30 seconds ahead, at 18:02:30, and the player disconnects it after playing
     assert [(at.strftime("%H:%M"), what) for at, what, _ in clock_.bluetooth] == [("18:02", "--connect")]
 
 

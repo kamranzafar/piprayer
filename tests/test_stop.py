@@ -27,7 +27,7 @@ NOW = datetime(2026, 11, 12, 18, 4, tzinfo=MELBOURNE)
 
 @pytest.fixture(autouse=True)
 def any_process_is_the_player(monkeypatch):
-    """The fake play-azaan.sh has no real process to check."""
+    """The fake player has no real process to check."""
     monkeypatch.setattr(player, "is_player", lambda pid: True)
 
 
@@ -124,7 +124,7 @@ def test_stop_marks_it_stopped_and_stops_the_player(write_config, terminated):
 
 
 def test_stop_between_attempts_doesnt_stop_another_process(write_config, terminated, monkeypatch):
-    monkeypatch.setattr(player, "is_player", lambda pid: False)  # play-azaan.sh has finished
+    monkeypatch.setattr(player, "is_player", lambda pid: False)  # the player has finished
     path = write_config()
     playing_asr(path)
     assert player.stop(path) is not None
@@ -135,7 +135,7 @@ def test_stop_between_attempts_doesnt_stop_another_process(write_config, termina
 @pytest.mark.skipif(not os.path.isdir("/proc/self"), reason="needs /proc")
 def test_is_player_checks_the_process(monkeypatch):
     monkeypatch.undo()
-    assert not player.is_player(os.getpid())  # pytest isn't play-azaan.sh
+    assert not player.is_player(os.getpid())  # pytest isn't the player
     assert not player.is_player(2 ** 22 + 1)  # no such process
 
 
@@ -144,10 +144,10 @@ def test_terminate_ignores_a_finished_process():
 
 
 def test_run_player_gives_the_process_id_and_output(tmp_path, monkeypatch):
-    script = tmp_path / "play-azaan.sh"
+    script = tmp_path / "player"
     script.write_text("#!/bin/sh\necho connecting\necho \"Played $*\"\nexit 3\n")
     script.chmod(script.stat().st_mode | stat.S_IXUSR)
-    monkeypatch.setattr(player, "PLAYER", str(script))
+    monkeypatch.setattr(player, "PLAYER", [str(script)])
     started = []
 
     assert player.run_player(["3", "100"], started.append) == (3, ["connecting", "Played 3 100"])

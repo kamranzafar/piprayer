@@ -67,7 +67,7 @@ ASR_TIMES = ["Standard", "Hanafi"]
 
 MAC_ADDRESS = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
 
-# The project folder, which holds piprayer.py, play-azaan.sh and the media folder
+# The project folder, which holds piprayer.py, the pipray package and the media folder
 SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 DEFAULT_CONFIG = os.path.join(SCRIPT_DIR, ".piprayer")
 MEDIA_DIR = os.path.join(SCRIPT_DIR, "media")

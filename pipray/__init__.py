@@ -24,7 +24,8 @@ Modules, each depending only on the ones above it:
     hijri      the Hijri date, by the Umm al-Qura calendar
     state      skip and mute, saved in .piprayer-state
     output     the times as a table, text or JSON
-    player     playing through play-azaan.sh
+    audio      connecting the speaker and playing, run as python -m pipray.audio
+    player     playing through pipray.audio, in a process of its own
     web        the optional status page
     mqtt       optional MQTT for Home Assistant
     service    the loop that waits for each azaan and plays it

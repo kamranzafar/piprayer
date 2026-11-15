@@ -178,7 +178,7 @@ def wait_and_play(config_path, config, mtime, state_path, event, version=None, c
     """
     log.info("Next: %s", event)
     tried_connecting = False
-    connected = None  # the speaker connected ahead, until play-azaan.sh disconnects it after playing
+    connected = None  # the speaker connected ahead, until the player disconnects it after playing
 
     try:
         while True:
@@ -213,7 +213,7 @@ def wait_and_play(config_path, config, mtime, state_path, event, version=None, c
             record(config_path, event, silenced)
             return True
 
-        connected = None  # play-azaan.sh disconnects it once it has played
+        connected = None  # the player disconnects it once it has played
         play_with_retries(config_path, config, state_path, event, notify)
         return True
     finally:
@@ -278,7 +278,7 @@ def play_with_retries(config_path, config, state_path, event, notify=None):
 
 
 def started_playing(path, pid):
-    """Remember play-azaan.sh's process, so it can be stopped. Stop it straight away if that was asked already."""
+    """Remember the player's process, so it can be stopped. Stop it straight away if that was asked already."""
     playing = Playing.load(path)
     if playing is None:
         return

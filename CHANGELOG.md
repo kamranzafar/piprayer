@@ -61,6 +61,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   automations that send a notification.
 
 ### Changed
+- `play-azaan.sh` is replaced by `pipray/audio.py`, which does the same in Python: connecting the speaker, waking
+  it with silence, playing at the volume, fading in, the dua, watching for the speaker disconnecting, and stopping.
+  The service runs it in a process of its own, `python -m pipray.audio`, with the same options as the script, so
+  stopping works as before. To play by hand, use `python3 piprayer.py play`.
 - The status page updates in place, with htmx, instead of reloading: its buttons, the refresh every 10 minutes
   (15 seconds while playing), and when the countdown reaches the Azaan. The scroll position is kept, a button can't
   be pressed twice while it is working, and the page says so when PiPrayer can't be reached or answers with an
