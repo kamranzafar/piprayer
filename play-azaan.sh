@@ -29,6 +29,10 @@
 #    --then plays another sound straight after, e.g. the dua after the azaan, at the same volume and without
 #    disconnecting in between. If only that one doesn't play, it still exits with 0.
 #
+#    While it plays on a speaker, it checks every few seconds that the speaker is still connected and playing the
+#    sound. If the connection drops, the sound would carry on to another output or to nothing, so it stops, and exits
+#    with 3 so PiPrayer tries again.
+#
 #    Stop it with SIGTERM (piprayer.py stop does): it stops playing and disconnects the speaker.
 #
 #    Exit codes: 0 played, 1 invalid arguments, 2 no speaker connected, 3 the sound didn't play, 4 stopped
@@ -39,6 +43,9 @@ CONNECT_SECONDS=10
 # Silence played before the sound, so a Bluetooth speaker or an output that was idle is awake when the sound
 # starts, and its start isn't cut off or faded in
 WAKE_SECONDS=1
+
+# How often to check that the speaker is still connected while it plays
+CHECK_SECONDS=2
 
 # How often the volume is raised while fading in
 FADE_STEPS_PER_SECOND=4
@@ -164,6 +171,43 @@ fade() {
   done
 }
 
+# Whether the speaker is still connected and its audio output is playing the stream (number $1, if known). When the
+# connection drops, the output goes and PipeWire moves the stream to another output, or leaves it playing to
+# nothing, and paplay carries on as if it were heard
+speaker_playing() {
+  local sink
+  is_connected "$BLUETOOTH_MAC" || return 1
+  [ -n "$DEVICE" ] && command -v pactl >/dev/null || return 0
+  sink=$(pactl list short sinks 2>/dev/null | awk -v name="$DEVICE" '$2 == name {print $1; exit}')
+  [ -n "$sink" ] || return 1
+  [ -n "$1" ] || return 0
+  # A stream that isn't listed has just finished
+  pactl list short sink-inputs 2>/dev/null |
+    awk -v input="$1" -v sink="$sink" '$1 == input {found = 1; ok = ($2 == sink)} END {exit found && !ok}'
+}
+
+# Wait for paplay to finish, checking the speaker while it plays (stream number $1, if known). Sets LOST and stops
+# paplay if the speaker stops playing it. Returns paplay's exit code
+wait_for_paplay() {
+  local input=$1
+  LOST=""
+  if [ -n "$BLUETOOTH_MAC" ] && [ -z "$input" ] && [ -n "$DEVICE" ] && command -v pactl >/dev/null; then
+    input=$(stream_of "$PAPLAY")
+  fi
+  while [ -n "$BLUETOOTH_MAC" ] && kill -0 "$PAPLAY" 2>/dev/null; do
+    # In the background, so a stop is handled straight away
+    sleep "$CHECK_SECONDS" &
+    wait $!
+    if kill -0 "$PAPLAY" 2>/dev/null && ! speaker_playing "$input"; then
+      LOST=1
+      kill "$PAPLAY" 2>/dev/null
+      wait "$PAPLAY" 2>/dev/null
+      return 1
+    fi
+  done
+  wait "$PAPLAY"
+}
+
 not_connected() {
   echo "Can't connect to bluetooth${SPEAKER:+ speaker $SPEAKER}"
 }
@@ -255,6 +299,7 @@ head -c $((WAKE_SECONDS * 48000 * 4)) /dev/zero |
 PAPLAY=$!
 wait "$PAPLAY"
 
+INPUT=""
 if [ "$FADE_IN" -gt 0 ] && command -v pactl >/dev/null; then
   start_paplay 0
   if INPUT=$(stream_of "$PAPLAY"); then
@@ -265,14 +310,16 @@ if [ "$FADE_IN" -gt 0 ] && command -v pactl >/dev/null; then
     echo "Can't find the stream to fade in, playing without fading in"
     kill "$PAPLAY" 2>/dev/null
     wait "$PAPLAY" 2>/dev/null
+    INPUT=""
     start_paplay "$LEVEL"
   fi
 else
   start_paplay "$LEVEL"
 fi
 
-wait "$PAPLAY"
+wait_for_paplay "$INPUT"
 STATUS=$?
+AZAAN_LOST=$LOST
 PAPLAY=""
 if [ -n "$FADE" ]; then
   kill "$FADE" 2>/dev/null
@@ -282,10 +329,12 @@ fi
 # The sound to play after it, while still connected. Stopping it stops this one too
 if [ "$STATUS" -eq 0 ] && [ -n "$THEN" ]; then
   start_paplay "$LEVEL" "$THEN"
-  wait "$PAPLAY"
+  wait_for_paplay
   THEN_STATUS=$?
   PAPLAY=""
-  if [ "$THEN_STATUS" -ne 0 ]; then
+  if [ -n "$LOST" ]; then
+    echo "$(basename "$THEN") didn't play to the end: speaker $BLUETOOTH_MAC disconnected"
+  elif [ "$THEN_STATUS" -ne 0 ]; then
     echo "$(basename "$THEN") didn't play: paplay failed with exit code $THEN_STATUS"
   fi
 fi
@@ -294,6 +343,10 @@ if [ -n "$BLUETOOTH_MAC" ]; then
   echo "disconnect $BLUETOOTH_MAC" | bluetoothctl >/dev/null
 fi
 
+if [ -n "$AZAAN_LOST" ]; then
+  echo "Speaker $BLUETOOTH_MAC disconnected while playing"
+  exit 3
+fi
 if [ "$STATUS" -ne 0 ]; then
   echo "paplay failed with exit code $STATUS"
   exit 3

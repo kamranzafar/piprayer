@@ -341,6 +341,82 @@ def test_stopping_stops_playing_and_disconnects(bluetooth):
     assert bluetooth.log() == ["connect " + SPEAKER_1, azaan_file(3), "disconnect " + SPEAKER_1]
 
 
+def speaker_drops_while_playing(bluetooth, sound="azaan"):
+    """paplay carries on after the speaker disconnects partway through the given sound, as it does when PipeWire
+    moves its stream elsewhere."""
+    make_command(bluetooth.bin_dir, "paplay", """\
+        if [ "$1" = --raw ]; then cat > /dev/null; exit 0; fi
+        echo "play $*" >> {state}/log
+        case "$*" in *{sound}*) rm -f {state}/connected ;; esac
+        for ((i = 0; i < 100; i++)); do /bin/sleep 0.05; done
+        """.format(state=bluetooth.state, sound=sound))
+
+
+def test_stops_and_fails_when_the_speaker_disconnects_while_playing(bluetooth):
+    speaker_drops_while_playing(bluetooth)
+    result = bluetooth.play("3")
+
+    assert result.returncode == 3  # PiPrayer tries again
+    assert result.stdout.strip().endswith("Speaker {} disconnected while playing".format(SPEAKER_1))
+
+
+def test_doesnt_play_then_when_the_speaker_disconnects_during_the_azaan(bluetooth):
+    speaker_drops_while_playing(bluetooth)
+    dua = os.path.join(ROOT, "media", "reminder.wav")
+    result = bluetooth.play("--then", dua, "3")
+
+    assert result.returncode == 3
+    assert not any(dua in line for line in bluetooth.log())
+
+
+def test_speaker_disconnecting_during_then_still_counts_as_played(bluetooth):
+    speaker_drops_while_playing(bluetooth, sound="reminder.wav")
+    result = bluetooth.play("--then", os.path.join(ROOT, "media", "reminder.wav"), "3")
+
+    assert result.returncode == 0
+    assert "reminder.wav didn't play to the end: speaker {} disconnected".format(SPEAKER_1) in result.stdout
+
+
+def test_stops_when_the_sound_is_moved_off_the_speaker(bluetooth):
+    """The speaker reconnected quickly, but PipeWire had already moved the stream to another output."""
+    sink = "bluez_output.{}.1".format(SPEAKER_1.replace(":", "_"))
+    make_command(bluetooth.bin_dir, "paplay", """\
+        if [ "$1" = --raw ]; then cat > /dev/null; exit 0; fi
+        echo "play $*" >> {state}/log
+        echo $$ > {state}/paplay
+        for ((i = 0; i < 100; i++)); do /bin/sleep 0.05; done
+        """.format(state=bluetooth.state))
+    make_command(bluetooth.bin_dir, "pactl", """\
+        case "$*" in
+          "list short sinks")
+            printf '1\\talsa_output.platform-hdmi\\tPipeWire\\n'
+            printf '2\\t{sink}\\tPipeWire\\n' ;;
+          "list sink-inputs")
+            [ -f {state}/paplay ] || exit 0
+            printf 'Sink Input #7\\n\\t\\tapplication.process.id = "%s"\\n' "$(cat {state}/paplay)" ;;
+          "list short sink-inputs")
+            printf '7\\t1\\t3\\tPipeWire\\n' ;;  # on the HDMI output
+        esac
+        """.format(sink=sink, state=bluetooth.state))
+    result = bluetooth.play("3")
+
+    assert result.returncode == 3
+    assert "disconnected while playing" in result.stdout
+
+
+def test_keeps_playing_while_the_speaker_stays_connected(bluetooth):
+    bluetooth.sinks("bluez_output.{}.1".format(SPEAKER_1.replace(":", "_")))
+    make_command(bluetooth.bin_dir, "paplay", """\
+        if [ "$1" = --raw ]; then cat > /dev/null; exit 0; fi
+        echo "play $*" >> {state}/log
+        /bin/sleep 0.3
+        """.format(state=bluetooth.state))
+    result = bluetooth.play("3")
+
+    assert result.returncode == 0
+    assert result.stdout.strip().endswith("Played on speaker " + SPEAKER_1)
+
+
 def test_then_plays_another_sound_in_the_same_connection(bluetooth):
     dua = os.path.join(ROOT, "media", "reminder.wav")
     result = bluetooth.play("--then", dua, "3", "50")

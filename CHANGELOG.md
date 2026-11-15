@@ -82,6 +82,12 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   the bundled `praytimes.py` is marked `LGPL-3.0-only`.
 
 ### Fixed
+- When the Bluetooth connection dropped partway through an Azaan, nothing was heard, but PiPrayer carried on as if it
+  were playing and recorded it as played: the sound went to another audio output, or to nothing, until it ended.
+  `play-azaan.sh` now checks every two seconds that the speaker is still connected and still playing the sound, and
+  if not, stops and reports "disconnected while playing", so PiPrayer connects again and plays the Azaan again, if
+  it's still within five minutes of its time. If the connection drops during the dua, the Azaan still counts as
+  played.
 - The start of the reminder chime and the suhoor alarm was cut off or faded in, so the reminder was hard to hear: a
   Bluetooth speaker, or an audio output that was idle, takes a moment to start playing. `play-azaan.sh` now plays a
   second of silence to wake the output before the sound.
