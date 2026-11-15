@@ -7,10 +7,6 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
-### Added
-- `piprayer.py version`, or `piprayer.py --version`, prints the version of PiPrayer, and the status and settings
-  pages show it at the bottom.
-
 ## [1.0] - 2026-11-15
 
 ### Upgrading from 0.9
@@ -28,6 +24,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   to its field. It needs a PIN, `settings-pin`, which `piprayer.py config` asks for when the status page is on, and
   which is saved as a hash. Each wrong PIN makes the next try wait twice as long, up to 15 minutes. The status
   page refuses requests over 64 KB ([#13](https://github.com/kamranzafar/piprayer/issues/13)).
+- `piprayer.py version`, or `piprayer.py --version`, prints the version of PiPrayer, and the status and settings
+  pages show it at the bottom.
 - Optional `dua` option to play the dua after the Azaan straight after it, in the same speaker connection and at
   the same volume, e.g. `dua = on` or `dua = on, Fajr:off`. It is skipped and muted with the Azaan, and Stop stops
   it. `piprayer.py times` shows a Dua column when it is on, the JSON has `dua` for each prayer, and
