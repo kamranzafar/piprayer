@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 import praytimes
 
-from . import __version__, bluetooth, clock
+from . import __version__, bluetooth, clock, update
 from .config import (ASR_TIME, ASR_TIMES, AZAAN, DEFAULT_HIGH_LATITUDE, DEFAULT_MQTT_PORT, DEFAULT_MQTT_TOPIC,
                      DEFAULT_VOLUME, DST, DUA, FADE_IN, FAJR_AZAAN, FALLBACK_OUTPUT, GMT_OFFSET, HIGH_LATITUDE,
                      HIGH_LATITUDE_RULES, LAT, LNG, MAC_ADDRESS, MEDIA_DIR, MAX_FADE_IN, MAX_OFFSET, MAX_SUHOOR, METHOD,
@@ -31,7 +31,7 @@ from .pairing import PAIRING, Pairing
 from .pin import COOKIE, SESSION_SECONDS, Throttle, check_pin, session_cookie, valid_session
 from .schedule import schedule
 from .state import Playing, playing_file
-from .web import HTMX, STATUS_STYLE, Response, times_list
+from .web import HTMX, STATUS_STYLE, Response, times_list, update_html
 
 # The sound files the page can play, to hear them before choosing
 MEDIA = re.compile(r"^/media/(azaan-[0-9]{1,2}\.opus|dua\.opus|suhoor\.opus|reminder\.wav)$")
@@ -494,7 +494,8 @@ class SettingsRoutes:
             for section in self.sections.values())
         body += ('<form method="post" action="/settings/logout" class="logout">'
                  '<button class="secondary">Log out</button></form>')
-        return settings_page("Settings", body)
+        config = self.config()
+        return settings_page("Settings", body, update.available(self.config_path, config) if config else None)
 
     def section_html(self, section, values=None, errors=None, saved=False, preview=None, load_speakers=False):
         errors = errors or {}
@@ -749,8 +750,8 @@ SCRIPT = """
 """
 
 
-def settings_page(title, body):
-    return SETTINGS_PAGE.format(title=escape(title), style=STATUS_STYLE, body=body)
+def settings_page(title, body, release=None):
+    return SETTINGS_PAGE.format(title=escape(title), style=STATUS_STYLE, body=body, update=update_html(release))
 
 
 SETTINGS_PAGE = """<!doctype html>
@@ -773,7 +774,7 @@ SETTINGS_PAGE = """<!doctype html>
 <header class="top"><a class="brand" href="/">PiPrayer</a><span class="date">{title}</span></header>
 <div class="notice" id="problem" role="alert" hidden></div>
 {body}
-<footer>PiPrayer {version}</footer>
+<footer>PiPrayer {version}{update}</footer>
 </main>
 <script src="/{htmx}"></script>
 <script>{script}</script>

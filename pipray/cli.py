@@ -9,7 +9,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 
-from . import __version__, clock
+from . import __version__, clock, update
 from .config import DEFAULT_AZAAN, DEFAULT_CONFIG, DEFAULT_VOLUME, Config, ConfigError, azaan_file
 from .output import (RESUME_HINT, describe_azaan, describe_mute, format_next, format_plain, format_times,
                      next_json, times_json)
@@ -49,13 +49,18 @@ def times_command(args):
 
     day = args.date or now.date()
     last = LastAzaan.load(last_file(args.config))
+    release = update.available(args.config, config)
     if args.format == "json":
-        print(json.dumps(times_json(config, day, now, state, last, synchronised,
-                                    Playing.load(playing_file(args.config))), indent=2))
+        result = times_json(config, day, now, state, last, synchronised, Playing.load(playing_file(args.config)))
+        result["update"] = {"version": release.version, "url": release.url, "needs_setup": release.needs_setup} \
+            if release else None
+        print(json.dumps(result, indent=2))
     elif args.format == "plain":
         print(format_plain(config, day))
     else:
         print(format_times(config, day, now, state, last, synchronised))
+        if release:
+            print("\n" + update.describe(args.config, config))
     return 0
 
 

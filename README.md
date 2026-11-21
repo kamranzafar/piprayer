@@ -145,6 +145,7 @@ Or edit `.piprayer` directly. Either way, the running service picks up the new s
 restart or setup needed. The wizard says so when it saves, or tells you to run `./setup-piprayer.sh` if the service
 isn't installed yet.
 
+<a id="updating"></a>
 **Updating**
 
 ```shell
@@ -153,6 +154,15 @@ git pull
 
 The running service notices the new version within a minute and restarts itself. If the
 [changelog](CHANGELOG.md) says an update changes how the service is installed, also run `./setup-piprayer.sh`.
+
+PiPrayer tells you when there's a new version: once a day it asks GitHub for the latest release, and the status and
+settings pages, `piprayer.py times` and Home Assistant say "PiPrayer 1.2 is available", with a link to what's new.
+It only says that it is PiPrayer and which version, and `update-check = off` stops it asking.
+
+With `auto-update = on`, PiPrayer updates itself: from an hour after Isha until Fajr, never within 10 minutes of an
+Azaan, it runs `git pull` and restarts. It only does this in a clone on `main`, or on a release (then it moves to
+the new release), without changes of its own, and not when the new version needs `./setup-piprayer.sh`: then it
+tells you to run it.
 Options in `.piprayer` that
 PiPrayer doesn't recognise, e.g. a typo like `status_port`, are logged and shown by `piprayer.py times`, with the
 option you probably meant.
@@ -212,6 +222,8 @@ the file directly. The running service picks up changes within a minute, no rest
 | `suhoor` | In [Ramadan](#ramadan), sound an alarm this many minutes before Fajr, up to 180, to wake for suhoor. `0` turns it off | `0` | `30` |
 | `settings-pin` | The PIN for the [settings page](#settings-page), 4 to 8 digits. PiPrayer saves it as a hash | none, off | `4826` |
 | `ramadan` | Which days are [days of fasting](#ramadan): `auto` for the days of Ramadan by the Hijri date, `on` for every day, `off` for none | `auto` | `on` |
+| `update-check` | Once a day, ask GitHub whether there's a new version, and say so. `off` stops PiPrayer contacting GitHub, see [Updating](#updating) | `on` | `off` |
+| `auto-update` | Update to a new version by itself, an hour or more after Isha, see [Updating](#updating) | `off` | `on` |
 
 For example, to play azaan 5, a quieter azaan 14 for Fajr that fades in over 15 seconds, and a chime 10 minutes
 before each prayer:
@@ -455,6 +467,7 @@ when it is the next day's date), `adjust` and `text`, e.g. "Evening of 1 Ramadan
 | Hijri date adjustment | Days to move the Hijri date on from the Umm al-Qura calendar, from -2 to 2. Change it when the month starts a day earlier or later |
 | Iftar, Suhoor ends | In [Ramadan](#ramadan), the next iftar and the next end of suhoor. Unknown on other days |
 | Stop, Skip next azaan, Mute today, Resume | Buttons |
+| PiPrayer (update) | In Home Assistant's Updates when there's a new version, with a link to what's new. With `auto-update = on`, **Install** updates PiPrayer within a minute, unless an Azaan is about to play |
 
 To set it up with the Mosquitto broker add-on:
 

@@ -12,7 +12,7 @@ from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-from . import __version__, clock
+from . import __version__, clock, update
 from .config import MAX_HIJRI_ADJUST, Config, ConfigError, set_hijri_adjust
 from .hijri import describe_adjust, hijri_now
 from .output import (describe_day, describe_last, describe_mute, fast_name, format_duration, next_json,
@@ -148,7 +148,8 @@ class StatusRoutes:
         state = State.load(self.state_path)
         if path == "/":
             return Response.html(status_html(config, now, state, LastAzaan.load(self.last_path),
-                                             clock.synchronised(), Playing.load(self.playing_path)))
+                                             clock.synchronised(), Playing.load(self.playing_path),
+                                             update.available(self.config_path, config)))
         if path == "/api/times":
             return Response.json(times_json(config, now.date(), now, state, LastAzaan.load(self.last_path),
                                             clock.synchronised(), Playing.load(self.playing_path)))
@@ -264,11 +265,12 @@ def status_handler(config_path, default_azaan):
     return Handler
 
 
-def status_html(config, now, state, last=None, synchronised=None, playing=None):
+def status_html(config, now, state, last=None, synchronised=None, playing=None, update=None):
     """The status page: the next azaan, buttons to skip or mute, and today's times.
 
     Problems are shown at the top: the last azaan didn't play as it should have, or the clock isn't set from the
-    network (synchronised False). While an azaan or reminder plays, there is a button to stop it.
+    network (synchronised False). While an azaan or reminder plays, there is a button to stop it. update is a
+    newer release, mentioned at the bottom.
     """
     upcoming = next_azaan(config, now, state)
     next_to_play = next_playing(config, now, state)
@@ -317,7 +319,16 @@ def status_html(config, now, state, last=None, synchronised=None, playing=None):
                        details=escape(timezone_name(config, now.date())) + "<br>" +
                        escape("{} method · {} Asr".format(config.method, config.asr_time)) +
                        ("<br>" + escape("Last azaan: " + describe_last(last, now)) if last else ""),
-                       updated=now.strftime("%H:%M"))
+                       updated=now.strftime("%H:%M"), update=update_html(update))
+
+
+def update_html(release):
+    """At the bottom of the status and settings pages, after the version: the new version, if there is one."""
+    if not release:
+        return ""
+    return ' · <a href="{}">{}</a>{}'.format(
+        escape(release.url), escape(release.describe()),
+        escape(", update with git pull, then ./setup-piprayer.sh") if release.needs_setup else "")
 
 
 def button_form(action, label, button_class="", form_class="", fields=None, title=None, disabled=False):
@@ -491,7 +502,7 @@ PAGE = """<!doctype html>
 {times}
 </section>
 {hijri}
-<footer>{details} · updated {updated}<br>PiPrayer {version} · <a href="/settings">Settings</a></footer>
+<footer>{details} · updated {updated}<br>PiPrayer {version}{update} · <a href="/settings">Settings</a></footer>
 </main>
 <script src="/{htmx}"></script>
 <script>{script}</script>

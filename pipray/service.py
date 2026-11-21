@@ -18,6 +18,7 @@ from .schedule import next_event
 from .mqtt import MqttBridge
 from .state import (FAILED, MISSED, PLAYED, PLAYED_LOCALLY, STOPPED, LastAzaan, Playing, State, last_file,
                     playing_file, state_file, tidy_state)
+from .update import Updater
 from .web import StatusPage
 
 log = logging.getLogger("piprayer")
@@ -94,6 +95,7 @@ def run(config_path, default_azaan):
     status_page = StatusPage(config_path, default_azaan)
     mqtt = MqttBridge(config_path, default_azaan)
     clock_watch = ClockWatch()
+    updater = Updater(config_path)
     Playing.clear(playing_file(config_path))  # left over if the service was stopped while playing
     config = None
     started = None
@@ -127,7 +129,8 @@ def run(config_path, default_azaan):
                 for _ in range(3600 // MAX_SLEEP_SECONDS):
                     systemd.watchdog()
                     clock.sleep(MAX_SLEEP_SECONDS)
-            elif wait_and_play(config_path, config, mtime, state_path, event, version, clock_watch, mqtt.refresh):
+            elif wait_and_play(config_path, config, mtime, state_path, event, version, clock_watch, mqtt.refresh,
+                               updater):
                 handled.add(event.key)
             else:
                 log.info("Configuration changed, reloading")
@@ -177,11 +180,13 @@ def wait_for_change(config_path, mtime, version=None):
         clock.sleep(MAX_SLEEP_SECONDS)
 
 
-def wait_and_play(config_path, config, mtime, state_path, event, version=None, clock_watch=None, notify=None):
+def wait_and_play(config_path, config, mtime, state_path, event, version=None, clock_watch=None, notify=None,
+                  updater=None):
     """Wait for the event and play it. Returns False if the configuration changed while waiting.
 
     The speaker is connected a little ahead, so the azaan starts on time. Raises Updated if PiPrayer's code changed
     from the given version while waiting. notify is called when playing starts and ends, e.g. to update MQTT.
+    updater checks for a new version while waiting, and may update PiPrayer, which then restarts.
     """
     log.info("Next: %s", event)
     tried_connecting = False
@@ -199,6 +204,11 @@ def wait_and_play(config_path, config, mtime, state_path, event, version=None, c
                 check_for_update(version)
             if clock_watch:
                 clock_watch.check()
+            if updater and not tried_connecting:
+                try:
+                    updater.tick(config, clock.now(config.tz), event.at)
+                except Exception:  # noqa: BLE001, the azaan matters more than the update
+                    log.exception("Checking for a new version failed")
             if remaining <= CONNECT_AHEAD_SECONDS and not tried_connecting:
                 tried_connecting = True
                 connected = connect_ahead(config, state_path, event)

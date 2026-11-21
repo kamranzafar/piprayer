@@ -12,7 +12,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from pipray import clock, player, service  # noqa: E402
+from pipray import clock, player, service, update  # noqa: E402
 
 MELBOURNE_CONFIG = """\
 [Default]
@@ -51,6 +51,17 @@ class FakeResult:
         self.returncode = returncode
         self.stdout = stdout
         self.stderr = stderr
+
+
+@pytest.fixture(autouse=True)
+def no_update_check(monkeypatch):
+    """Tests don't ask GitHub for the latest release, nor run git, unless a test says otherwise."""
+    def offline(timeout=None):
+        raise OSError("no network in tests")
+
+    monkeypatch.setattr(update, "fetch_latest", offline)
+    monkeypatch.setattr(update, "apply", lambda release: "not in tests")
+    monkeypatch.setattr(update, "in_background", lambda work: work())
 
 
 @pytest.fixture(autouse=True)

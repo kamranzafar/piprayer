@@ -146,6 +146,7 @@ def test_discovery_creates_sensors_and_buttons():
         "homeassistant/sensor/piprayer_raspberrypi/next_azaan/config",
         "homeassistant/sensor/piprayer_raspberrypi/next_prayer/config",
         "homeassistant/sensor/piprayer_raspberrypi/suhoor_ends/config",
+        "homeassistant/update/piprayer_raspberrypi/update/config",
     ]
     configs = {topic.split("/")[3]: json.loads(payload) for topic, payload in messages.items()}
     assert configs["next_azaan"]["device_class"] == "timestamp"
@@ -160,7 +161,7 @@ def test_discovery_creates_sensors_and_buttons():
     assert configs["hijri_adjust"]["command_topic"] == "piprayer/command"
     assert configs["hijri_adjust"]["command_template"] == "hijri-adjust {{ value | int }}"
     assert configs["hijri_date"]["value_template"] == "{{ value_json.hijri_date }}"
-    assert len({config["unique_id"] for config in configs.values()}) == 14
+    assert len({config["unique_id"] for config in configs.values()}) == 15
     assert all(config["device"]["identifiers"] == ["piprayer_raspberrypi"] for config in configs.values())
 
 
@@ -267,7 +268,7 @@ def test_announces_itself_on_connecting(connected):
     bridge, client, path = connected
     assert client.subscribed == ["piprayer/command", "homeassistant/status"]
     discovery = [(topic, retain) for topic, _, retain in client.published if topic.startswith("homeassistant/")]
-    assert len(discovery) == 14 and all(retain for _, retain in discovery)
+    assert len(discovery) == 15 and all(retain for _, retain in discovery)
     assert published(client, "piprayer/availability") == ["online"]
     assert json.loads(published(client, "piprayer/state")[0])["next_prayer"] == "Asr"
 
@@ -291,7 +292,7 @@ def test_announces_again_when_home_assistant_restarts(connected):
     bridge, client, path = connected
     client.published.clear()
     bridge.on_message(client, None, Message("homeassistant/status", "online"))
-    assert len([t for t, _, _ in client.published if t.startswith("homeassistant/")]) == 14
+    assert len([t for t, _, _ in client.published if t.startswith("homeassistant/")]) == 15
     assert published(client, "piprayer/state")  # sent again, although unchanged
 
 
@@ -402,3 +403,64 @@ def test_failures_are_logged_once_an_hour(monkeypatch, write_config, caplog):
     bridge.on_connect(bridge.client, None, {}, 0, None)
     assert "MQTT: connected, after 6 failed attempts" in caplog.text
     bridge.configure(None)
+
+
+# ------------------------------------------------------------------ the update entity
+
+def newer_release(path, needs_setup=False):
+    from pipray import update
+    state = update.UpdateState(checked=1, latest=update.Release("99.0", "v99.0", "https://example.org/v99.0",
+                                                                 needs_setup))
+    state.save(update.update_file(path))
+
+
+def test_update_entity_says_when_there_is_a_new_version(connected):
+    from pipray import __version__
+    bridge, client, path = connected
+    config = json.loads(dict((t, p) for t, p, _ in client.published)[
+        "homeassistant/update/piprayer_raspberrypi/update/config"])
+    assert config["state_topic"] == "piprayer/update"
+    assert "command_topic" not in config  # auto-update is off, so Home Assistant can't install it
+    assert json.loads(published(client, "piprayer/update")[0])["latest_version"] == __version__
+
+    newer_release(path)
+    bridge.refresh()
+    payload = json.loads(published(client, "piprayer/update")[-1])
+    assert (payload["installed_version"], payload["latest_version"]) == (__version__, "99.0")
+    assert payload["release_url"] == "https://example.org/v99.0"
+
+
+def test_update_entity_can_install_with_auto_update(connected):
+    bridge, client, path = connected
+    with open(path, "a") as f:
+        f.write("auto-update = on\n")
+    bridge.refresh()  # sends the entities again, now with Install
+    config = json.loads([p for t, p, _ in client.published
+                         if t == "homeassistant/update/piprayer_raspberrypi/update/config"][-1])
+    assert (config["command_topic"], config["payload_install"]) == ("piprayer/command", "update")
+
+
+def test_update_entity_is_removed_without_update_check(connected):
+    bridge, client, path = connected
+    with open(path, "a") as f:
+        f.write("update-check = off\n")
+    client.published.clear()
+    bridge.refresh()
+    assert published(client, "homeassistant/update/piprayer_raspberrypi/update/config") == [""]
+    bridge.refresh()
+    assert published(client, "piprayer/update") == []
+
+
+@pytest.mark.parametrize("extra, newer, log, requested", [
+    ("", True, "PiPrayer only updates itself with auto-update = on", False),
+    ("auto-update = on\n", False, "MQTT: no new version to update to", False),
+    ("auto-update = on\n", True, "MQTT: updating PiPrayer within a minute", True),
+])
+def test_update_command(write_config, at_time, extra, newer, log, requested):
+    from pipray import update
+    at_time(datetime(2026, 11, 12, 14, 0, tzinfo=MELBOURNE))
+    path = write_config(MELBOURNE_CONFIG + extra)
+    if newer:
+        newer_release(path)
+    assert log in handle_command("update", path, 1)
+    assert update.UpdateState.load(update.update_file(path)).install is requested

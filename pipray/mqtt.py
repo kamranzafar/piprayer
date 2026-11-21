@@ -14,7 +14,7 @@ import re
 import socket
 import threading
 
-from . import clock
+from . import __version__, clock, update
 from .config import MAX_HIJRI_ADJUST, Config, ConfigError, set_hijri_adjust
 from .hijri import hijri_now
 from .schedule import IFTAR, SUHOOR_ENDS, next_azaan, upcoming_fast
@@ -49,10 +49,15 @@ class Topics:
         self.availability = base + "/availability"
         self.state = base + "/state"
         self.command = base + "/command"
+        self.update = base + "/update"
 
 
-def discovery_messages(topics, node):
-    """(topic, payload) pairs that make Home Assistant create PiPrayer's entities."""
+def discovery_messages(topics, node, update_check=True, auto_update=False):
+    """(topic, payload) pairs that make Home Assistant create PiPrayer's entities.
+
+    With update_check, an update entity says when there's a new version, in Home Assistant's Updates, and with
+    auto_update it can install it. Without, the entity is removed, with an empty message.
+    """
     device = {"identifiers": ["piprayer_" + node], "name": "PiPrayer",
               "manufacturer": "PiPrayer", "model": "Azaan player"}
     common = {"availability_topic": topics.availability, "device": device}
@@ -63,7 +68,13 @@ def discovery_messages(topics, node):
         return "{}/{}/piprayer_{}/{}/config".format(DISCOVERY_PREFIX, component, node, key), json.dumps(config)
 
     state = {"state_topic": topics.state}
-    return [
+    if update_check:
+        install = {"command_topic": topics.command, "payload_install": "update"} if auto_update else {}
+        update_entity = entity("update", "update", "PiPrayer", state_topic=topics.update, title="PiPrayer",
+                               entity_category="diagnostic", **install)
+    else:
+        update_entity = (entity("update", "update", "PiPrayer")[0], "")
+    return [update_entity] + [
         entity("sensor", "next_azaan", "Next azaan", device_class="timestamp", icon="mdi:mosque",
                value_template="{{ value_json.next_azaan }}", json_attributes_topic=topics.state,
                json_attributes_template="{{ {'prayer': value_json.next_prayer, "
@@ -140,8 +151,24 @@ def state_payload(config, now, state, last=None, synchronised=None, playing=None
     }, sort_keys=True)
 
 
+def update_payload(config_path, config):
+    """The update entity's state: this version and the latest, or None when update-check is off."""
+    if not config.update_check:
+        return None
+    latest = update.UpdateState.load(update.update_file(config_path)).latest
+    newer = latest if latest and update.is_newer(latest.version) else None
+    return json.dumps({
+        "installed_version": __version__,
+        "latest_version": newer.version if newer else __version__,
+        "title": "PiPrayer",
+        "release_url": newer.url if newer else None,
+        "release_summary": "Needs ./setup-piprayer.sh after updating, so it isn't installed by itself"
+        if newer and newer.needs_setup else None,
+    }, sort_keys=True)
+
+
 def handle_command(text, config_path, default_azaan):
-    """Do what a command message asks: stop, skip, mute, mute <days>, resume or hijri-adjust <days>.
+    """Do what a command message asks: stop, skip, mute, mute <days>, resume, hijri-adjust <days> or update.
 
     Returns a log message.
     """
@@ -174,8 +201,15 @@ def handle_command(text, config_path, default_azaan):
             return "Ignoring MQTT command {!r}: {}".format(text, e)
         hijri = hijri_now(Config(config_path, default_azaan), now)
         return "MQTT: hijri-adjust set to {}{}".format(days, ", the Hijri date is " + str(hijri) if hijri else "")
-    return "Ignoring unknown MQTT command {!r}, use stop, skip, mute, mute <days>, resume or hijri-adjust <days>" \
-        .format(text)
+    if words == ["update"]:
+        if not (config.update_check and config.auto_update):
+            return "Ignoring MQTT command 'update': PiPrayer only updates itself with auto-update = on"
+        if not update.available(config_path, config):
+            return "MQTT: no new version to update to"
+        update.request_install(config_path)
+        return "MQTT: updating PiPrayer within a minute"
+    return "Ignoring unknown MQTT command {!r}, use stop, skip, mute, mute <days>, resume, hijri-adjust <days> or " \
+        "update".format(text)
 
 
 # ------------------------------------------------------------------ connection
@@ -220,6 +254,8 @@ class MqttBridge:
         self.refresher = None
         self.lock = threading.Lock()
         self.last_state = None
+        self.last_update = None
+        self.announced = None  # (update_check, auto_update) the entities were sent with
         self.failures = 0
         self.last_failure_log = None
 
@@ -330,11 +366,21 @@ class MqttBridge:
 
     def announce(self):
         """Send the entities, availability and state, e.g. after connecting."""
-        for topic, payload in discovery_messages(self.topics, self.node):
-            self.client.publish(topic, payload, retain=True)
-        self.client.publish(self.topics.availability, "online", retain=True)
+        try:
+            config = Config(self.config_path, self.default_azaan)
+            updates = (config.update_check, config.auto_update)
+        except ConfigError:
+            updates = self.announced or (True, False)
+        client = self.client
+        if client is None:
+            return
+        for topic, payload in discovery_messages(self.topics, self.node, *updates):
+            client.publish(topic, payload, retain=True)
+        client.publish(self.topics.availability, "online", retain=True)
         with self.lock:
+            self.announced = updates
             self.last_state = None
+            self.last_update = None
         self.refresh()
 
     def refresh(self):
@@ -348,14 +394,22 @@ class MqttBridge:
             payload = state_payload(config, now, State.load(state_file(self.config_path)),
                                     LastAzaan.load(last_file(self.config_path)), clock.synchronised(),
                                     Playing.load(playing_file(self.config_path)))
+            update_state = update_payload(self.config_path, config)
         except ConfigError as e:
             log.error("Can't update MQTT state, configuration error: %s", e)
             return
+        if self.announced is not None and (config.update_check, config.auto_update) != self.announced:
+            self.announce()  # the update entity appears, goes, or can install now
+            return
         with self.lock:
-            if payload == self.last_state:
-                return
+            send_state = payload != self.last_state
+            send_update = update_state is not None and update_state != self.last_update
             self.last_state = payload
-        client.publish(self.topics.state, payload, retain=True)
+            self.last_update = update_state
+        if send_state:
+            client.publish(self.topics.state, payload, retain=True)
+        if send_update:
+            client.publish(self.topics.update, update_state, retain=True)
 
     def refresh_loop(self):
         while not self.stopping.wait(REFRESH_SECONDS):

@@ -43,10 +43,12 @@ RAMADAN = "ramadan"
 SUHOOR = "suhoor"
 DUA = "dua"
 SETTINGS_PIN = "settings-pin"
+UPDATE_CHECK = "update-check"
+AUTO_UPDATE = "auto-update"
 
 OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, FADE_IN, REMINDER,
            SPEAKER, FALLBACK_OUTPUT, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
-           MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR, DUA, SETTINGS_PIN)
+           MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR, DUA, SETTINGS_PIN, UPDATE_CHECK, AUTO_UPDATE)
 
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_MQTT_TOPIC = "piprayer"
@@ -130,6 +132,9 @@ class Config:
         self.ramadan = parse_choice(section.get(RAMADAN, "auto"), RAMADAN, RAMADAN_MODES)
         self.suhoor = parse_number(section, SUHOOR, 0, 0, MAX_SUHOOR)  # minutes before Fajr, 0 for no alarm
         self.settings_pin = parse_settings_pin(section.get(SETTINGS_PIN, ""))
+        # Check GitHub once a day for a new version, and update by itself
+        self.update_check = parse_choice(section.get(UPDATE_CHECK, "on"), UPDATE_CHECK, ["on", "off"]) == "on"
+        self.auto_update = parse_choice(section.get(AUTO_UPDATE, "off"), AUTO_UPDATE, ["on", "off"]) == "on"
         # Not errors, as PiPrayer still works, but e.g. status_port for status-port would silently do nothing
         self.warnings = [unknown_option(option, path) for option in section if option not in OPTIONS]
         self.default_azaan = default_azaan

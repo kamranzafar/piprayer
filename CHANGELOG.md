@@ -28,6 +28,13 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   offers to use it. **Forget** removes a paired speaker, and a chosen speaker that isn't paired any more, e.g.
   after a reset, has **Pair again**. Only one search or pairing runs at a time, in the background, and not while an
   Azaan plays ([#19](https://github.com/kamranzafar/piprayer/issues/19)).
+- PiPrayer tells you when there's a new version. Once a day the service asks GitHub for the latest release, and the
+  status and settings pages, `piprayer.py times` (and its JSON, as `update`) and a new Home Assistant update entity
+  say "PiPrayer 1.2 is available", with a link to the release. `update-check = off` stops it asking GitHub.
+  `auto-update = on` updates PiPrayer by itself with git, from an hour after Isha until Fajr and never within 10
+  minutes of an Azaan, and then lets Home Assistant's Install update it. It only updates a clean clone on `main` or
+  a release, and not to a version that needs `./setup-piprayer.sh`
+  ([#23](https://github.com/kamranzafar/piprayer/issues/23)).
 
 ## [1.0] - 2026-11-15
 
