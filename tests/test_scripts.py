@@ -214,3 +214,90 @@ def test_uninstall(setup):
     assert not setup.service_file.exists()
     assert "## PI PRAYER ##" not in setup.crontab()
     assert "systemctl --user disable --now piprayer.service" in setup.log()
+
+
+# ------------------------------------------------------------- WirePlumber
+
+WIREPLUMBER_05 = "wireplumber/wireplumber.conf.d/80-disable-seat-monitoring.conf"
+WIREPLUMBER_04 = "wireplumber/bluetooth.lua.d/80-disable-logind.lua"
+RESTART_AUDIO = "systemctl --user restart wireplumber pipewire pipewire-pulse"
+
+
+def fake_wireplumber(setup, version):
+    make_command(setup.bin_dir, "wireplumber", """\
+        echo wireplumber
+        echo "Compiled with libwireplumber {0}"
+        echo "Linked with libwireplumber {0}"
+        """.format(version))
+
+
+def config_dir(setup):
+    return setup.service_file.parents[2]
+
+
+def test_setup_turns_off_wireplumber_seat_monitoring_for_05(setup):
+    fake_wireplumber(setup, "0.5.8")
+    result = setup.run()
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    conf = (config_dir(setup) / WIREPLUMBER_05).read_text()
+    assert "monitor.bluez.seat-monitoring = disabled" in conf
+    assert conf.startswith("# Written by PiPrayer")
+    assert not (config_dir(setup) / WIREPLUMBER_04).exists()
+    assert RESTART_AUDIO in setup.log()
+    assert "Bluetooth audio works without logging in" in result.stdout
+    # before the service starts, so it finds the speaker
+    assert setup.log().index(RESTART_AUDIO) < setup.log().index("systemctl --user restart piprayer.service")
+
+
+def test_setup_turns_off_wireplumber_logind_for_04(setup):
+    fake_wireplumber(setup, "0.4.13")
+    assert setup.run().returncode == 0
+
+    conf = (config_dir(setup) / WIREPLUMBER_04).read_text()
+    assert 'bluez_monitor.properties["with-logind"] = false' in conf
+    assert conf.startswith("-- Written by PiPrayer")
+    assert not (config_dir(setup) / WIREPLUMBER_05).exists()
+    assert RESTART_AUDIO in setup.log()
+
+
+def test_setup_without_wireplumber_writes_nothing(setup):
+    assert setup.run().returncode == 0
+    assert not (config_dir(setup) / "wireplumber").exists()
+    assert RESTART_AUDIO not in setup.log()
+
+
+def test_setup_leaves_an_existing_wireplumber_file_alone(setup):
+    fake_wireplumber(setup, "0.5.2")
+    conf = config_dir(setup) / WIREPLUMBER_05
+    conf.parent.mkdir(parents=True)
+    conf.write_text("# mine\n")
+
+    result = setup.run()
+    assert result.returncode == 0
+    assert conf.read_text() == "# mine\n"
+    assert "Leaving {} as it is".format(conf) in result.stdout
+    assert RESTART_AUDIO not in setup.log()
+
+    # nor removes it on uninstall
+    setup.run("--uninstall")
+    assert conf.read_text() == "# mine\n"
+
+
+def test_setup_writes_wireplumber_file_once(setup):
+    fake_wireplumber(setup, "0.5.2")
+    assert setup.run().returncode == 0
+    assert setup.run().returncode == 0
+    assert setup.log().count(RESTART_AUDIO) == 1
+
+
+def test_uninstall_removes_the_wireplumber_file_it_wrote(setup):
+    fake_wireplumber(setup, "0.5.2")
+    assert setup.run().returncode == 0
+    conf = config_dir(setup) / WIREPLUMBER_05
+    assert conf.exists()
+
+    result = setup.run("--uninstall")
+    assert result.returncode == 0
+    assert not conf.exists()
+    assert "Removed {}".format(conf) in result.stdout

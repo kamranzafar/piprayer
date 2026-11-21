@@ -7,6 +7,14 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Upgrading from 1.0
+- Run `./setup-piprayer.sh` once after `git pull`, so the setup can make Bluetooth audio work without logging in.
+
+### Added
+- `./setup-piprayer.sh` makes Bluetooth audio work on a headless Raspberry Pi, where nobody is logged in, by turning
+  off WirePlumber's seat check, as the README's troubleshooting did by hand. It leaves a file already there alone,
+  and `--uninstall` removes only the file it wrote ([#15](https://github.com/kamranzafar/piprayer/issues/15)).
+
 ## [1.0] - 2026-11-15
 
 ### Upgrading from 0.9

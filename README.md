@@ -557,9 +557,10 @@ so the Azaan, can be off.
 <details>
 <summary><b>No sound unless someone is logged in</b></summary>
 
-WirePlumber only enables Bluetooth audio for a logged in user by default. On a headless Raspberry Pi, turn that check off.
+WirePlumber only enables Bluetooth audio for a logged in user by default. On a headless Raspberry Pi, that check
+has to be off, and `./setup-piprayer.sh` does this for you. Run it again if you installed PiPrayer before 1.1.
 
-For WirePlumber 0.5 and later (check with `wireplumber --version`), create
+To do it by hand: for WirePlumber 0.5 and later (check with `wireplumber --version`), create
 `~/.config/wireplumber/wireplumber.conf.d/80-disable-seat-monitoring.conf`:
 
 ```text

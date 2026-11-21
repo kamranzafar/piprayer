@@ -47,11 +47,70 @@ remove_cron() {
   fi
 }
 
+WIREPLUMBER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/wireplumber"
+WIREPLUMBER_FILES=(
+  "$WIREPLUMBER_DIR/wireplumber.conf.d/80-disable-seat-monitoring.conf"
+  "$WIREPLUMBER_DIR/bluetooth.lua.d/80-disable-logind.lua"
+)
+WIREPLUMBER_MARKER="Written by PiPrayer's setup-piprayer.sh"
+
+# WirePlumber only enables Bluetooth audio for a user with an active seat, i.e. logged in. On a headless
+# Raspberry Pi nobody is, so turn that check off.
+configure_wireplumber() {
+  local version file
+  command -v wireplumber >/dev/null 2>&1 || return 0
+  version=$(wireplumber --version 2>/dev/null |
+    sed -n 's/.*libwireplumber[[:space:]]*\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | tail -n 1)
+  [ -n "$version" ] || return 0
+
+  case "$version" in
+  0.[0-3]) return 0 ;;
+  0.4) file=${WIREPLUMBER_FILES[1]} ;;
+  *) file=${WIREPLUMBER_FILES[0]} ;;
+  esac
+
+  if [ -e "$file" ]; then
+    echo "Leaving $file as it is"
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$file")"
+  if [ "$version" = "0.4" ]; then
+    cat >"$file" <<EOF
+-- $WIREPLUMBER_MARKER, so Bluetooth audio works without logging in
+bluez_monitor.properties["with-logind"] = false
+EOF
+  else
+    cat >"$file" <<EOF
+# $WIREPLUMBER_MARKER, so Bluetooth audio works without logging in
+wireplumber.profiles = {
+  main = {
+    monitor.bluez.seat-monitoring = disabled
+  }
+}
+EOF
+  fi
+  echo "Restarting the audio services, so Bluetooth audio works without logging in"
+  systemctl --user restart wireplumber pipewire pipewire-pulse
+}
+
+# Remove the WirePlumber files written by configure_wireplumber, but not ones written by hand
+unconfigure_wireplumber() {
+  local file
+  for file in "${WIREPLUMBER_FILES[@]}"; do
+    if [ -f "$file" ] && head -n 1 "$file" | grep -q "$WIREPLUMBER_MARKER"; then
+      rm -f "$file"
+      echo "Removed $file"
+    fi
+  done
+}
+
 if [ "$1" = "--uninstall" ]; then
   systemctl --user disable --now "$SERVICE_NAME" 2>/dev/null
   rm -f "$SERVICE_FILE"
   systemctl --user daemon-reload
   remove_cron
+  unconfigure_wireplumber
   echo "PiPrayer uninstalled"
   exit 0
 fi
@@ -89,6 +148,8 @@ fi
 
 # Check the configuration before installing
 PRAYER_TIMES=$("$PYTHON" "$CURR_PATH/piprayer.py" -c "$CONF_FILE" times --azaan "$AZAAN") || exit 1
+
+configure_wireplumber
 
 mkdir -p "$SERVICE_DIR"
 cat >"$SERVICE_FILE" <<EOF
