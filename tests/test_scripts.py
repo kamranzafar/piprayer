@@ -97,6 +97,9 @@ def test_setup_installs_and_starts_service(setup):
     unit = setup.service_file.read_text()
     assert '"{}/piprayer.py" -c "{}/.piprayer" run --azaan 5'.format(setup.project, setup.project) in unit
     assert "WantedBy=default.target" in unit
+    assert "Type=notify" in unit
+    assert "WatchdogSec=180" in unit
+    assert "NotifyAccess=main" in unit
 
     assert setup.log() == [
         "systemctl --user daemon-reload",

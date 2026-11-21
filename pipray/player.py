@@ -13,12 +13,15 @@ from dataclasses import dataclass
 from .audio import NOT_CONNECTED, NOT_PLAYED, PLAYED_LOCALLY, STOPPED
 from .config import DEFAULT_VOLUME, DUA_FILE, MEDIA_DIR, SCRIPT_DIR
 from .state import Playing, playing_file
+from . import systemd
 
 # How the player is run, and how its process is told apart from others
 PLAYER_MODULE = "pipray.audio"
 PLAYER = [sys.executable, "-m", PLAYER_MODULE]
 REMINDER_SOUND = os.path.join(MEDIA_DIR, "reminder.wav")
 SUHOOR_SOUND = os.path.join(MEDIA_DIR, "suhoor.opus")
+# While the player runs, tell systemd's watchdog the service is alive this often
+WATCHDOG_SECONDS = 30
 
 log = logging.getLogger("piprayer")
 
@@ -51,12 +54,20 @@ def run_player(args, on_start=None):
     """
     path = os.environ.get("PYTHONPATH")
     env = dict(os.environ, PYTHONPATH=SCRIPT_DIR + (os.pathsep + path if path else ""))
+    env.pop("NOTIFY_SOCKET", None)  # only the service itself talks to systemd
     process = subprocess.Popen(PLAYER + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                start_new_session=True, env=env)
     if on_start:
         on_start(process.pid)
     try:
-        output, _ = process.communicate()
+        while True:
+            # The service tells systemd's watchdog it is still alive while a long azaan, with the dua, plays
+            systemd.watchdog()
+            try:
+                output, _ = process.communicate(timeout=WATCHDOG_SECONDS)
+                break
+            except subprocess.TimeoutExpired:
+                pass
     except BaseException:
         # e.g. Ctrl+C on piprayer.py play, which a process in its own group doesn't get
         terminate(process.pid)

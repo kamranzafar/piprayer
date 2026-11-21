@@ -10,7 +10,7 @@ import logging
 import os
 from datetime import timedelta
 
-from . import clock
+from . import clock, systemd
 from .config import DEFAULT_AZAAN, SCRIPT_DIR, SETTINGS_PIN, Config, ConfigError, save_option
 from .pin import hash_pin, is_hash
 from . import player
@@ -80,6 +80,7 @@ def check_for_update(started_version):
         return
     while True:
         version = code_version()
+        systemd.watchdog()
         clock.sleep(UPDATE_SETTLE_SECONDS)
         if code_version() == version:
             raise Updated
@@ -102,13 +103,16 @@ def run(config_path, default_azaan):
 
     try:
         while True:
+            systemd.watchdog()
             mtime = config_mtime(config_path)
             try:
                 config = load_config(config_path, default_azaan, config)
             except ConfigError:
                 # Nothing to play yet: wait for the configuration to be fixed
+                systemd.ready()
                 wait_for_change(config_path, mtime, version)
                 continue
+            systemd.ready()
             secure_pin(config_path, config)
             now = clock.now(config.tz)
             started = started or now
@@ -120,7 +124,9 @@ def run(config_path, default_azaan):
             event = next_event(config, max(started, now - MAX_LATENESS), exclude=handled)
             if event is None:
                 log.warning("No prayer times found for today or tomorrow, checking again in an hour")
-                clock.sleep(3600)
+                for _ in range(3600 // MAX_SLEEP_SECONDS):
+                    systemd.watchdog()
+                    clock.sleep(MAX_SLEEP_SECONDS)
             elif wait_and_play(config_path, config, mtime, state_path, event, version, clock_watch, mqtt.refresh):
                 handled.add(event.key)
             else:
@@ -165,6 +171,7 @@ def secure_pin(config_path, config):
 def wait_for_change(config_path, mtime, version=None):
     """Wait until the configuration file changes. Raises Updated if PiPrayer is updated meanwhile."""
     while config_mtime(config_path) == mtime:
+        systemd.watchdog()
         if version:
             check_for_update(version)
         clock.sleep(MAX_SLEEP_SECONDS)
@@ -182,6 +189,7 @@ def wait_and_play(config_path, config, mtime, state_path, event, version=None, c
 
     try:
         while True:
+            systemd.watchdog()
             remaining = (event.at - clock.now(config.tz)).total_seconds()
             if remaining <= 0:
                 break
@@ -261,6 +269,7 @@ def play_with_retries(config_path, config, state_path, event, notify=None):
                 return
 
             log.warning("Couldn't play %s: %s. Trying again in %d seconds", event, played.message, RETRY_SECONDS)
+            systemd.watchdog()
             clock.sleep(RETRY_SECONDS)
             if stop_requested(playing_path):
                 log.info("Not trying %s again, it was stopped", event)

@@ -8,12 +8,17 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Upgrading from 1.0
-- Run `./setup-piprayer.sh` once after `git pull`, so the setup can make Bluetooth audio work without logging in.
+- Run `./setup-piprayer.sh` once after `git pull`. It makes Bluetooth audio work without logging in, and turns on
+  the watchdog that restarts the service when it hangs. Until then PiPrayer runs as before.
 
 ### Added
 - `./setup-piprayer.sh` makes Bluetooth audio work on a headless Raspberry Pi, where nobody is logged in, by turning
   off WirePlumber's seat check, as the README's troubleshooting did by hand. It leaves a file already there alone,
   and `--uninstall` removes only the file it wrote ([#15](https://github.com/kamranzafar/piprayer/issues/15)).
+- systemd restarts the service when it hangs, e.g. on a `bluetoothctl` call that never returns, as well as when it
+  crashes. The service tells systemd it is alive at least every minute, while it waits and while the Azaan plays,
+  and systemd restarts it after 3 minutes without hearing from it
+  ([#16](https://github.com/kamranzafar/piprayer/issues/16)).
 
 ## [1.0] - 2026-11-15
 

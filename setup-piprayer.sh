@@ -158,6 +158,11 @@ Description=PiPrayer - Azaan for Raspberry Pi
 After=pipewire-pulse.service pulseaudio.service
 
 [Service]
+# The service tells systemd when it is ready, and keeps telling it it is alive. If it stops, e.g. stuck on a
+# bluetoothctl call, systemd restarts it after WatchdogSec
+Type=notify
+NotifyAccess=main
+WatchdogSec=180
 ExecStart="$PYTHON" "$CURR_PATH/piprayer.py" -c "$CONF_FILE" run --azaan $AZAAN
 Environment=PYTHONUNBUFFERED=1
 Restart=on-failure
