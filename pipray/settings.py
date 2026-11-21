@@ -27,8 +27,10 @@ from .config import (ASR_TIME, ASR_TIMES, AZAAN, DEFAULT_HIGH_LATITUDE, DEFAULT_
                      PRAYERS, RAMADAN, RAMADAN_MODES, REMINDER, SPEAKER, SUHOOR, TIMEZONE, VOLUME, Config,
                      ConfigError, azaan_file, changed_lines, check_range, parse_choice, parse_coordinate,
                      parse_high_latitude, parse_method, read_section, save_options)
+from .pairing import PAIRING, Pairing
 from .pin import COOKIE, SESSION_SECONDS, Throttle, check_pin, session_cookie, valid_session
 from .schedule import schedule
+from .state import Playing, playing_file
 from .web import HTMX, STATUS_STYLE, Response, times_list
 
 # The sound files the page can play, to hear them before choosing
@@ -184,7 +186,7 @@ def sections(default_azaan):
         ], "Counts down to iftar, and sounds the suhoor alarm, on the days of fasting."),
         Section("speaker", "Speaker", [
             Field(SPEAKER, "Speaker", speaker_check, kind="select"),
-        ], "Pair a new speaker with python3 piprayer.py config on the Raspberry Pi."),
+        ], "PiPrayer plays on this speaker. Pair a new one below."),
         Section("mqtt", "Home Assistant", [
             Field(MQTT_HOST, "MQTT broker", mqtt_host_check, hint="e.g. homeassistant.local, empty for off"),
             Field(MQTT_PORT, "MQTT port", number(MQTT_PORT, None, 1, 65535), default=str(DEFAULT_MQTT_PORT),
@@ -277,12 +279,18 @@ def per_prayer(values, neutral):
 class SettingsRoutes:
     """GET and POST /settings/..., for the status page's handler."""
 
-    def __init__(self, config_path, default_azaan, throttle=None, speakers=None):
+    def __init__(self, config_path, default_azaan, throttle=None, speakers=None, pairing=None):
         self.config_path = config_path
         self.default_azaan = default_azaan
         self.sections = {section.id: section for section in sections(default_azaan)}
         self.throttle = throttle or Throttle()
         self.speakers = speakers or bluetooth.bluetooth_speakers
+        self.pairing = pairing or Pairing(playing=self.playing)
+
+    def playing(self):
+        """Whether an Azaan, reminder or suhoor alarm plays now."""
+        playing = Playing.load(playing_file(self.config_path))
+        return bool(playing and not playing.stopped)
 
     # -------------------------------------------------------------- reading
 
@@ -336,6 +344,8 @@ class SettingsRoutes:
             return Response(303, location="/settings", headers={"HX-Redirect": "/settings"} if htmx else None)
 
         values = {name: values[0].strip() for name, values in form.items()}
+        if path.startswith("/settings/speaker/"):
+            return self.speaker_action(path[len("/settings/speaker/"):], values)
         parts = path.split("/")  # "", "settings", ["check",] section
         if len(parts) == 4 and parts[2] == "check" and parts[3] in self.sections:
             return Response.html(self.check(self.sections[parts[3]], values))
@@ -447,6 +457,26 @@ class SettingsRoutes:
             return Response.html(self.page(section.id, values, errors, preview=times))
         return Response(303, location="/settings?saved={0}#{0}".format(section.id))
 
+    def speaker_action(self, action, values):
+        """Find, pair, forget or use a speaker, from the buttons below the speaker section's list."""
+        mac = values.get("mac", "").upper()
+        if action != "scan" and not MAC_ADDRESS.match(mac):
+            return None
+        name = values.get("name") or None
+        if action == "scan":
+            self.pairing.scan()
+        elif action == "pair":
+            self.pairing.pair(mac, name, again=values.get("again") == "1")
+        elif action == "forget":
+            if mac != self.raw().get(SPEAKER, "").strip().upper():  # not the one PiPrayer plays on
+                self.pairing.forget(mac, name)
+        elif action == "use":
+            save_options(self.config_path, {SPEAKER: mac}, check=lambda path: Config(path, self.default_azaan))
+            return Response(303, location="/settings?speakers=1&saved=speaker#speaker")
+        else:
+            return None
+        return Response(303, location="/settings?speakers=1#speaker")
+
     def place_error(self, section, message):
         """Show an error from Config next to the field it is about, or at the top of the section."""
         for item in section.fields:
@@ -488,19 +518,23 @@ class SettingsRoutes:
             times = ('<div class="preview"><p class="label">The times today with these settings</p>{}</div>'
                      .format(times_list(schedule(preview, now.date()), None, now)))
             buttons += '<a class="button" href="/settings#{}">Cancel</a>'.format(section.id)
-        if section.id == "speaker" and not load_speakers:
-            buttons = ""
+        extra = ""
+        if section.id == "speaker":
+            if load_speakers:
+                extra = self.pairing_html()
+            else:
+                buttons = ""
 
         return ('<section class="card settings" id="{id}"><h2 class="label">{title}</h2>{description}'
                 '<form method="post" action="/settings/{id}" hx-post="/settings/{id}" hx-target="#{id}" '
                 'hx-select="#{id}" hx-swap="outerHTML" hx-disabled-elt="find button">'
                 '<div hx-post="/settings/check/{id}" hx-trigger="input delay:600ms, change" '
                 'hx-include="closest form" hx-swap="none" hx-disabled-elt="unset">{section_error}{fields}</div>{times}'
-                '{saved}<div class="actions">{buttons}</div></form></section>').format(
+                '{saved}<div class="actions">{buttons}</div></form>{extra}</section>').format(
             id=section.id, title=escape(section.title),
             description='<p class="detail">{}</p>'.format(escape(section.description)) if section.description else "",
             section_error=error_span("section-" + section.id, errors.get("section-" + section.id)),
-            fields=fields, times=times, buttons=buttons,
+            fields=fields, times=times, buttons=buttons, extra=extra,
             saved='<p class="saved" role="status">Saved. PiPrayer uses it within a minute.</p>' if saved else "")
 
     def field_html(self, item, raw, values, error):
@@ -555,6 +589,51 @@ class SettingsRoutes:
             choices.append((current.upper(), "{} (not paired now)".format(current.upper())))
         return choices
 
+    def pairing_html(self):
+        """Below the speaker list: find and pair a new speaker, forget one, or pair again one that was reset."""
+        pairing = self.pairing
+        current = self.raw().get(SPEAKER, "").strip().upper()
+        speakers = self.speakers()
+        paired = [mac for mac, _, _ in speakers]
+        parts = []
+
+        if pairing.message:
+            parts.append('<p class="{}" role="status">{}</p>'.format(
+                "error" if pairing.error else "saved", escape(pairing.message)))
+        if pairing.paired and pairing.paired != current and pairing.paired in paired:
+            parts.append(speaker_button("use", pairing.paired, "Use {} for the Azaan".format(pairing.name),
+                                        "primary"))
+
+        if pairing.busy:
+            doing = ("Pairing {}...".format(pairing.name) if pairing.task == PAIRING
+                     else "Looking for speakers, for about {} seconds...".format(bluetooth.SCAN_SECONDS))
+            parts.append('<p class="detail" hx-get="/settings/speaker" hx-trigger="every 2s" '
+                         'hx-target="closest section" hx-select="#speaker" hx-swap="outerHTML">{}'
+                         '<noscript> <a href="/settings?speakers=1#speaker">Refresh</a></noscript></p>'
+                         .format(escape(doing)))
+            return '<div class="pairing">{}</div>'.format("".join(parts))
+
+        rows = []
+        if current and current not in paired and MAC_ADDRESS.match(current):
+            rows.append(speaker_row("{} isn't paired any more, e.g. after it was reset".format(current),
+                                    speaker_button("pair", current, "Pair again", extra={"again": "1"})))
+        for mac, name, _ in speakers:
+            if mac != current:
+                rows.append(speaker_row("{} ({})".format(name, mac),
+                                        speaker_button("forget", mac, "Forget", extra={"name": name})))
+        for mac, name in pairing.found:
+            if mac not in paired:
+                rows.append(speaker_row("{} ({})".format(name, mac),
+                                        speaker_button("pair", mac, "Pair", "primary", extra={"name": name})))
+        if pairing.scanned and pairing.found and not any(mac not in paired for mac, _ in pairing.found):
+            rows.append('<p class="detail">No other speakers found.</p>')
+        if rows:
+            parts.append('<div class="speakers">{}</div>'.format("".join(rows)))
+
+        parts.append(PAIRING_HINT)
+        parts.append(speaker_button("scan", None, "Find speakers"))
+        return '<div class="pairing">{}</div>'.format("".join(parts))
+
     def prayers_html(self, values, errors):
         dua = os.path.isfile(os.path.join(MEDIA_DIR, "dua.opus"))
         head = "".join('<span>{}</span>'.format(label) for _, label in PRAYER_COLUMNS) + \
@@ -578,6 +657,28 @@ class SettingsRoutes:
                                 for column, _ in PRAYER_COLUMNS))
         return ('<div class="prayer-table"><div class="prayer-row head{}"><span>Prayer</span>{}</div>{}</div>{}'
                 .format(" with-dua" if dua else "", head, "".join(rows), error_span("prayers", errors.get("prayers"))))
+
+
+PAIRING_HINT = ('<p class="detail">To pair a new speaker, put it in pairing mode first. Amazon Echo: say "Alexa, pair '
+                'Bluetooth". Google Home or Nest: in the Google Home app, open the speaker\'s settings, then Audio, '
+                'Paired Bluetooth devices, Enable pairing mode. Soundbar: switch its input to Bluetooth, then hold '
+                'its Bluetooth button until the light flashes.</p>')
+
+
+def speaker_button(action, mac, label, style="secondary", extra=None):
+    """A button that posts to /settings/speaker/<action>, and updates the speaker section in place."""
+    fields = dict(extra or {})
+    if mac:
+        fields["mac"] = mac
+    hidden = "".join('<input type="hidden" name="{}" value="{}">'.format(name, escape(value))
+                     for name, value in fields.items())
+    return ('<form method="post" action="/settings/speaker/{0}" hx-post="/settings/speaker/{0}" '
+            'hx-target="#speaker" hx-select="#speaker" hx-swap="outerHTML" hx-disabled-elt="find button" '
+            'class="inline">{1}<button class="{2}">{3}</button></form>').format(action, hidden, style, escape(label))
+
+
+def speaker_row(label, button):
+    return '<div class="speaker-row"><span>{}</span>{}</div>'.format(escape(label), button)
 
 
 def error_span(name, message, oob=False):

@@ -93,7 +93,8 @@ Put the speaker in pairing mode first. For a smart speaker, use its app:
 - **Soundbar or other Bluetooth speaker:** switch its input to Bluetooth, then hold the Bluetooth or pairing
   button until the light flashes (see its manual)
 
-The setup in the next step can find and pair the speaker for you. To pair it yourself:
+The setup in the next step can find and pair the speaker for you, and so can the
+[settings page](#settings-page) later. To pair it yourself:
 
 ```shell
 bluetoothctl scan on                     # find your speaker's MAC address (XX:XX:XX:XX:XX:XX)
@@ -397,6 +398,11 @@ to the Raspberry Pi. It has a section for each group of settings, each with its 
 the times the new settings give before saving), the prayers with each one's offset, volume, fade in and dua, the
 Azaan and sound, with **Listen** to hear each one, Ramadan, the speaker, and Home Assistant. Each setting is checked
 as it is typed, with the same checks as `.piprayer`, and a mistake is shown next to it rather than saved.
+
+The speaker section also pairs a new speaker, e.g. after replacing or resetting one. Put the speaker in pairing mode,
+then press **Find speakers**, which looks for about 15 seconds, and **Pair** next to yours. Once it is paired, the page
+offers to use it for the Azaan. **Forget** removes a paired speaker, and a chosen speaker that isn't paired any more
+has **Pair again**. It doesn't look for speakers while an Azaan plays, as that can interrupt it.
 
 Saving changes only the options that changed in `.piprayer`, keeping its comments and order, and an option that is
 cleared is removed, so its default applies. The service uses the new settings within a minute. The MQTT password

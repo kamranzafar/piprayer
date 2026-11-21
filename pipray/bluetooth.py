@@ -106,3 +106,23 @@ def pair_speaker(mac):
         return reasons[-1] if reasons else "no answer from the speaker"
     bluetoothctl("trust", mac)
     return None
+
+
+def remove_speaker(mac):
+    """Forget a paired device. Returns None, or why it failed."""
+    output = bluetoothctl("remove", mac, errors=True)
+    if "Paired: yes" in bluetoothctl("info", mac):
+        reasons = [line.strip() for line in output.splitlines() if "fail" in line.lower() or "error" in line.lower()]
+        return reasons[-1] if reasons else "bluetoothctl didn't remove it"
+    return None
+
+
+def pair_again(mac, seconds=SCAN_SECONDS):
+    """Pair a speaker that was reset, or paired with another device: forget it, find it again, and pair it.
+
+    Returns None, or why it failed.
+    """
+    bluetoothctl("remove", mac)
+    if mac not in [found for found, _ in scan_speakers(seconds)]:
+        return "not found, is it in pairing mode?"
+    return pair_speaker(mac)

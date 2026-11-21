@@ -105,6 +105,15 @@ a.button { display: flex; align-items: center; justify-content: center; min-heig
 pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; }
 pre { background: var(--bg); border-radius: 10px; padding: 10px 12px; overflow-x: auto; }
 .logout { margin-bottom: 14px; }
+.pairing { margin-top: 18px; padding-top: 4px; border-top: 1px solid var(--line); }
+.pairing > form.inline { margin-top: 12px; }
+.pairing p.error { margin: 14px 0 0; font-size: .95rem; }
+.speakers { margin-top: 10px; }
+.speaker-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0;
+               border-bottom: 1px solid var(--line); }
+.speaker-row span { overflow-wrap: anywhere; }
+.speaker-row form { flex: none; }
+.speaker-row button { width: auto; min-height: 40px; padding: 6px 14px; font-size: .9rem; }
 
 .prayer-table { margin-top: 14px; }
 .prayer-row { display: grid; grid-template-columns: minmax(6.5rem, 1fr) repeat(3, 4rem); gap: 8px;

@@ -23,6 +23,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   It installs the packages for the release of Raspberry Pi OS, PipeWire or PulseAudio, gets PiPrayer into
   `~/piprayer` and runs the setup. Run again, it updates PiPrayer. `PIPRAYER_DIR` installs into another folder,
   and `PIPRAYER_VERSION=v1.1` installs a release ([#22](https://github.com/kamranzafar/piprayer/issues/22)).
+- Find and pair a speaker from the settings page. **Find speakers** lists the speakers nearby in pairing mode, with
+  hints for putting an Echo, Google speaker or soundbar in pairing mode, and **Pair** pairs and trusts one, then
+  offers to use it. **Forget** removes a paired speaker, and a chosen speaker that isn't paired any more, e.g.
+  after a reset, has **Pair again**. Only one search or pairing runs at a time, in the background, and not while an
+  Azaan plays ([#19](https://github.com/kamranzafar/piprayer/issues/19)).
 
 ## [1.0] - 2026-11-15
 
