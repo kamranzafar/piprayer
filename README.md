@@ -33,8 +33,9 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
   status page or Home Assistant
 - ⚙️ **And more**, e.g. fading in the Azaan at Fajr. See [Configuration](#configuration) for all the options
 
-**PiPrayer 1.0** completes the roadmap, with every planned feature now in place. See the
-[changelog](CHANGELOG.md#10---2026-11-15) for what's new and how to upgrade from 0.9.
+**PiPrayer 1.1** installs with one command, pairs speakers from the settings page, restarts itself when it hangs
+and tells you when there's a new version. See the [changelog](CHANGELOG.md#11---2026-11-22) for what's new and how to
+upgrade from 1.0.
 
 Tested on a **Raspberry Pi 3** and an original **Raspberry Pi Model B+ (rev 1.2)** with an **Amazon Echo Pop** speaker and a **Yamaha Bluetooth soundbar**. Google
 Home and Nest speakers work as Bluetooth speakers too.

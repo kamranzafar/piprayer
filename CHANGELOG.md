@@ -7,6 +7,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [1.1] - 2026-11-22
+
 ### Upgrading from 1.0
 - Run `./setup-piprayer.sh` once after `git pull`. It makes Bluetooth audio work without logging in, and turns on
   the watchdog that restarts the service when it hangs. Until then PiPrayer runs as before.
@@ -343,7 +345,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - First release: plays the Azaan on a Bluetooth speaker at calculated prayer times, scheduled with cron.
 - 15 Azaan recordings, selectable with an argument to the setup script.
 
-[Unreleased]: https://github.com/kamranzafar/piprayer/compare/v1.0...HEAD
+[Unreleased]: https://github.com/kamranzafar/piprayer/compare/v1.1...HEAD
+[1.1]: https://github.com/kamranzafar/piprayer/compare/v1.0...v1.1
 [1.0]: https://github.com/kamranzafar/piprayer/compare/v0.9...v1.0
 [0.9]: https://github.com/kamranzafar/piprayer/compare/v0.8...v0.9
 [0.8]: https://github.com/kamranzafar/piprayer/compare/v0.7...v0.8
