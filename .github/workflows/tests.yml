@@ -32,4 +32,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: shellcheck setup-piprayer.sh
+      - run: shellcheck setup-piprayer.sh install.sh

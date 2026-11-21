@@ -304,3 +304,159 @@ def test_uninstall_removes_the_wireplumber_file_it_wrote(setup):
     assert result.returncode == 0
     assert not conf.exists()
     assert "Removed {}".format(conf) in result.stdout
+
+
+# ------------------------------------------------------------- install.sh
+
+BOOKWORM = 'PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"\nID=debian\nVERSION_ID="12"\nVERSION_CODENAME=bookworm\n'
+BULLSEYE = 'PRETTY_NAME="Raspbian GNU/Linux 11 (bullseye)"\nID=raspbian\nID_LIKE=debian\nVERSION_ID="11"\n' \
+           'VERSION_CODENAME=bullseye\n'
+BUSTER = 'ID=raspbian\nID_LIKE=debian\nVERSION_ID="10"\nVERSION_CODENAME=buster\n'
+TRIXIE_TESTING = 'PRETTY_NAME="Debian GNU/Linux trixie/sid"\nID=debian\nVERSION_CODENAME=trixie\n'
+FEDORA = 'ID=fedora\nVERSION_ID=40\n'
+
+
+@pytest.fixture
+def install(tmp_path):
+    """install.sh with fake sudo, apt-get and git. The fake git clone makes a folder with a fake setup."""
+    home = tmp_path / "home"
+    home.mkdir()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "log"
+    os_release = tmp_path / "os-release"
+    os_release.write_text(BOOKWORM)
+
+    make_command(bin_dir, "sudo", 'echo "sudo $*" >> {}\n"$@"\n'.format(log))
+    make_command(bin_dir, "apt-get", 'echo "apt-get $*" >> {}\n'.format(log))
+    make_command(bin_dir, "git", """\
+        echo "git $*" >> {log}
+        if [ "$1" = clone ]; then
+          mkdir -p "$4"/.git
+          printf '#!/bin/bash\\necho "setup ran in $(dirname "$0")"\\n' > "$4"/setup-piprayer.sh
+          chmod +x "$4"/setup-piprayer.sh
+        fi
+        [ -z "$GIT_FAILS" ] || [ "$GIT_FAILS" != "$3" ]
+        """.format(log=log))
+
+    class Install:
+        def run(self, **env):
+            command_env = dict(os.environ, PATH="{}:{}".format(bin_dir, os.environ["PATH"]), HOME=str(home),
+                               PIPRAYER_OS_RELEASE=str(os_release))
+            for name in ("PIPRAYER_DIR", "PIPRAYER_VERSION", "GIT_FAILS"):
+                command_env.pop(name, None)
+            command_env.update(env)
+            # as through curl | bash: the script is the standard input
+            with open(os.path.join(ROOT, "install.sh")) as script:
+                return subprocess.run(["bash"], stdin=script, env=command_env, capture_output=True, text=True,
+                                      timeout=30)
+
+        def log(self):
+            return log.read_text().splitlines() if log.exists() else []
+
+        def set_os(self, text):
+            os_release.write_text(text)
+
+    Install.home = home
+    return Install()
+
+
+def test_install_on_bookworm_installs_pipewire_clones_and_runs_the_setup(install):
+    result = install.run()
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    log = install.log()
+    assert "sudo apt-get update -qq" in log
+    assert ("sudo apt-get install -y -qq git python3 bluez pipewire pipewire-pulse wireplumber "
+            "libspa-0.2-bluetooth pulseaudio-utils") in log
+    assert "git clone --quiet https://github.com/kamranzafar/piprayer.git {}/piprayer".format(install.home) in log
+    assert "with sudo" in result.stdout
+    assert "setup ran in {}/piprayer".format(install.home) in result.stdout
+
+
+def test_install_on_bullseye_uses_pulseaudio(install):
+    install.set_os(BULLSEYE)
+    result = install.run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "sudo apt-get install -y -qq git python3 bluez pulseaudio pulseaudio-module-bluetooth" in install.log()
+    assert "PulseAudio" in result.stdout
+
+
+def test_install_on_debian_testing_without_version_uses_pipewire(install):
+    install.set_os(TRIXIE_TESTING)
+    assert install.run().returncode == 0
+    assert any("pipewire" in line for line in install.log())
+
+
+@pytest.mark.parametrize("os_release, message", [
+    (BUSTER, "needs Raspberry Pi OS Bullseye or later"),
+    (FEDORA, "installs on Raspberry Pi OS or Debian"),
+])
+def test_install_refuses_unsupported_systems(install, os_release, message):
+    install.set_os(os_release)
+    result = install.run()
+    assert result.returncode == 1
+    assert message in result.stdout
+    assert install.log() == []
+
+
+def test_install_into_another_folder_at_a_release(install, tmp_path):
+    folder = tmp_path / "azaan"
+    result = install.run(PIPRAYER_DIR=str(folder), PIPRAYER_VERSION="v1.1")
+    assert result.returncode == 0, result.stdout + result.stderr
+    log = install.log()
+    assert "git clone --quiet https://github.com/kamranzafar/piprayer.git {}".format(folder) in log
+    assert "git -C {} checkout --quiet v1.1".format(folder) in log
+    assert "setup ran in {}".format(folder) in result.stdout
+
+
+def test_install_again_updates_instead_of_cloning(install):
+    assert install.run().returncode == 0
+    first = len(install.log())
+
+    result = install.run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    again = install.log()[first:]
+    folder = install.home / "piprayer"
+    assert not any(line.startswith("git clone") for line in again)
+    assert "git -C {} fetch --quiet --tags origin".format(folder) in again
+    assert "git -C {} merge --quiet --ff-only origin/main".format(folder) in again
+    assert "Updating PiPrayer in {}".format(folder) in result.stdout
+    assert "setup ran" in result.stdout
+
+
+def test_install_stops_when_the_update_fails(install):
+    assert install.run().returncode == 0
+    result = install.run(GIT_FAILS="checkout")  # git -C <dir> checkout fails
+    assert result.returncode == 1
+    assert "has changes of its own" in result.stdout
+    assert "setup ran" not in result.stdout
+
+
+def test_install_leaves_another_folder_alone(install):
+    folder = install.home / "piprayer"
+    folder.mkdir()
+    (folder / "notes.txt").write_text("mine")
+    result = install.run()
+    assert result.returncode == 1
+    assert "isn't PiPrayer" in result.stdout
+    assert not any(line.startswith("git") for line in install.log())
+
+
+def test_install_stops_when_packages_fail(install):
+    make_command(install.home.parent / "bin", "apt-get", "exit 100\n")
+    result = install.run()
+    assert result.returncode == 1
+    assert "Couldn't install the packages" in result.stdout
+    assert "setup ran" not in result.stdout
+
+
+def test_partly_downloaded_install_does_nothing(install, tmp_path):
+    with open(os.path.join(ROOT, "install.sh")) as f:
+        script = f.read()
+    partial = script[:script.rindex("main \"$@\"")]
+    env = dict(os.environ, PATH="{}:{}".format(tmp_path / "bin", os.environ["PATH"]), HOME=str(install.home))
+    result = subprocess.run(["bash"], input=partial, env=env, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0
+    assert result.stdout == ""
+    assert install.log() == []

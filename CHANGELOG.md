@@ -19,6 +19,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   crashes. The service tells systemd it is alive at least every minute, while it waits and while the Azaan plays,
   and systemd restarts it after 3 minutes without hearing from it
   ([#16](https://github.com/kamranzafar/piprayer/issues/16)).
+- Install with one command, `curl -fsSL https://raw.githubusercontent.com/kamranzafar/piprayer/main/install.sh | bash`.
+  It installs the packages for the release of Raspberry Pi OS, PipeWire or PulseAudio, gets PiPrayer into
+  `~/piprayer` and runs the setup. Run again, it updates PiPrayer. `PIPRAYER_DIR` installs into another folder,
+  and `PIPRAYER_VERSION=v1.1` installs a release ([#22](https://github.com/kamranzafar/piprayer/issues/22)).
 
 ## [1.0] - 2026-11-15
 

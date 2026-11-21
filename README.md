@@ -41,6 +41,24 @@ Home and Nest speakers work as Bluetooth speakers too.
 
 ## Quick start
 
+Switch on your Bluetooth speaker and put it in pairing mode (see [step 2](#pair-your-speaker) below for an Echo,
+Google speaker or soundbar), then run this on the Raspberry Pi:
+
+```shell
+curl -fsSL https://raw.githubusercontent.com/kamranzafar/piprayer/main/install.sh | bash
+```
+
+It installs the packages PiPrayer needs, with sudo, so it may ask for your password. Then it gets PiPrayer into
+`~/piprayer` and runs the setup, which asks for your settings and can find and pair the speaker. Running it again
+updates PiPrayer and keeps your settings. To install into another folder, or a particular release, run it with
+`PIPRAYER_DIR` or `PIPRAYER_VERSION` set:
+
+```shell
+curl -fsSL https://raw.githubusercontent.com/kamranzafar/piprayer/main/install.sh | PIPRAYER_VERSION=v1.1 bash
+```
+
+### Or install it step by step
+
 **1. Install the prerequisites and get PiPrayer**
 
 ```shell
@@ -64,6 +82,7 @@ sudo apt install python3 bluez pulseaudio pulseaudio-module-bluetooth
 Buster and earlier can't play the Opus recordings, which need libsndfile 1.0.29 or later.
 </details>
 
+<a id="pair-your-speaker"></a>
 **2. Pair your Bluetooth speaker**
 
 Put the speaker in pairing mode first. For a smart speaker, use its app:
