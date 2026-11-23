@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from pipray.cli import main
 from pipray.config import Config
-from pipray.schedule import next_event, prayer_times
+from pipray.schedule import REMINDER, next_event, prayer_times
 
 MELBOURNE = ZoneInfo("Australia/Melbourne")
 
@@ -63,7 +63,7 @@ def test_next_prayer_later_today(write_config):
     config = Config(write_config())
     event = next_event(config, datetime(2026, 11, 12, 14, 0, tzinfo=MELBOURNE))
     assert (event.prayer, event.at.strftime("%Y-%m-%d %H:%M")) == ("asr", "2026-11-12 18:03")
-    assert not event.reminder
+    assert event.kind != REMINDER
 
 
 def test_next_prayer_is_tomorrow_after_isha(write_config):

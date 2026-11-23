@@ -51,7 +51,7 @@ def test_off_unless_set(write_config):
 
 
 @pytest.mark.parametrize("line, message", [
-    ("kahf = 90", "Invalid kahf: 90, use 1h, 2h, 3h or off"),
+    ("kahf = 90", "Invalid kahf: 90, use off or 1h or 2h or 3h"),
     ("kahf = 4h", "Invalid kahf: 4h"),
     ("kahf = an hour", "Invalid kahf: an hour"),
 ])

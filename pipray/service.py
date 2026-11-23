@@ -221,15 +221,14 @@ def wait_and_play(config_path, config, mtime, state_path, event, version=None, c
             clock.sleep(min(remaining - ahead, MAX_SLEEP_SECONDS))
 
         late = clock.now(config.tz) - event.at
-        if event.kind == REMINDER and late > REMINDER_LATENESS:
-            log.info("Not playing %s, it is %d minutes late, e.g. as something else was playing at its time",
-                     event, late.total_seconds() // 60)
-            return True
-        if late > MAX_LATENESS:
-            log.warning("Skipping %s, noticed %d minutes late (clock changed?)",
-                        event, late.total_seconds() // 60)
-            record(config_path, event, MISSED, "noticed {} minutes late, the clock may have changed"
-                   .format(int(late.total_seconds() // 60)))
+        if late > lateness(event):
+            minutes = int(late.total_seconds() // 60)
+            if event.kind == REMINDER:
+                log.info("Not playing %s, it is %d minutes late, e.g. as something else was playing at its time",
+                         event, minutes)
+                return True
+            log.warning("Skipping %s, noticed %d minutes late (clock changed?)", event, minutes)
+            record(config_path, event, MISSED, "noticed {} minutes late, the clock may have changed".format(minutes))
             return True
 
         # Read just before playing, so skip and mute apply however recently they were set

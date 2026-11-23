@@ -95,10 +95,9 @@ RAMADAN_MODES = ["auto", "on", "off"]
 # Longest time the suhoor alarm sounds before Fajr, in minutes
 MAX_SUHOOR = 180
 
-# The hours before Jumu'ah that Surah Al-Kahf can start, as kahf takes them, e.g. 1h. Whole hours leave the
-# recitation, about half an hour, time to finish before the reminder and the azaan
-KAHF_HOURS = ["1h", "2h", "3h"]
-KAHF_CHOICES = ["off"] + KAHF_HOURS
+# kahf: off, or the hours before Jumu'ah to start Surah Al-Kahf. Whole hours leave the recitation, about half an
+# hour, time to finish before the reminder and the azaan
+KAHF_CHOICES = ["off", "1h", "2h", "3h"]
 
 
 class ConfigError(Exception):
@@ -146,12 +145,13 @@ class Config:
         self.auto_update = parse_choice(section.get(AUTO_UPDATE, "off"), AUTO_UPDATE, ["on", "off"]) == "on"
         # Not errors, as PiPrayer still works, but e.g. status_port for status-port would silently do nothing
         self.warnings = [unknown_option(option, path) for option in section if option not in OPTIONS]
-        # Surah Al-Kahf on Fridays: minutes before Jumu'ah, 0 for none, and the recording to play
-        self.kahf = parse_kahf(section.get(KAHF, "off"))  # in minutes, 0 for off
+        # Surah Al-Kahf on Fridays: the minutes before Jumu'ah to start it, 0 for off, and the recording to play
+        self.kahf = parse_kahf(section.get(KAHF, "off"))
         self.kahf_file = parse_kahf_file(section.get(KAHF_FILE, ""), path, self.kahf, self.warnings)
         if self.kahf and self.kahf <= self.reminder:
-            self.warnings.append("{} = 1h starts Surah Al-Kahf with the reminder for Dhuhr, 60 minutes before it, so "
-                                 "it doesn't play. Use {} = 2h, or a shorter reminder".format(KAHF, KAHF))
+            self.warnings.append("{0} = {1}h starts Surah Al-Kahf with the reminder for Dhuhr, {2} minutes before it, "
+                                 "so it doesn't play. Use {0} = {3}h, or a shorter reminder".format(
+                                     KAHF, self.kahf // 60, self.reminder, self.kahf // 60 + 1))
         self.default_azaan = default_azaan
 
     def azaan_for(self, prayer):
@@ -321,8 +321,7 @@ def set_kahf(path, value):
     """Save kahf, the hours before Jumu'ah to start Surah Al-Kahf, e.g. 1h, or off. Returns it as saved. Raises
     ValueError when it isn't one of KAHF_CHOICES, or the configuration can't play it."""
     try:
-        parse_kahf(str(value))
-        choice = str(value).strip().lower()
+        choice = parse_choice(str(value), KAHF, KAHF_CHOICES)
         save_options(path, {KAHF: choice}, check=Config)
     except ConfigError as e:
         raise ValueError(str(e))
@@ -331,10 +330,7 @@ def set_kahf(path, value):
 
 def parse_kahf(value):
     """kahf, e.g. 1h, as the minutes before Jumu'ah to start Surah Al-Kahf, 0 for off."""
-    choice = value.strip().lower()
-    if choice not in KAHF_CHOICES:
-        raise ConfigError("Invalid {}: {}, use {} or off, the hours before Jumu'ah to start Surah Al-Kahf".format(
-            KAHF, shown(value), ", ".join(KAHF_HOURS)))
+    choice = parse_choice(value, KAHF, KAHF_CHOICES)
     return int(choice[:-1]) * 60 if choice != "off" else 0
 
 
@@ -488,7 +484,7 @@ def parse_kahf_file(value, path, kahf, warnings):
     """
     value = value.strip()
     if value:
-        given = os.path.join(os.path.dirname(os.path.abspath(path)), os.path.expanduser(value))
+        given = kahf_file_path(path, value)
         if os.path.isfile(given):
             return given
         warnings.append("{} {} isn't found, playing the recording of Surah Al-Kahf PiPrayer comes with".format(
@@ -497,6 +493,11 @@ def parse_kahf_file(value, path, kahf, warnings):
         raise ConfigError("{} is on, but there is no {}. Set {} to a recording of Surah Al-Kahf, or turn it off"
                           .format(KAHF, os.path.relpath(KAHF_SOUND, SCRIPT_DIR), KAHF_FILE))
     return KAHF_SOUND
+
+
+def kahf_file_path(config_path, value):
+    """Where kahf-file is: a relative path is from the folder of the configuration file."""
+    return os.path.join(os.path.dirname(os.path.abspath(config_path)), os.path.expanduser(value.strip()))
 
 
 def parse_azaan(section, option):

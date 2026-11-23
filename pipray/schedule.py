@@ -91,14 +91,6 @@ class Event:
             self.azaan_at = self.at
 
     @property
-    def reminder(self):
-        return self.kind == REMINDER
-
-    @property
-    def suhoor(self):
-        return self.kind == SUHOOR
-
-    @property
     def key(self):
         """Identifies the event, e.g. to remember it has been played."""
         return self.at, self.prayer, self.kind
@@ -140,14 +132,14 @@ def events(config, day):
     return resolve(result)
 
 
-def resolve(events_):
+def resolve(due):
     """The events in the order they play, with a reminder left out when another sound is due at the same time.
 
     Two sounds at the same time play one after the other, by PRIORITY. A reminder after another sound would come late,
     and the sound it is with does as well to remind.
     """
     result = []
-    for event in sorted(events_, key=lambda event: (event.at, PRIORITY[event.kind])):
+    for event in sorted(due, key=lambda event: (event.at, PRIORITY[event.kind])):
         if event.kind == REMINDER and result and result[-1].at == event.at:
             continue
         result.append(event)
@@ -278,8 +270,9 @@ def upcoming_kahf(config, now):
     """The next Surah Al-Kahf, as an Event, including one playing now, or None when kahf is off."""
     if not config.kahf:
         return None
-    for offset in range(8):
-        kahf = kahf_event(config, now.date() + timedelta(days=offset))
+    friday = now.date() + timedelta(days=(FRIDAY - now.date().weekday()) % 7)
+    for day in (friday, friday + timedelta(days=7)):  # this Friday's may be over
+        kahf = kahf_event(config, day)
         if kahf and kahf.until > now:
             return kahf
     return None

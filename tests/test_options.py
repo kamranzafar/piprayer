@@ -98,21 +98,21 @@ def test_fajr_azaan_without_azaan_uses_default_for_others(write_config):
 def test_next_event_is_reminder_before_azaan(write_config):
     config = Config(config_with(write_config, "reminder = 10"))
     event = next_event(config, datetime(2026, 11, 12, 17, 0, tzinfo=MELBOURNE))
-    assert event.reminder
+    assert event.kind == REMINDER
     assert (event.prayer, event.at.strftime("%H:%M")) == ("asr", "17:53")
 
 
 def test_next_event_after_reminder_is_azaan(write_config):
     config = Config(config_with(write_config, "reminder = 10"))
     event = next_event(config, datetime(2026, 11, 12, 17, 55, tzinfo=MELBOURNE))
-    assert not event.reminder
+    assert event.kind != REMINDER
     assert (event.prayer, event.at.strftime("%H:%M")) == ("asr", "18:03")
 
 
 def test_reminder_for_tomorrows_fajr(write_config):
     config = Config(config_with(write_config, "reminder = 10"))
     event = next_event(config, datetime(2026, 11, 12, 22, 0, tzinfo=MELBOURNE))
-    assert event.reminder
+    assert event.kind == REMINDER
     assert event.at.strftime("%Y-%m-%d %H:%M") == "2026-11-13 04:12"
 
 

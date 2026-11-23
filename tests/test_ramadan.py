@@ -116,12 +116,12 @@ def test_next_fast_time(write_config):
 
 def test_suhoor_alarm_is_an_event_in_ramadan(write_config):
     config = config_with(write_config, "suhoor = 30")
-    alarms = [event for event in events(config, FIRST_DAY) if event.suhoor]
+    alarms = [event for event in events(config, FIRST_DAY) if event.kind == SUHOOR]
     assert [(event.at, event.prayer, event.azaan_at) for event in alarms] == \
            [(at(FIRST_DAY, 4, 34), "fajr", at(FIRST_DAY, 5, 4))]
     assert str(alarms[0]) == "Suhoor alarm at 2027-02-08 04:34 AEDT"
-    assert not any(event.suhoor for event in events(config, EID))
-    assert not any(event.suhoor for event in events(config_with(write_config), FIRST_DAY))
+    assert not any(event.kind == SUHOOR for event in events(config, EID))
+    assert not any(event.kind == SUHOOR for event in events(config_with(write_config), FIRST_DAY))
 
 
 def played(clock):
