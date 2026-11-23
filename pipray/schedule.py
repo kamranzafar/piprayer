@@ -11,6 +11,7 @@ from typing import Optional
 
 import praytimes
 
+from .config import KAHF_MARGIN_MINUTES
 from .hijri import fasting
 
 log = logging.getLogger("piprayer")
@@ -63,15 +64,18 @@ AZAAN = "azaan"
 REMINDER = "reminder"
 SUHOOR = "suhoor"
 KAHF = "kahf"
+JUMMAH_REMINDER = "jummah_reminder"
+# Short chimes, which are left out rather than played late, or after another sound due at the same time
+REMINDERS = (REMINDER, JUMMAH_REMINDER)
 
-# Which plays first when two are due at the same time: the azaan, then the suhoor alarm, the reminder and Al-Kahf. A
-# reminder due at the same time as another sound isn't played
-PRIORITY = {AZAAN: 0, SUHOOR: 1, REMINDER: 2, KAHF: 3}
+# Which plays first when two are due at the same time: the azaan, then the suhoor alarm, the Jumu'ah reminder, the
+# reminder and Al-Kahf. A reminder due at the same time as another sound isn't played
+PRIORITY = {AZAAN: 0, SUHOOR: 1, JUMMAH_REMINDER: 2, REMINDER: 3, KAHF: 4}
 
 FRIDAY = 4  # as date.weekday() gives it
 
 # Surah Al-Kahf stops this long before whatever plays next, so the speaker is free to connect for it
-KAHF_MARGIN = timedelta(minutes=2)
+KAHF_MARGIN = timedelta(minutes=KAHF_MARGIN_MINUTES)
 # Al-Kahf isn't started with less time than this to play before it has to stop
 MIN_KAHF = timedelta(minutes=1)
 
@@ -79,7 +83,7 @@ MIN_KAHF = timedelta(minutes=1)
 @dataclass
 class Event:
     """Something to play: the azaan for a prayer, the reminder before it, the suhoor alarm before Fajr, or Surah
-    Al-Kahf before Jumu'ah."""
+    Al-Kahf and the Jumu'ah reminder before Jumu'ah."""
     at: datetime
     prayer: str
     kind: str = AZAAN
@@ -109,11 +113,11 @@ class Event:
     def silenced(self, state):
         """Why it won't play: "muted", "skipped", or None if it will.
 
-        Skipping an azaan skips its reminder too. The suhoor alarm and Al-Kahf are muted with the azaans, but
-        skipping Fajr or Dhuhr doesn't skip them: the suhoor alarm is for waking up to eat, and Al-Kahf is for the day,
-        rather than for the prayer.
+        Skipping an azaan skips its reminder too. The suhoor alarm, Al-Kahf and the Jumu'ah reminder are muted with
+        the azaans, but skipping Fajr or Dhuhr doesn't skip them: the suhoor alarm is for waking up to eat, and Al-Kahf
+        and the Jumu'ah reminder are for Jumu'ah, rather than for the azaan.
         """
-        if self.kind in (SUHOOR, KAHF):
+        if self.kind in (SUHOOR, KAHF, JUMMAH_REMINDER):
             return "muted" if state.mute_until and self.at < state.mute_until else None
         return state.silenced(self.azaan_at)
 
@@ -121,6 +125,8 @@ class Event:
         at = self.at.strftime("%Y-%m-%d %H:%M %Z")
         if self.kind == SUHOOR:
             return "Suhoor alarm at " + at
+        if self.kind == JUMMAH_REMINDER:
+            return "Jumu'ah reminder at " + at
         if self.kind == KAHF:
             if self.cut_short:
                 return "Surah Al-Kahf at {}, stopping early at {}".format(at, self.until.strftime("%H:%M"))
@@ -141,6 +147,9 @@ def events(config, day):
     fast = fast_times(config, day) if config.suhoor else None
     if fast and fast.suhoor_alarm:
         result.append(Event(fast.suhoor_alarm, "fajr", SUHOOR, azaan_at=fast.suhoor_ends))
+    jummah = jummah_reminder_event(config, day)
+    if jummah:
+        result.append(jummah)
     kahf = kahf_event(config, day, result)
     if kahf:
         result.append(kahf)
@@ -155,7 +164,7 @@ def resolve(due):
     """
     result = []
     for event in sorted(due, key=lambda event: (event.at, PRIORITY[event.kind])):
-        if event.kind == REMINDER and result and result[-1].at == event.at:
+        if event.kind in REMINDERS and result and result[-1].at == event.at:
             continue
         result.append(event)
     return result
@@ -188,16 +197,19 @@ class Entry:
     dua: bool = False  # the dua plays after the azaan
     kahf: Optional[Event] = None  # Surah Al-Kahf before Jumu'ah
     khutbah: Optional[datetime] = None  # on Fridays with jummah-time, the time of the khutbah
+    jummah_reminder: Optional[datetime] = None  # on Fridays with jummah-reminder, the time of its chime
 
     @classmethod
     def of(cls, config, prayer, at, state=None):
         jummah = is_jummah(prayer, at.date())
         azaan = azaan_for(config, prayer, at.date())
+        chime = jummah_reminder_event(config, at.date()) if jummah else None
         return cls(prayer, at, azaan, config.volume_for(prayer),
                    at - timedelta(minutes=config.reminder) if config.reminder and azaan else None,
                    state.silenced(at) if state else None, config.fade_in_for(prayer), config.dua_for(prayer),
                    kahf_event(config, at.date()) if jummah else None,
-                   jummah_time(config, at.date()) if jummah and config.jummah_time else None)
+                   jummah_time(config, at.date()) if jummah and config.jummah_time else None,
+                   chime.at if chime else None)
 
     @property
     def plays(self):
@@ -229,6 +241,7 @@ class Entry:
             "jummah": is_jummah(self.prayer, self.at.date()),
             "kahf": self.kahf_json(),
             "khutbah": self.khutbah.isoformat() if self.khutbah else None,
+            "jummah_reminder": self.jummah_reminder.isoformat() if self.jummah_reminder else None,
             "skipped": self.silenced == "skipped",
             "muted": self.silenced == "muted",
         }
@@ -295,6 +308,16 @@ def upcoming_jummah(config, now):
         if at and at > now:
             return at
     return None
+
+
+def jummah_reminder_event(config, day):
+    """The chime jummah-reminder minutes before Jumu'ah, as an Event, or None when it doesn't play on the day."""
+    if not config.jummah_reminder:
+        return None
+    jummah = jummah_time(config, day)
+    if jummah is None:
+        return None
+    return Event(jummah - timedelta(minutes=config.jummah_reminder), "dhuhr", JUMMAH_REMINDER, azaan_at=jummah)
 
 
 def kahf_event(config, day, others=None):

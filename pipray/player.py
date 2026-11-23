@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from .audio import NOT_CONNECTED, NOT_PLAYED, PLAYED_LOCALLY, STOPPED, TIME_UP
 from .config import DEFAULT_VOLUME, DUA_FILE, MEDIA_DIR, SCRIPT_DIR
-from .schedule import KAHF, REMINDER, SUHOOR, azaan_for
+from .schedule import JUMMAH_REMINDER, KAHF, REMINDER, SUHOOR, azaan_for
 from .state import Playing, playing_file
 from . import clock, systemd
 
@@ -21,6 +21,7 @@ PLAYER_MODULE = "pipray.audio"
 PLAYER = [sys.executable, "-m", PLAYER_MODULE]
 REMINDER_SOUND = os.path.join(MEDIA_DIR, "reminder.wav")
 SUHOOR_SOUND = os.path.join(MEDIA_DIR, "suhoor.opus")
+JUMMAH_SOUND = os.path.join(MEDIA_DIR, "jummah.opus")
 # While the player runs, tell systemd's watchdog the service is alive this often
 WATCHDOG_SECONDS = 30
 # The player stops a sound with a time limit by itself. If it is still running this long after, it is stopped
@@ -120,6 +121,8 @@ def play_event(config, event, on_start=None):
     volume = config.volume_for(event.prayer)
     if event.kind == SUHOOR:
         return play(SUHOOR_SOUND, volume, "suhoor alarm", config.speaker, config.fallback_local, on_start)
+    if event.kind == JUMMAH_REMINDER:
+        return play(JUMMAH_SOUND, volume, "Jumu'ah reminder", config.speaker, config.fallback_local, on_start)
     if event.kind == KAHF:
         return play(config.kahf_file, volume, "Surah Al-Kahf", config.speaker, config.fallback_local, on_start,
                     until=event.until, once=True)

@@ -7,6 +7,10 @@ getting louder, normalised to -16 LUFS and encoded as Opus. It is under the same
 together over four seconds, synthesised in Python and normalised to -16 LUFS. It is under the same licence as
 PiPrayer.
 
+`jummah.opus`, the Jumu'ah reminder chime, was also made for PiPrayer: a singing bowl struck twice, on A3 with the
+bowl's inharmonic overtones, each a pair of close tones that beat slowly, ringing out over nine seconds,
+synthesised in Python, normalised to -16 LUFS and encoded as Opus. It is under the same licence as PiPrayer.
+
 `dua.opus`, the dua after the Azaan, is recited by Mishary Rashid Alafasy. It is
 [Dua_after_Adhan.mp3](https://archive.org/details/adhan.notifications) from the Internet Archive item "Adhan
 Notifications", which its uploader marked Public Domain

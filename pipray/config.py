@@ -50,11 +50,12 @@ KAHF = "kahf"
 KAHF_FILE = "kahf-file"
 JUMMAH_TIME = "jummah-time"
 JUMMAH_AZAAN = "jummah-azaan"
+JUMMAH_REMINDER = "jummah-reminder"
 
 OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, FADE_IN, REMINDER,
            SPEAKER, FALLBACK_OUTPUT, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
            MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR, DUA, SETTINGS_PIN, UPDATE_CHECK, AUTO_UPDATE, KAHF, KAHF_FILE,
-           JUMMAH_TIME, JUMMAH_AZAAN)
+           JUMMAH_TIME, JUMMAH_AZAAN, JUMMAH_REMINDER)
 
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_MQTT_TOPIC = "piprayer"
@@ -99,9 +100,15 @@ RAMADAN_MODES = ["auto", "on", "off"]
 # Longest time the suhoor alarm sounds before Fajr, in minutes
 MAX_SUHOOR = 180
 
+# Longest time the Jumu'ah reminder sounds before Jumu'ah, in minutes
+MAX_JUMMAH_REMINDER = 180
+
 # kahf: off, or the hours before Jumu'ah to start Surah Al-Kahf. Whole hours leave the recitation, about half an
 # hour, time to finish before the reminder and the azaan
 KAHF_CHOICES = ["off", "1h", "2h", "3h"]
+DEFAULT_KAHF = "2h"
+# Surah Al-Kahf stops this many minutes before what plays next, and doesn't start with less than a minute to play
+KAHF_MARGIN_MINUTES = 2
 
 
 class ConfigError(Exception):
@@ -153,15 +160,19 @@ class Config:
         self.jummah_time = parse_jummah_time(section.get(JUMMAH_TIME, ""))
         # The azaan for Dhuhr on Fridays: None for the usual one, 0 for none, or another azaan
         self.jummah_azaan = parse_jummah_azaan(section.get(JUMMAH_AZAAN, "on"))
+        # A chime this many minutes before Jumu'ah, to get ready and go to the mosque, 0 for none
+        self.jummah_reminder = parse_number(section, JUMMAH_REMINDER, 0, 0, MAX_JUMMAH_REMINDER)
         # Surah Al-Kahf on Fridays: the minutes before Jumu'ah to start it, 0 for off, and the recording to play
-        self.kahf = parse_kahf(section.get(KAHF, "off"))
-        self.kahf_file = parse_kahf_file(section.get(KAHF_FILE, ""), path, self.kahf, self.warnings)
+        self.kahf = parse_kahf(section.get(KAHF, DEFAULT_KAHF))
+        self.kahf_file = parse_kahf_file(section.get(KAHF_FILE, ""), path, self.warnings)
+        if self.kahf and not os.path.isfile(self.kahf_file):
+            if KAHF in section:
+                raise ConfigError("{} is on, but there is no {}. Set {} to a recording of Surah Al-Kahf, or turn it "
+                                  "off".format(KAHF, os.path.relpath(KAHF_SOUND, SCRIPT_DIR), KAHF_FILE))
+            self.kahf = 0  # on unless set, but there is nothing to play
         # Its length in seconds, None when it can't be read from the file, e.g. an MP3
         self.kahf_length = duration(self.kahf_file) if self.kahf else None
-        if self.kahf and self.kahf <= self.reminder:
-            self.warnings.append("{0} = {1}h starts Surah Al-Kahf with the reminder for Dhuhr, {2} minutes before it, "
-                                 "so it doesn't play. Use {0} = {3}h, or a shorter reminder".format(
-                                     KAHF, self.kahf // 60, self.reminder, self.kahf // 60 + 1))
+        self.warnings += kahf_warnings(self)
         self.default_azaan = default_azaan
 
     def azaan_for(self, prayer):
@@ -486,7 +497,7 @@ def parse_list(value, allow_bare_value=False):
     return result
 
 
-def parse_kahf_file(value, path, kahf, warnings):
+def parse_kahf_file(value, path, warnings):
     """The recording of Surah Al-Kahf to play: kahf-file, or the one PiPrayer comes with.
 
     A relative path is from the folder of the configuration file. When kahf-file can't be found, the one PiPrayer
@@ -499,10 +510,38 @@ def parse_kahf_file(value, path, kahf, warnings):
             return given
         warnings.append("{} {} isn't found, playing the recording of Surah Al-Kahf PiPrayer comes with".format(
             KAHF_FILE, value))
-    if kahf and not os.path.isfile(KAHF_SOUND):
-        raise ConfigError("{} is on, but there is no {}. Set {} to a recording of Surah Al-Kahf, or turn it off"
-                          .format(KAHF, os.path.relpath(KAHF_SOUND, SCRIPT_DIR), KAHF_FILE))
     return KAHF_SOUND
+
+
+def kahf_warnings(config):
+    """When a reminder leaves Surah Al-Kahf no time, or the Jumu'ah reminder cuts it short.
+
+    Al-Kahf and the Jumu'ah reminder both count back from Jumu'ah, so how they clash is the same every Friday.
+    """
+    if not config.kahf:
+        return []
+    hours = config.kahf // 60
+    later = " Use {} = {}h, or".format(KAHF, hours + 1) if hours < 3 else " Use"
+    if config.kahf <= config.reminder:
+        return ["{} = {}h starts Surah Al-Kahf with the reminder for Dhuhr, {} minutes before it, so it doesn't "
+                "play.{} a shorter {}".format(KAHF, hours, config.reminder, later, REMINDER)]
+    if not config.jummah_reminder or config.jummah_reminder > config.kahf:
+        return []  # no chime, or it comes before Al-Kahf
+    gap = config.kahf - config.jummah_reminder  # minutes from the start of Al-Kahf to the chime
+    if gap <= KAHF_MARGIN_MINUTES:
+        return ["{} = {} plays the Jumu'ah reminder as Surah Al-Kahf starts, {}h before Jumu'ah, so Al-Kahf doesn't "
+                "play.{} a shorter {}".format(JUMMAH_REMINDER, config.jummah_reminder, hours, later,
+                                              JUMMAH_REMINDER)]
+    if config.kahf_length is None:
+        return []  # how long it plays isn't known
+    cut = config.kahf_length + KAHF_MARGIN_MINUTES * 60 - gap * 60
+    if cut <= 0:
+        return []
+    longest = math.floor(config.kahf - (config.kahf_length / 60 + KAHF_MARGIN_MINUTES))
+    shorter = " {} = {} or less".format(JUMMAH_REMINDER, longest) if longest > 0 else " a shorter {}".format(
+        JUMMAH_REMINDER)
+    return ["{} = {} cuts Surah Al-Kahf short by {} minutes, as it plays while Al-Kahf does.{}{}".format(
+        JUMMAH_REMINDER, config.jummah_reminder, max(1, round(cut / 60)), later, shorter)]
 
 
 JUMMAH_TIME_FORMAT = re.compile(r"^([01]?[0-9]|2[0-3]):([0-5][0-9])$")

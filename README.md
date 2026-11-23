@@ -222,9 +222,10 @@ the file directly. The running service picks up changes within a minute, no rest
 | `high-latitude` | How to set Fajr and Isha when summer nights are too short for their angles, see [below](#short-summer-nights) | `NightMiddle` | `AngleBased` |
 | `hijri-adjust` | Days to move the [Hijri date](#hijri-date) on from the Umm al-Qura calendar, from -2 to 2 | `0` | `-1` |
 | `suhoor` | In [Ramadan](#ramadan), sound an alarm this many minutes before Fajr, up to 180, to wake for suhoor. `0` turns it off | `0` | `30` |
-| `kahf` | On Fridays, play [Surah Al-Kahf](#jumuah) this many hours before Jumu'ah: `1h`, `2h` or `3h`. `off` turns it off | `off` | `1h` |
+| `kahf` | On Fridays, play [Surah Al-Kahf](#jumuah) this many hours before Jumu'ah: `1h`, `2h` or `3h`. `off` turns it off | `2h` | `1h` |
 | `jummah-time` | The time of the khutbah on Fridays, as your mosque holds it, on the 24-hour clock. [Jumu'ah](#jumuah) is at the time of Dhuhr without it | the time of Dhuhr | `13:30` |
 | `jummah-azaan` | The Azaan for Dhuhr on Fridays: `on` for the usual one, `off` for none, e.g. when you are at the mosque, or another Azaan, from 1 to 17. `off` leaves out its reminder too | `on` | `off` |
+| `jummah-reminder` | On Fridays, play a chime of its own, a singing bowl, this many minutes before [Jumu'ah](#jumuah), up to 180, to get ready and go to the mosque. `0` turns it off | `0` | `45` |
 | `kahf-file` | Your own recording of [Surah Al-Kahf](#jumuah) to play instead, from the folder of `.piprayer` if it isn't a full path | Saad Al-Ghamdi's | `/home/pi/kahf.mp3` |
 | `settings-pin` | The PIN for the [settings page](#settings-page), 4 to 8 digits. PiPrayer saves it as a hash | none, off | `4826` |
 | `ramadan` | Which days are [days of fasting](#ramadan): `auto` for the days of Ramadan by the Hijri date, `on` for every day, `off` for none | `auto` | `on` |
@@ -298,11 +299,20 @@ you are at the mosque, or to play another Azaan for Jumu'ah, set `jummah-azaan`:
 jummah-azaan = off
 ```
 
-To play Surah Al-Kahf before Jumu'ah, set how many hours before the khutbah, or Dhuhr without `jummah-time`, to
-start it, `1h`, `2h` or `3h`:
+To be reminded to get ready and go to the mosque, e.g. 45 minutes before the khutbah, set `jummah-reminder`. It
+plays a chime of its own, a singing bowl struck twice, unlike the reminder before each Azaan, at the volume set for
+Dhuhr, also with `jummah-azaan = off`. Mute silences it, and skipping Dhuhr doesn't.
+`python3 piprayer.py play -j` plays it:
 
 ```ini
-kahf = 1h
+jummah-reminder = 45
+```
+
+PiPrayer plays Surah Al-Kahf on Fridays, 2 hours before the khutbah, or Dhuhr without `jummah-time`. To start it
+1 or 3 hours before instead, set `kahf` to `1h` or `3h`, and to turn it off, `off`:
+
+```ini
+kahf = off
 ```
 
 It plays Saad Al-Ghamdi's recitation, which is 29 minutes, at the volume set for Dhuhr, so starting a whole hour or
@@ -312,7 +322,9 @@ PiPrayer plays. With `kahf = 1h` and `reminder = 60`, the two would start togeth
 `2h`. As the Azaan for Dhuhr comes first, with a khutbah well after Dhuhr, start Al-Kahf early enough to finish
 before it, or set `jummah-azaan = off`, so it plays until the khutbah. `piprayer.py times` and the status page show
 when it starts, and say when it will be stopped before it finishes, e.g. *Surah Al-Kahf at 12:30, stopping early at
-12:54*. If the speaker drops while it plays, it isn't played again from the start, as an Azaan is. Without
+12:54*. If the Jumu'ah reminder would cut it short, the log, `piprayer.py times` and the settings page warn about
+it and say what to change. If the speaker drops while it plays, it isn't played again from the start, as an Azaan
+is. Without
 `jummah-time`, Jumu'ah is at the time of Dhuhr, with its offset in `prayers`.
 
 To hear another reciter, set `kahf-file` to a recording on the Raspberry Pi, in any format PiPrayer plays, e.g.
@@ -401,6 +413,7 @@ dst = 1            # 1 during daylight saving, otherwise 0
 | `python3 piprayer.py play -r` | Play the reminder chime |
 | `python3 piprayer.py play -s` | Play the [suhoor alarm](#ramadan) |
 | `python3 piprayer.py play --dua` | Play the dua after the Azaan. `play` plays it after the Azaan too when `dua` is on |
+| `python3 piprayer.py play -j` | Play the [Jumu'ah reminder](#jumuah) chime |
 | `python3 piprayer.py play --kahf` | Play [Surah Al-Kahf](#jumuah) |
 | `python3 piprayer.py stop` | Stop the Azaan, reminder, suhoor alarm or Surah Al-Kahf that is playing, and disconnect the speaker |
 | `python3 piprayer.py skip` | Don't play the next Azaan or its reminder. Run it again to skip the one after too |
@@ -415,7 +428,7 @@ dst = 1            # 1 during daylight saving, otherwise 0
 
 ### Azaan recordings
 
-The Azaan recordings, the dua after the Azaan, the reminder chime, the suhoor alarm and Surah Al-Kahf are in the
+The Azaan recordings, the dua after the Azaan, the reminder chime, the suhoor alarm, the Jumu'ah reminder and Surah Al-Kahf are in the
 [`media`](media) folder. The recordings are Opus files,
 normalised to the same loudness (-16 LUFS), so they play at a similar level at the same volume.
 
@@ -504,9 +517,10 @@ time the mute ends. `/api/times` also has `last`, how the last Azaan went, with 
 `hijri` is the Hijri date, with its `day`, `month` (1 to 12), `month_name`, `year`, `evening` (`true` from Maghrib,
 when it is the next day's date), `adjust` and `text`, e.g. "Evening of 1 Ramadan 1448". On a day of fasting,
 `ramadan` has the day's `suhoor_alarm` (`null` without one), `suhoor_ends` and `iftar`, and is `null` on other days.
-On Fridays, Dhuhr has `jummah` set to `true`, with `jummah-time` set, `khutbah` has its time, and with `kahf`
-set, `kahf` has the `start` of Surah Al-Kahf, its `end`, and `cut_short`, `true` when it has to stop before it
-finishes. `end` is `null` when the length of `kahf-file` can't be read from it, e.g. an MP3. `playing` has the `kind` of sound playing: `azaan`, `reminder`, `suhoor` or `kahf`.
+On Fridays, Dhuhr has `jummah` set to `true`, and with them set, `khutbah` has the time of `jummah-time`,
+`jummah_reminder` the time of its chime, and `kahf` the `start` of Surah Al-Kahf, its `end`, and `cut_short`, `true`
+when it has to stop before it finishes. `end` is `null` when the length of `kahf-file` can't be read from it, e.g.
+an MP3. `playing` has the `kind` of sound playing: `azaan`, `reminder`, `suhoor`, `kahf` or `jummah_reminder`.
 
 ## Home Assistant
 

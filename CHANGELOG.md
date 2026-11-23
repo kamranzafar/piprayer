@@ -8,8 +8,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
-- Jumu'ah mode: `kahf = 1h` plays Surah Al-Kahf on Fridays, 1 hour before Jumu'ah, at the time of Dhuhr, or 2 or 3
-  hours with `2h` or `3h`. It plays Saad Al-Ghamdi's recitation, 29 minutes, which comes with PiPrayer, or your own
+- Jumu'ah mode: PiPrayer plays Surah Al-Kahf on Fridays, 2 hours before Jumu'ah, at the time of Dhuhr, or 1 or 3
+  hours with `kahf = 1h` or `3h`. It is on unless `kahf = off`, also after updating. It plays Saad Al-Ghamdi's recitation, 29 minutes, which comes with PiPrayer, or your own
   with `kahf-file`, at the volume set for Dhuhr. The Azaan always comes first: Al-Kahf fades out and stops 2 minutes
   before the reminder or Azaan for Dhuhr if it hasn't finished, and isn't played again from the start if the
   speaker drops. Mute silences it, and skipping Dhuhr doesn't. `piprayer.py times`, the status page and its JSON
@@ -25,6 +25,13 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   e.g. when you are at the mosque, or another Azaan. With `off`, Jumu'ah is shown without an Azaan, the next Azaan
   and Skip move on to Asr, and Surah Al-Kahf plays until the khutbah. It is in the settings page's Jumu'ah section,
   with Listen ([#28](https://github.com/kamranzafar/piprayer/issues/28)).
+- `jummah-reminder = 45` plays a chime of its own, a singing bowl, that many minutes before Jumu'ah, to get ready
+  and go to the mosque. It is muted with the Azaans, skipping Dhuhr doesn't skip it, and Surah Al-Kahf stops before
+  it. It is shown with Jumu'ah, in the JSON as `jummah_reminder`, and on the settings page, and
+  `piprayer.py play -j` plays it ([#27](https://github.com/kamranzafar/piprayer/issues/27)).
+- A warning, in the log, `piprayer.py times` and the settings page, when the Jumu'ah reminder cuts Surah Al-Kahf
+  short or leaves it no time, saying by how much and what to change. The settings page shows the warnings about
+  the options in each section.
 - Surah Al-Kahf is shown with the time it starts, and, when it will be stopped before it finishes, the time it stops,
   e.g. "Surah Al-Kahf at 12:30, stopping early at 12:54". Its length is read from the recording, an Opus, Ogg, WAV
   or FLAC file. The JSON's `kahf` has its `start`, `end` and `cut_short`, and Home Assistant's **Surah Al-Kahf** has

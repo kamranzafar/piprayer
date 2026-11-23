@@ -374,6 +374,9 @@ def times_list(entries, upcoming, now, fast=None):
             detail += '<span class="detail fast">{}{}</span>'.format(label, alarm)
         if entry.khutbah:
             detail += '<span class="detail">Khutbah {}</span>'.format(entry.khutbah.strftime("%H:%M"))
+        if entry.jummah_reminder:
+            detail += '<span class="detail">Jumu&#x27;ah reminder {}</span>'.format(
+                entry.jummah_reminder.strftime("%H:%M"))
         if entry.kahf:
             detail += '<span class="detail">{}</span>'.format(escape(describe_kahf(entry.kahf)))
         if entry.at.date() != now.date():

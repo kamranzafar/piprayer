@@ -111,6 +111,7 @@ def format_times(config, day, now, state=None, last=None, synchronised=None):
         notes = (["◀ next"] if entry is upcoming else []) + \
                 ([fast.label(entry.prayer).lower()] if fast and fast.label(entry.prayer) else []) + \
                 (["khutbah " + entry.khutbah.strftime("%H:%M")] if entry.khutbah else []) + \
+                (["Jumu'ah reminder " + entry.jummah_reminder.strftime("%H:%M")] if entry.jummah_reminder else []) + \
                 ([describe_kahf(entry.kahf)] if entry.kahf else []) + \
                 ([] if entry.plays else ["no azaan"]) + ([entry.silenced] if entry.silenced and entry.plays else []) + \
                 (["after midnight"] if entry.at.date() != day else [])
@@ -156,6 +157,8 @@ def format_next(config, entry, now, state=None, synchronised=None):
         details += " · reminder at " + entry.reminder.strftime("%H:%M")
     if entry.khutbah:
         details += " · khutbah at " + entry.khutbah.strftime("%H:%M")
+    if entry.jummah_reminder:
+        details += " · Jumu'ah reminder at " + entry.jummah_reminder.strftime("%H:%M")
     if entry.kahf:
         details += " · " + describe_kahf(entry.kahf)
 

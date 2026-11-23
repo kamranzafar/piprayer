@@ -97,7 +97,8 @@ def discovery_messages(topics, node, update_check=True, auto_update=False):
                json_attributes_template="{{ {'prayer': value_json.playing, "
                                         "'reminder': value_json.playing_reminder, "
                                         "'suhoor': value_json.playing_suhoor, "
-                                        "'kahf': value_json.playing_kahf} | tojson }}", **state),
+                                        "'kahf': value_json.playing_kahf, "
+                                        "'kind': value_json.playing_kind} | tojson }}", **state),
         entity("sensor", "hijri_date", "Hijri date", icon="mdi:moon-waxing-crescent",
                value_template="{{ value_json.hijri_date }}", json_attributes_topic=topics.state,
                json_attributes_template="{{ (value_json.hijri or {}) | tojson }}", **state),
@@ -157,6 +158,7 @@ def state_payload(config, now, state, last=None, synchronised=None, playing=None
         "playing_reminder": bool(playing and playing.reminder),
         "playing_suhoor": bool(playing and playing.suhoor),
         "playing_kahf": bool(playing and playing.kahf),
+        "playing_kind": playing.kind if playing else None,
         "jummah": jummah.isoformat() if jummah else None,
         "kahf": kahf.at.isoformat() if kahf else None,
         "kahf_end": kahf.end.isoformat() if kahf and kahf.end else None,

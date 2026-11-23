@@ -14,7 +14,7 @@ from . import clock, systemd
 from .config import DEFAULT_AZAAN, SCRIPT_DIR, SETTINGS_PIN, Config, ConfigError, save_option
 from .pin import hash_pin, is_hash
 from . import player
-from .schedule import AZAAN, REMINDER, next_event
+from .schedule import AZAAN, REMINDERS, next_event
 from .mqtt import MqttBridge
 from .state import (FAILED, MISSED, PLAYED, PLAYED_LOCALLY, STOPPED, LastAzaan, Playing, State, last_file,
                     playing_file, state_file, tidy_state)
@@ -223,7 +223,7 @@ def wait_and_play(config_path, config, mtime, state_path, event, version=None, c
         late = clock.now(config.tz) - event.at
         if late > lateness(event):
             minutes = int(late.total_seconds() // 60)
-            if event.kind == REMINDER:
+            if event.kind in REMINDERS:
                 log.info("Not playing %s, it is %d minutes late, e.g. as something else was playing at its time",
                          event, minutes)
                 return True
@@ -307,7 +307,7 @@ def play_with_retries(config_path, config, state_path, event, notify=None):
 
 def lateness(event):
     """How late the event can still be played."""
-    return REMINDER_LATENESS if event.kind == REMINDER else MAX_LATENESS
+    return REMINDER_LATENESS if event.kind in REMINDERS else MAX_LATENESS
 
 
 def started_playing(path, pid):

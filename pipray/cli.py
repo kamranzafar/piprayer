@@ -14,7 +14,7 @@ from .config import DEFAULT_AZAAN, DEFAULT_CONFIG, DEFAULT_VOLUME, KAHF_SOUND, C
 from .output import (RESUME_HINT, describe_azaan, describe_mute, format_next, format_plain, format_times,
                      next_json, times_json)
 from . import player
-from .player import REMINDER_SOUND, SUHOOR_SOUND, play, stop
+from .player import JUMMAH_SOUND, REMINDER_SOUND, SUHOOR_SOUND, play, stop
 from .schedule import next_azaan
 from .service import Updated, installed_azaan, run
 from .state import MAX_MUTE_DAYS, LastAzaan, Playing, State, last_file, mute, playing_file, resume, skip_next, \
@@ -93,6 +93,9 @@ def play_command(args):
 
     if args.dua:
         return play(player.DUA_FILE, volume, "dua", speaker, fallback).returncode
+    if args.jummah_reminder:
+        volume = config.volume_for("dhuhr") if config else DEFAULT_VOLUME
+        return play(JUMMAH_SOUND, volume, "Jumu'ah reminder", speaker, fallback).returncode
     if args.kahf:
         volume = config.volume_for("dhuhr") if config else DEFAULT_VOLUME
         return play(config.kahf_file if config else KAHF_SOUND, volume, "Surah Al-Kahf", speaker, fallback,
@@ -221,6 +224,8 @@ def parser():
     play_sound.add_argument("-s", "--suhoor", action="store_true",
                             help="play the suhoor alarm, at the volume set for Fajr")
     play_sound.add_argument("--dua", action="store_true", help="play only the dua after the azaan")
+    play_sound.add_argument("-j", "--jummah-reminder", action="store_true",
+                            help="play the Jumu'ah reminder, at the volume set for Dhuhr")
     play_sound.add_argument("--kahf", action="store_true",
                             help="play Surah Al-Kahf, as before Jumu'ah, at the volume set for Dhuhr")
     play_parser.set_defaults(func=play_command)

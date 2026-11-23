@@ -181,7 +181,7 @@ def test_times_json(write_config, monkeypatch, capsys, at_time):
     assert data["prayers"][0] == {
         "prayer": "fajr", "time": "2026-11-12T04:23:00+11:00", "azaan": 3, "volume": 40, "fade_in": 0, "dua": False,
         "reminder": "2026-11-12T04:13:00+11:00", "skipped": False, "muted": False, "jummah": False, "kahf": None,
-        "khutbah": None,
+        "khutbah": None, "jummah_reminder": None,
     }
     assert [(p["prayer"], p["time"][11:16], p["azaan"], p["volume"]) for p in data["prayers"][1:]] == [
         ("dhuhr", "13:06", 5, 80), ("asr", "18:03", 5, 80), ("maghrib", "20:02", 5, 80), ("isha", "21:43", 5, 80),
@@ -207,6 +207,7 @@ def test_times_next_json(write_config, monkeypatch, capsys, at_time):
     assert json.loads(out.out) == {
         "prayer": "fajr", "time": "2026-11-13T04:22:00+11:00", "azaan": 1, "volume": 100, "fade_in": 0, "dua": False,
         "reminder": None, "skipped": False, "muted": False, "jummah": False, "kahf": None, "khutbah": None,
+        "jummah_reminder": None,
         "timezone": "Australia/Melbourne", "seconds_until": 22920, "muted_until": None,
     }
 

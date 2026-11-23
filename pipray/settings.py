@@ -20,14 +20,15 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 import praytimes
 
 from . import __version__, bluetooth, clock, update
-from .config import (ASR_TIME, ASR_TIMES, AZAAN, DEFAULT_HIGH_LATITUDE, DEFAULT_MQTT_PORT, DEFAULT_MQTT_TOPIC,
-                     DEFAULT_VOLUME, DST, DUA, FADE_IN, FAJR_AZAAN, FALLBACK_OUTPUT, GMT_OFFSET, HIGH_LATITUDE,
-                     HIGH_LATITUDE_RULES, JUMMAH_AZAAN, JUMMAH_TIME, KAHF, KAHF_CHOICES, KAHF_FILE, LAT, LNG,
-                     MAC_ADDRESS, MEDIA_DIR, MAX_FADE_IN, MAX_OFFSET, MAX_SUHOOR, METHOD, MQTT_HOST, MQTT_PASSWORD,
-                     MQTT_PORT, MQTT_TOPIC, MQTT_TOPIC_NAME, MQTT_USERNAME, PRAYER_NAMES, PRAYERS, RAMADAN,
-                     RAMADAN_MODES, REMINDER, SPEAKER, SUHOOR, TIMEZONE, VOLUME, Config, ConfigError, azaan_file,
-                     changed_lines, check_range, kahf_file_path, parse_choice, parse_coordinate, parse_high_latitude,
-                     parse_jummah_azaan, parse_jummah_time, parse_method, read_section, save_options)
+from .config import (ASR_TIME, ASR_TIMES, AZAAN, DEFAULT_HIGH_LATITUDE, DEFAULT_KAHF, DEFAULT_MQTT_PORT,
+                     DEFAULT_MQTT_TOPIC, DEFAULT_VOLUME, DST, DUA, FADE_IN, FAJR_AZAAN, FALLBACK_OUTPUT, GMT_OFFSET,
+                     HIGH_LATITUDE, HIGH_LATITUDE_RULES, JUMMAH_AZAAN, JUMMAH_REMINDER, JUMMAH_TIME, KAHF,
+                     KAHF_CHOICES, KAHF_FILE, LAT, LNG, MAC_ADDRESS, MEDIA_DIR, MAX_FADE_IN, MAX_JUMMAH_REMINDER,
+                     MAX_OFFSET, MAX_SUHOOR, METHOD, MQTT_HOST, MQTT_PASSWORD, MQTT_PORT, MQTT_TOPIC, MQTT_TOPIC_NAME,
+                     MQTT_USERNAME, PRAYER_NAMES, PRAYERS, RAMADAN, RAMADAN_MODES, REMINDER, SPEAKER, SUHOOR, TIMEZONE,
+                     VOLUME, Config, ConfigError, azaan_file, changed_lines, check_range, kahf_file_path,
+                     parse_choice, parse_coordinate, parse_high_latitude, parse_jummah_azaan, parse_jummah_time,
+                     parse_method, read_section, save_options)
 from .pairing import PAIRING, Pairing
 from .pin import COOKIE, SESSION_SECONDS, Throttle, check_pin, session_cookie, valid_session
 from .schedule import schedule
@@ -35,7 +36,8 @@ from .state import Playing, playing_file
 from .web import HTMX, STATUS_STYLE, Response, times_list, update_html
 
 # The sound files the page can play, to hear them before choosing
-MEDIA = re.compile(r"^/media/(azaan-[0-9]{1,2}\.opus|dua\.opus|suhoor\.opus|kahf\.opus|reminder\.wav)$")
+MEDIA = re.compile(r"^/media/(azaan-[0-9]{1,2}\.opus|dua\.opus|suhoor\.opus|kahf\.opus|jummah\.opus|"
+                   r"reminder\.wav)$")
 
 HIGH_LATITUDE_LABELS = {
     "NightMiddle": "Middle of the night",
@@ -202,8 +204,11 @@ def sections(default_azaan, config_path):
             Field(JUMMAH_AZAAN, "Azaan for Dhuhr on Fridays", checked(parse_jummah_azaan), kind="select",
                   choices=lambda: [("", "The same as the other days"), ("off", "Don't play it")] + azaan_choices(),
                   listen="azaan-{}.opus", hint="Off when you are at the mosque for Jumu'ah. The reminder goes with it"),
+            Field(JUMMAH_REMINDER, "Jumu'ah reminder, minutes before Jumu'ah",
+                  number(JUMMAH_REMINDER, None, 0, MAX_JUMMAH_REMINDER), default="0", kind="number",
+                  hint="0 for none. Its own chime, to get ready and go to the mosque", listen="jummah.opus"),
             Field(KAHF, "Surah Al-Kahf before Jumu'ah", lambda v: parse_choice(v, KAHF, KAHF_CHOICES),
-                  default="off", kind="select",
+                  default=DEFAULT_KAHF, kind="select",
                   choices=lambda: [(choice, KAHF_LABELS[choice]) for choice in KAHF_CHOICES],
                   hint="It stops 2 minutes before the reminder or azaan for Dhuhr", listen="kahf.opus"),
             Field(KAHF_FILE, "Recording of Surah Al-Kahf", kahf_file_check(config_path),
@@ -544,6 +549,10 @@ class SettingsRoutes:
             times = ('<div class="preview"><p class="label">The times today with these settings</p>{}</div>'
                      .format(times_list(schedule(preview, now.date()), None, now)))
             buttons += '<a class="button" href="/settings#{}">Cancel</a>'.format(section.id)
+        config = self.config()
+        notices = "".join('<p class="notice">{}</p>'.format(escape(warning)) for warning in
+                          (config.warnings if config else [])
+                          if any(warning.startswith(item.option + " ") for item in section.fields))
         extra = ""
         if section.id == "speaker":
             if load_speakers:
@@ -556,11 +565,11 @@ class SettingsRoutes:
                 'hx-select="#{id}" hx-swap="outerHTML" hx-disabled-elt="find button">'
                 '<div hx-post="/settings/check/{id}" hx-trigger="input delay:600ms, change" '
                 'hx-include="closest form" hx-swap="none" hx-disabled-elt="unset">{section_error}{fields}</div>{times}'
-                '{saved}<div class="actions">{buttons}</div></form>{extra}</section>').format(
+                '{notices}{saved}<div class="actions">{buttons}</div></form>{extra}</section>').format(
             id=section.id, title=escape(section.title),
             description='<p class="detail">{}</p>'.format(escape(section.description)) if section.description else "",
             section_error=error_span("section-" + section.id, errors.get("section-" + section.id)),
-            fields=fields, times=times, buttons=buttons, extra=extra,
+            fields=fields, times=times, buttons=buttons, extra=extra, notices=notices,
             saved='<p class="saved" role="status">Saved. PiPrayer uses it within a minute.</p>' if saved else "")
 
     def field_html(self, item, raw, values, error):

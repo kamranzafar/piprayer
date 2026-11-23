@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from typing import Optional
 
-from .schedule import AZAAN, KAHF, REMINDER, SUHOOR, upcoming_azaans
+from .schedule import AZAAN, JUMMAH_REMINDER, KAHF, REMINDER, SUHOOR, upcoming_azaans
 
 log = logging.getLogger("piprayer")
 
@@ -193,7 +193,7 @@ class Playing:
     The service keeps the file while it plays, and removes it once done.
     """
     prayer: str
-    kind: str  # as an Event's: AZAAN, REMINDER, SUHOOR or KAHF
+    kind: str  # as an Event's: AZAAN, REMINDER, SUHOOR, KAHF or JUMMAH_REMINDER
     at: datetime
     pid: Optional[int] = None  # the player's process, None between attempts
     stopped: bool = False  # piprayer.py stop, the status page or Home Assistant asked to stop it
@@ -213,7 +213,8 @@ class Playing:
     @property
     def what(self):
         """"azaan", "reminder", "suhoor alarm" or "Surah Al-Kahf"."""
-        return {REMINDER: "reminder", SUHOOR: "suhoor alarm", KAHF: "Surah Al-Kahf"}.get(self.kind, "azaan")
+        return {REMINDER: "reminder", SUHOOR: "suhoor alarm", KAHF: "Surah Al-Kahf",
+                JUMMAH_REMINDER: "Jumu'ah reminder"}.get(self.kind, "azaan")
 
     def describe(self):
         """e.g. "the azaan for Asr", "the suhoor alarm" or "Surah Al-Kahf"."""
@@ -221,6 +222,8 @@ class Playing:
             return "the suhoor alarm"
         if self.kind == KAHF:
             return "Surah Al-Kahf"
+        if self.kind == JUMMAH_REMINDER:
+            return "the Jumu'ah reminder"
         return "the {} for {}".format(self.what, self.prayer.capitalize())
 
     def to_json(self):
