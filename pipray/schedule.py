@@ -85,10 +85,21 @@ class Event:
     kind: str = AZAAN
     azaan_at: Optional[datetime] = None  # the time of the azaan, also for its reminder, the suhoor alarm and Al-Kahf
     until: Optional[datetime] = None  # when it has to stop, so the next event plays on time; None to play to the end
+    ends: Optional[datetime] = None  # when it finishes by itself, if that is known
 
     def __post_init__(self):
         if self.azaan_at is None:
             self.azaan_at = self.at
+
+    @property
+    def cut_short(self):
+        """Whether it has to stop before it finishes, e.g. a long recitation before the azaan."""
+        return bool(self.until and self.ends and self.ends > self.until)
+
+    @property
+    def end(self):
+        """When it stops, by itself or when it has to, or None when that isn't known."""
+        return self.until if self.cut_short else self.ends
 
     @property
     def key(self):
@@ -111,8 +122,10 @@ class Event:
         if self.kind == SUHOOR:
             return "Suhoor alarm at " + at
         if self.kind == KAHF:
-            return "Surah Al-Kahf at {}, until {}".format(at, self.until.strftime("%H:%M")) if self.until else \
-                "Surah Al-Kahf at " + at
+            if self.cut_short:
+                return "Surah Al-Kahf at {}, stopping early at {}".format(at, self.until.strftime("%H:%M"))
+            return "Surah Al-Kahf at {}, stopping at {} at the latest".format(at, self.until.strftime("%H:%M")) \
+                if self.until and not self.ends else "Surah Al-Kahf at " + at
         return "{} for {} at {}".format("Reminder" if self.kind == REMINDER else "Azaan", self.prayer, at)
 
 
@@ -120,6 +133,8 @@ def events(config, day):
     """Return the events for the given day, in order."""
     result = []
     for prayer, at in prayer_times(config, day):
+        if azaan_for(config, prayer, day) == 0:
+            continue  # jummah-azaan = off: neither the azaan nor its reminder
         if config.reminder:
             result.append(Event(at - timedelta(minutes=config.reminder), prayer, REMINDER, azaan_at=at))
         result.append(Event(at, prayer))
@@ -177,28 +192,42 @@ class Entry:
     @classmethod
     def of(cls, config, prayer, at, state=None):
         jummah = is_jummah(prayer, at.date())
-        return cls(prayer, at, config.azaan_for(prayer), config.volume_for(prayer),
-                   at - timedelta(minutes=config.reminder) if config.reminder else None,
+        azaan = azaan_for(config, prayer, at.date())
+        return cls(prayer, at, azaan, config.volume_for(prayer),
+                   at - timedelta(minutes=config.reminder) if config.reminder and azaan else None,
                    state.silenced(at) if state else None, config.fade_in_for(prayer), config.dua_for(prayer),
                    kahf_event(config, at.date()) if jummah else None,
                    jummah_time(config, at.date()) if jummah and config.jummah_time else None)
+
+    @property
+    def plays(self):
+        """Whether an azaan plays for it: not for Jumu'ah with jummah-azaan = off."""
+        return self.azaan != 0
 
     @property
     def name(self):
         """e.g. "Asr", or "Jumu'ah" for Dhuhr on a Friday."""
         return prayer_name(self.prayer, self.at.date())
 
+    def kahf_json(self):
+        """Surah Al-Kahf's start, its end when known, and whether it has to stop before it finishes."""
+        if not self.kahf:
+            return None
+        end = self.kahf.end
+        return {"start": self.kahf.at.isoformat(), "end": end.isoformat() if end else None,
+                "cut_short": self.kahf.cut_short}
+
     def to_json(self):
         return {
             "prayer": self.prayer,
             "time": self.at.isoformat(),
-            "azaan": self.azaan,
+            "azaan": self.azaan or None,
             "volume": self.volume,
             "fade_in": self.fade_in,
             "dua": self.dua,
             "reminder": self.reminder.isoformat() if self.reminder else None,
             "jummah": is_jummah(self.prayer, self.at.date()),
-            "kahf": {"start": self.kahf.at.isoformat(), "until": self.kahf.until.isoformat()} if self.kahf else None,
+            "kahf": self.kahf_json(),
             "khutbah": self.khutbah.isoformat() if self.khutbah else None,
             "skipped": self.silenced == "skipped",
             "muted": self.silenced == "muted",
@@ -216,7 +245,7 @@ def upcoming_azaans(config, now, state=None, days=2):
     """
     days = [schedule(config, now.date() + timedelta(days=offset), state) for offset in range(-1, days)]
     for entry in heapq.merge(*days, key=lambda entry: entry.at):
-        if entry.at > now:
+        if entry.at > now and entry.plays:
             yield entry
 
 
@@ -238,6 +267,13 @@ def is_jummah(prayer, day):
 def prayer_name(prayer, day):
     """The prayer's name to show, e.g. "Asr", and "Jumu'ah" for Dhuhr on a Friday."""
     return JUMMAH if is_jummah(prayer, day) else prayer.capitalize()
+
+
+def azaan_for(config, prayer, day):
+    """The azaan to play for the prayer on the given day: jummah-azaan for Jumu'ah when it is set, 0 for none."""
+    if is_jummah(prayer, day) and config.jummah_azaan is not None:
+        return config.jummah_azaan
+    return config.azaan_for(prayer)
 
 
 def jummah_time(config, day):
@@ -280,7 +316,8 @@ def kahf_event(config, day, others=None):
     until = min([event.at for event in others if event.at >= start] + [jummah]) - KAHF_MARGIN
     if until - start < MIN_KAHF:
         return None  # the configuration warns about it
-    return Event(start, "dhuhr", KAHF, azaan_at=jummah, until=until)
+    ends = start + timedelta(seconds=math.ceil(config.kahf_length)) if config.kahf_length else None
+    return Event(start, "dhuhr", KAHF, azaan_at=jummah, until=until, ends=ends)
 
 
 def upcoming_kahf(config, now):
@@ -290,7 +327,7 @@ def upcoming_kahf(config, now):
     friday = now.date() + timedelta(days=(FRIDAY - now.date().weekday()) % 7)
     for day in (friday, friday + timedelta(days=7)):  # this Friday's may be over
         kahf = kahf_event(config, day)
-        if kahf and kahf.until > now:
+        if kahf and (kahf.end or kahf.until) > now:
             return kahf
     return None
 

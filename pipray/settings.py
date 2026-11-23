@@ -22,12 +22,12 @@ import praytimes
 from . import __version__, bluetooth, clock, update
 from .config import (ASR_TIME, ASR_TIMES, AZAAN, DEFAULT_HIGH_LATITUDE, DEFAULT_MQTT_PORT, DEFAULT_MQTT_TOPIC,
                      DEFAULT_VOLUME, DST, DUA, FADE_IN, FAJR_AZAAN, FALLBACK_OUTPUT, GMT_OFFSET, HIGH_LATITUDE,
-                     HIGH_LATITUDE_RULES, JUMMAH_TIME, KAHF, KAHF_CHOICES, KAHF_FILE, LAT, LNG, MAC_ADDRESS,
-                     MEDIA_DIR, MAX_FADE_IN, MAX_OFFSET, MAX_SUHOOR, METHOD, MQTT_HOST, MQTT_PASSWORD, MQTT_PORT,
-                     MQTT_TOPIC, MQTT_TOPIC_NAME, MQTT_USERNAME, PRAYER_NAMES, PRAYERS, RAMADAN, RAMADAN_MODES,
-                     REMINDER, SPEAKER, SUHOOR, TIMEZONE, VOLUME, Config, ConfigError, azaan_file, changed_lines,
-                     check_range, kahf_file_path, parse_choice, parse_coordinate, parse_high_latitude,
-                     parse_jummah_time, parse_method, read_section, save_options)
+                     HIGH_LATITUDE_RULES, JUMMAH_AZAAN, JUMMAH_TIME, KAHF, KAHF_CHOICES, KAHF_FILE, LAT, LNG,
+                     MAC_ADDRESS, MEDIA_DIR, MAX_FADE_IN, MAX_OFFSET, MAX_SUHOOR, METHOD, MQTT_HOST, MQTT_PASSWORD,
+                     MQTT_PORT, MQTT_TOPIC, MQTT_TOPIC_NAME, MQTT_USERNAME, PRAYER_NAMES, PRAYERS, RAMADAN,
+                     RAMADAN_MODES, REMINDER, SPEAKER, SUHOOR, TIMEZONE, VOLUME, Config, ConfigError, azaan_file,
+                     changed_lines, check_range, kahf_file_path, parse_choice, parse_coordinate, parse_high_latitude,
+                     parse_jummah_azaan, parse_jummah_time, parse_method, read_section, save_options)
 from .pairing import PAIRING, Pairing
 from .pin import COOKIE, SESSION_SECONDS, Throttle, check_pin, session_cookie, valid_session
 from .schedule import schedule
@@ -199,6 +199,9 @@ def sections(default_azaan, config_path):
         Section("jummah", "Jumu'ah", [
             Field(JUMMAH_TIME, "Time of the khutbah", checked(parse_jummah_time),
                   hint="e.g. 13:30, as your mosque holds it. Empty for the time of Dhuhr"),
+            Field(JUMMAH_AZAAN, "Azaan for Dhuhr on Fridays", checked(parse_jummah_azaan), kind="select",
+                  choices=lambda: [("", "The same as the other days"), ("off", "Don't play it")] + azaan_choices(),
+                  listen="azaan-{}.opus", hint="Off when you are at the mosque for Jumu'ah. The reminder goes with it"),
             Field(KAHF, "Surah Al-Kahf before Jumu'ah", lambda v: parse_choice(v, KAHF, KAHF_CHOICES),
                   default="off", kind="select",
                   choices=lambda: [(choice, KAHF_LABELS[choice]) for choice in KAHF_CHOICES],
@@ -594,7 +597,7 @@ class SettingsRoutes:
         listen = ""
         if item.listen:
             sound = item.listen.format(value or "")
-            if "{}" not in item.listen or value:
+            if "{}" not in item.listen or value.isdigit():
                 listen = ' <a class="listen" href="/media/{}" target="_blank" data-listen="{}" data-for="{}">' \
                          'Listen</a>'.format(escape(sound), escape(item.listen), item.name)
         return ('<div class="field"><div class="field-head"><label for="field-{name}">{label}</label>{listen}</div>'
@@ -754,7 +757,9 @@ SCRIPT = """
     var links = document.querySelectorAll('[data-for="' + event.target.name + '"]');
     for (var i = 0; i < links.length; i++) {
       links[i].href = "/media/" + links[i].getAttribute("data-listen").replace("{}", event.target.value);
-      links[i].hidden = !event.target.value;
+      var listen = links[i].getAttribute("data-listen");
+      // an azaan to hear only for a number, e.g. not for jummah-azaan = off
+      links[i].hidden = listen.indexOf("{}") >= 0 ? !/^[0-9]+$/.test(event.target.value) : !event.target.value;
     }
   });
   function problem(text) {

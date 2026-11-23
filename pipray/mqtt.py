@@ -111,7 +111,8 @@ def discovery_messages(topics, node, update_check=True, auto_update=False):
         # Unknown when kahf is off
         entity("sensor", "kahf", "Surah Al-Kahf", device_class="timestamp", icon="mdi:book-open-variant",
                value_template="{{ value_json.kahf }}", json_attributes_topic=topics.state,
-               json_attributes_template="{{ {'until': value_json.kahf_until} | tojson }}", **state),
+               json_attributes_template="{{ {'end': value_json.kahf_end, "
+                                        "'cut_short': value_json.kahf_cut_short} | tojson }}", **state),
         entity("select", "kahf_hours", "Surah Al-Kahf before Jumu'ah", icon="mdi:book-open-variant",
                entity_category="config", options=KAHF_CHOICES, value_template="{{ value_json.kahf_hours }}",
                command_topic=topics.command, command_template="kahf {{ value }}", **state),
@@ -158,7 +159,8 @@ def state_payload(config, now, state, last=None, synchronised=None, playing=None
         "playing_kahf": bool(playing and playing.kahf),
         "jummah": jummah.isoformat() if jummah else None,
         "kahf": kahf.at.isoformat() if kahf else None,
-        "kahf_until": kahf.until.isoformat() if kahf else None,
+        "kahf_end": kahf.end.isoformat() if kahf and kahf.end else None,
+        "kahf_cut_short": bool(kahf and kahf.cut_short),
         "kahf_hours": "{}h".format(config.kahf // 60) if config.kahf else "off",
         "iftar": fast[IFTAR].isoformat() if IFTAR in fast else None,
         "suhoor_ends": fast[SUHOOR_ENDS].isoformat() if SUHOOR_ENDS in fast else None,

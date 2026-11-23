@@ -57,8 +57,9 @@ def format_duration(delta):
 
 
 def describe_kahf(kahf):
-    """e.g. "Surah Al-Kahf 11:28-12:56"."""
-    return "Surah Al-Kahf {}-{}".format(kahf.at.strftime("%H:%M"), kahf.until.strftime("%H:%M"))
+    """e.g. "Surah Al-Kahf at 12:06", and when it has to stop before it finishes, ", stopping early at 12:54"."""
+    return "Surah Al-Kahf at " + kahf.at.strftime("%H:%M") + \
+        (", stopping early at " + kahf.until.strftime("%H:%M") if kahf.cut_short else "")
 
 
 def describe_fast(config, fast):
@@ -91,7 +92,7 @@ def format_times(config, day, now, state=None, last=None, synchronised=None):
     network (synchronised False).
     """
     entries = schedule(config, day, state)
-    upcoming = next((e for e in entries if e.at > now), None) if day == now.date() else None
+    upcoming = next((e for e in entries if e.at > now and e.plays), None) if day == now.date() else None
     fast = fast_times(config, day)
 
     header = ["Prayer", "Time", "Azaan", "Volume"] + (["Fade"] if config.fades_in else []) + \
@@ -99,18 +100,20 @@ def format_times(config, day, now, state=None, last=None, synchronised=None):
         (["Reminder"] if config.reminder else [])
     rows = []
     for entry in entries:
-        row = [entry.name, entry.at.strftime("%H:%M"), str(entry.azaan), "{}%".format(entry.volume)]
+        row = [entry.name, entry.at.strftime("%H:%M"), str(entry.azaan) if entry.plays else "-",
+               "{}%".format(entry.volume) if entry.plays else "-"]
         if config.fades_in:
-            row.append("{} s".format(entry.fade_in) if entry.fade_in else "-")
+            row.append("{} s".format(entry.fade_in) if entry.fade_in and entry.plays else "-")
         if config.plays_dua:
-            row.append("yes" if entry.dua else "-")
-        if entry.reminder:
-            row.append(entry.reminder.strftime("%H:%M"))
+            row.append("yes" if entry.dua and entry.plays else "-")
+        if config.reminder:
+            row.append(entry.reminder.strftime("%H:%M") if entry.reminder else "-")
         notes = (["◀ next"] if entry is upcoming else []) + \
                 ([fast.label(entry.prayer).lower()] if fast and fast.label(entry.prayer) else []) + \
                 (["khutbah " + entry.khutbah.strftime("%H:%M")] if entry.khutbah else []) + \
                 ([describe_kahf(entry.kahf)] if entry.kahf else []) + \
-                ([entry.silenced] if entry.silenced else []) + (["after midnight"] if entry.at.date() != day else [])
+                ([] if entry.plays else ["no azaan"]) + ([entry.silenced] if entry.silenced and entry.plays else []) + \
+                (["after midnight"] if entry.at.date() != day else [])
         rows.append((row, " · ".join(notes)))
 
     widths = [max([len(heading)] + [len(row[i]) for row, _ in rows]) for i, heading in enumerate(header)]
@@ -192,7 +195,7 @@ def muted_until_json(state, now):
 
 def times_json(config, day, now, state=None, last=None, synchronised=None, playing=None):
     entries = schedule(config, day, state)
-    upcoming = next((e for e in entries if e.at > now), None) if day == now.date() else None
+    upcoming = next((e for e in entries if e.at > now and e.plays), None) if day == now.date() else None
     hijri = hijri_for(config, day, now)
     fast = fast_times(config, day)
     return {

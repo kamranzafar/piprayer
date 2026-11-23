@@ -21,6 +21,14 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   Surah Al-Kahf counts back from it, `piprayer.py times`, the status page and the JSON (`khutbah`) show it with
   Jumu'ah, and Home Assistant has a **Jumu'ah** sensor with the next one, the khutbah or the time of Dhuhr. The Azaan
   for Dhuhr still plays at its calculated time ([#26](https://github.com/kamranzafar/piprayer/issues/26)).
+- `jummah-azaan` sets the Azaan for Dhuhr on Fridays: `on` for the usual one, `off` for none, with no reminder,
+  e.g. when you are at the mosque, or another Azaan. With `off`, Jumu'ah is shown without an Azaan, the next Azaan
+  and Skip move on to Asr, and Surah Al-Kahf plays until the khutbah. It is in the settings page's Jumu'ah section,
+  with Listen ([#28](https://github.com/kamranzafar/piprayer/issues/28)).
+- Surah Al-Kahf is shown with the time it starts, and, when it will be stopped before it finishes, the time it stops,
+  e.g. "Surah Al-Kahf at 12:30, stopping early at 12:54". Its length is read from the recording, an Opus, Ogg, WAV
+  or FLAC file. The JSON's `kahf` has its `start`, `end` and `cut_short`, and Home Assistant's **Surah Al-Kahf** has
+  `end` and `cut_short`.
 
 ### Changed
 - A reminder isn't played when another sound is due at the same time, e.g. the suhoor alarm, or when another sound is

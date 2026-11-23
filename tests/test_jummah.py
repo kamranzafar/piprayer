@@ -12,6 +12,8 @@ import pytest
 from pipray import audio, mqtt, player
 from pipray.cli import main
 from pipray.config import KAHF_SOUND, Config, ConfigError, set_kahf
+from pipray.media import duration
+from pipray.player import REMINDER_SOUND
 from pipray.output import format_next, format_times, times_json
 from pipray.schedule import KAHF, events, jummah_time, kahf_event, next_azaan, upcoming_jummah, upcoming_kahf
 from pipray.state import AZAAN, SUHOOR, LastAzaan, Playing, State, last_file, mute, skip_next, state_file
@@ -101,7 +103,8 @@ def test_plays_on_fridays_before_jummah_and_stops_before_the_reminder(write_conf
     kahf = [event for event in events(config, FRIDAY) if event.kind == KAHF]
     assert [(event.at, event.until, event.azaan_at, event.prayer) for event in kahf] == \
         [(at(FRIDAY, 11, 6), at(FRIDAY, 12, 54), at(FRIDAY, 13, 6), "dhuhr")]
-    assert str(kahf[0]) == "Surah Al-Kahf at 2026-11-13 11:06 AEDT, until 12:54"
+    assert str(kahf[0]) == "Surah Al-Kahf at 2026-11-13 11:06 AEDT"  # it finishes at 11:35, well before 12:54
+    assert (kahf[0].ends, kahf[0].cut_short) == (datetime(2026, 11, 13, 11, 35, 11, tzinfo=MELBOURNE), False)
     assert not any(event.kind == KAHF for event in events(config, THURSDAY))
 
 
@@ -120,7 +123,8 @@ def test_stops_before_jummah_when_no_azaan_plays_for_dhuhr(write_config):
 def test_upcoming_kahf(write_config):
     config = config_with(write_config, "kahf = 2h")
     assert upcoming_kahf(config, at(THURSDAY, 9, 0)).at == at(FRIDAY, 11, 6)
-    assert upcoming_kahf(config, at(FRIDAY, 12, 0)).at == at(FRIDAY, 11, 6)  # playing now
+    assert upcoming_kahf(config, at(FRIDAY, 11, 20)).at == at(FRIDAY, 11, 6)  # playing now
+    assert upcoming_kahf(config, at(FRIDAY, 12, 0)).at == at(date(2026, 11, 20), 11, 8)  # finished at 11:35
     assert upcoming_kahf(config, at(FRIDAY, 13, 30)).at == at(date(2026, 11, 20), 11, 8)  # the next Friday
     assert upcoming_kahf(config_with(write_config), at(THURSDAY, 9, 0)) is None
 
@@ -235,18 +239,19 @@ def test_fridays_show_jummah_with_al_kahf(write_config):
     config = config_with(write_config, "kahf = 2h", "reminder = 10")
     now = at(FRIDAY, 9, 0)
     table = format_times(config, FRIDAY, now)
-    assert "Jumu'ah  13:06" in table and "Surah Al-Kahf 11:06-12:54" in table
+    assert "Jumu'ah  13:06" in table and "Surah Al-Kahf at 11:06" in table and "stopping" not in table
     assert "Dhuhr" not in table
     assert "Dhuhr  " in format_times(config, THURSDAY, at(THURSDAY, 9, 0))
 
     entry = next_azaan(config, at(FRIDAY, 12, 0))
     assert format_next(config, entry, at(FRIDAY, 12, 0)).splitlines()[:2] == [
         " Next azaan: Jumu'ah at 13:06 today, in 1 h 6 min",
-        " Azaan 1 · 100% volume · reminder at 12:56 · Surah Al-Kahf 11:06-12:54"]
+        " Azaan 1 · 100% volume · reminder at 12:56 · Surah Al-Kahf at 11:06"]
 
     dhuhr = times_json(config, FRIDAY, now)["prayers"][1]
     assert (dhuhr["prayer"], dhuhr["jummah"]) == ("dhuhr", True)
-    assert dhuhr["kahf"] == {"start": "2026-11-13T11:06:00+11:00", "until": "2026-11-13T12:54:00+11:00"}
+    assert dhuhr["kahf"] == {"start": "2026-11-13T11:06:00+11:00", "end": "2026-11-13T11:35:11+11:00",
+                             "cut_short": False}
 
 
 def test_status_page(write_config):
@@ -254,7 +259,7 @@ def test_status_page(write_config):
     page = status_html(config, at(FRIDAY, 12, 0), State(),
                        playing=Playing("dhuhr", KAHF, at(FRIDAY, 11, 6), 4242))
     assert '<span class="hero-prayer">Jumu&#x27;ah</span>' in page
-    assert "Surah Al-Kahf 11:06 to 13:04" in page
+    assert "Surah Al-Kahf at 11:06" in page
     assert "Playing Surah Al-Kahf" in page and "Stop Surah Al-Kahf" in page
 
 
@@ -274,8 +279,8 @@ def test_mqtt_state_and_command(write_config, at_time):
     path = write_config(MELBOURNE_CONFIG + "kahf = 2h\n")
     at_time(at(THURSDAY, 9, 0))
     data = json.loads(mqtt.state_payload(Config(path), at(THURSDAY, 9, 0), State()))
-    assert (data["kahf"], data["kahf_until"], data["kahf_hours"]) == \
-        ("2026-11-13T11:06:00+11:00", "2026-11-13T13:04:00+11:00", "2h")
+    assert (data["kahf"], data["kahf_end"], data["kahf_cut_short"], data["kahf_hours"]) == \
+        ("2026-11-13T11:06:00+11:00", "2026-11-13T11:35:11+11:00", False, "2h")
 
     assert mqtt.handle_command("kahf 1h", path, 1) == "MQTT: Surah Al-Kahf 1h before Jumu'ah"
     assert (Config(path).kahf, "kahf = 1h\n" in open(path).read()) == (60, True)
@@ -372,3 +377,114 @@ def test_settings_page_saves_the_khutbah_time(settings):
     assert s.post("jummah", jummah_time="13:30", kahf="off", kahf_file="").location.startswith("/settings?saved")
     assert "jummah-time = 13:30\n" in s.text()
     assert "Invalid jummah-time: 1:30pm" in s.post("jummah", jummah_time="1:30pm", kahf="off", kahf_file="").body
+
+
+# ------------------------------------------------------------------ the azaan for Dhuhr on Fridays
+
+@pytest.mark.parametrize("value, expected", [("on", None), ("ON", None), ("off", 0), ("Off", 0), ("5", 5)])
+def test_jummah_azaan(write_config, value, expected):
+    assert config_with(write_config, "jummah-azaan = " + value).jummah_azaan == expected
+
+
+@pytest.mark.parametrize("value, message", [
+    ("maybe", "Invalid jummah-azaan: maybe, use on, off or an azaan from 1 to 99"),
+    ("0", "Invalid jummah-azaan: 0, use a number from 1 to 99"),
+    ("98", "Invalid jummah-azaan: 98, there is no media/azaan-98.opus"),
+])
+def test_invalid_jummah_azaan(write_config, value, message):
+    with pytest.raises(ConfigError, match=message):
+        config_with(write_config, "jummah-azaan = " + value)
+
+
+def test_off_leaves_out_the_azaan_and_reminder_on_fridays_only(write_config):
+    config = config_with(write_config, "jummah-azaan = off", "reminder = 10")
+    assert not any(event.prayer == "dhuhr" for event in events(config, FRIDAY))
+    assert [event.kind for event in events(config, THURSDAY) if event.prayer == "dhuhr"] == ["reminder", "azaan"]
+
+
+def test_off_leaves_al_kahf_until_the_khutbah(write_config):
+    config = config_with(write_config, "jummah-azaan = off", "jummah-time = 13:30", "kahf = 1h", "reminder = 10")
+    kahf = kahf_event(config, FRIDAY)
+    assert (kahf.at, kahf.until) == (at(FRIDAY, 12, 30), at(FRIDAY, 13, 28))
+
+
+def test_service_plays_another_azaan_on_fridays(write_config, fake_clock):
+    path = write_config(ONLY_DHUHR + "jummah-azaan = 5\n")
+    clock = fake_clock(datetime(2026, 11, 12, 12, 0), MELBOURNE)
+    clock.run_service(path, hours=26)
+    assert played(clock) == [("Thu 13:06", "1", "100"), ("Fri 13:06", "5", "100")]
+
+
+def test_service_plays_nothing_for_jummah_when_off(write_config, fake_clock):
+    path = write_config(ONLY_DHUHR + "jummah-azaan = off\nreminder = 10\n")
+    clock = fake_clock(datetime(2026, 11, 12, 12, 0), MELBOURNE)
+    clock.run_service(path, hours=26)
+    assert played(clock) == [("Thu 12:56", player.REMINDER_SOUND, "100"), ("Thu 13:06", "1", "100")]
+
+
+def test_jummah_without_an_azaan_is_shown(write_config):
+    config = config_with(write_config, "jummah-azaan = off", "reminder = 10")
+    now = at(FRIDAY, 9, 0)
+    table = format_times(config, FRIDAY, now)
+    assert "Jumu'ah  13:06  -      -       -         no azaan" in table
+    assert next(line for line in table.splitlines() if "◀ next" in line).split()[0] == "Asr"
+    assert next_azaan(config, now).prayer == "asr"
+    assert skip_next(config, state_file(write_config()), now).prayer == "asr"
+    dhuhr = times_json(config, FRIDAY, now)["prayers"][1]
+    assert (dhuhr["azaan"], dhuhr["reminder"]) == (None, None)
+    assert "No azaan" in status_html(config, now, State())
+
+
+def test_jummah_with_another_azaan_is_shown(write_config):
+    config = config_with(write_config, "jummah-azaan = 5")
+    assert "Jumu'ah  13:06  5" in format_times(config, FRIDAY, at(FRIDAY, 9, 0))
+    assert "Dhuhr    13:06  1" in format_times(config, THURSDAY, at(THURSDAY, 9, 0))
+
+
+def test_settings_page_saves_the_jummah_azaan(settings):
+    s = settings()
+    s.login()
+    form = dict(jummah_time="", kahf="off", kahf_file="")
+    assert s.post("jummah", jummah_azaan="off", **form).location.startswith("/settings?saved")
+    assert "jummah-azaan = off\n" in s.text()
+    page = s.get().body
+    assert 'href="/media/azaan-off.opus"' not in page
+    s.post("jummah", jummah_azaan="5", **form)
+    assert "jummah-azaan = 5\n" in s.text()
+    assert 'href="/media/azaan-5.opus"' in s.get().body
+
+
+# ------------------------------------------------------------------ how long it plays
+
+def test_length_of_the_recording(tmp_path):
+    assert duration(KAHF_SOUND) == 1750.5  # 29 min 10.5 s
+    assert duration(REMINDER_SOUND) == 4.0
+    (tmp_path / "kahf.mp3").write_bytes(b"ID3\x03\x00" + bytes(100))
+    assert duration(str(tmp_path / "kahf.mp3")) is None  # can't be told without decoding it
+    assert duration(str(tmp_path / "missing.opus")) is None
+
+
+def test_length_of_a_flac_recording(tmp_path):
+    # STREAMINFO: 44100 Hz, 2 channels, 16 bits, 441000 samples
+    info = bytes(10) + bytes([0x0A, 0xC4, 0x42, 0xF0, 0x00, 0x06, 0xBA, 0xA8]) + bytes(16)
+    (tmp_path / "kahf.flac").write_bytes(b"fLaC" + bytes([0x80, 0, 0, 34]) + info)
+    assert duration(str(tmp_path / "kahf.flac")) == 10.0
+
+
+def test_shown_with_the_time_it_stops_when_cut_short(write_config):
+    config = config_with(write_config, "jummah-time = 13:30", "kahf = 1h", "reminder = 10")
+    kahf = kahf_event(config, FRIDAY)
+    assert (kahf.cut_short, kahf.end) == (True, at(FRIDAY, 12, 54))  # it would finish at 12:59
+    assert "Surah Al-Kahf at 12:30, stopping early at 12:54" in format_times(config, FRIDAY, at(FRIDAY, 9, 0))
+    assert str(kahf) == "Surah Al-Kahf at 2026-11-13 12:30 AEDT, stopping early at 12:54"
+    assert times_json(config, FRIDAY, at(FRIDAY, 9, 0))["prayers"][1]["kahf"]["cut_short"] is True
+
+
+def test_shown_with_its_start_only_when_its_length_is_unknown(write_config, tmp_path):
+    (tmp_path / "kahf.mp3").write_bytes(b"ID3\x03\x00" + bytes(100))
+    config = config_with(write_config, "kahf = 1h", "kahf-file = kahf.mp3")
+    kahf = kahf_event(config, FRIDAY)
+    assert (config.kahf_length, kahf.ends, kahf.end, kahf.cut_short) == (None, None, None, False)
+    assert "Surah Al-Kahf at 12:06" in format_times(config, FRIDAY, at(FRIDAY, 9, 0))
+    assert str(kahf) == "Surah Al-Kahf at 2026-11-13 12:06 AEDT, stopping at 13:04 at the latest"
+    assert upcoming_kahf(config, at(FRIDAY, 12, 30)) == kahf  # may still be playing

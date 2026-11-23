@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, urlsplit
 from . import __version__, clock, update
 from .config import MAX_HIJRI_ADJUST, Config, ConfigError, set_hijri_adjust
 from .hijri import describe_adjust, hijri_now
-from .output import (describe_day, describe_last, describe_mute, fast_name, format_duration, next_json,
+from .output import (describe_day, describe_kahf, describe_last, describe_mute, fast_name, format_duration, next_json,
                      times_json)
 from .schedule import IFTAR, fast_times, next_azaan, schedule, timezone_name, upcoming_fast
 from .player import stop
@@ -356,16 +356,17 @@ def times_list(entries, upcoming, now, fast=None):
         pill = ""
         if entry.at <= now:
             cls = "is-past"
-        elif upcoming and entry.at == upcoming.at:
+        elif upcoming and entry.at == upcoming.at and entry.plays:
             cls = "is-next"
             pill = '<span class="pill">{}</span>'.format(entry.silenced) if entry.silenced else \
                 '<span class="pill next">next</span>'
         else:
             cls = ""
-            if entry.silenced:
+            if entry.silenced and entry.plays:
                 pill = '<span class="pill">{}</span>'.format(entry.silenced)
         detail = '<span class="detail">Azaan {} · {}%{}</span>'.format(
-            entry.azaan, entry.volume, " · dua" if entry.dua else "")
+            entry.azaan, entry.volume, " · dua" if entry.dua else "") if entry.plays else \
+            '<span class="detail">No azaan</span>'
         label = fast.label(entry.prayer) if fast else None
         if label:
             alarm = " · alarm {}".format(fast.suhoor_alarm.strftime("%H:%M")) \
@@ -374,8 +375,7 @@ def times_list(entries, upcoming, now, fast=None):
         if entry.khutbah:
             detail += '<span class="detail">Khutbah {}</span>'.format(entry.khutbah.strftime("%H:%M"))
         if entry.kahf:
-            detail += '<span class="detail">Surah Al-Kahf {} to {}</span>'.format(
-                entry.kahf.at.strftime("%H:%M"), entry.kahf.until.strftime("%H:%M"))
+            detail += '<span class="detail">{}</span>'.format(escape(describe_kahf(entry.kahf)))
         if entry.at.date() != now.date():
             detail += '<span class="detail">After midnight</span>'
         rows.append('<li class="{}"><span class="name">{}{}</span>'

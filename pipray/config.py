@@ -14,6 +14,7 @@ from datetime import time, timedelta, timezone
 
 import praytimes
 
+from .media import duration
 from .pin import is_hash, valid_pin
 
 LAT = "lat"
@@ -48,11 +49,12 @@ AUTO_UPDATE = "auto-update"
 KAHF = "kahf"
 KAHF_FILE = "kahf-file"
 JUMMAH_TIME = "jummah-time"
+JUMMAH_AZAAN = "jummah-azaan"
 
 OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, FADE_IN, REMINDER,
            SPEAKER, FALLBACK_OUTPUT, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
            MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR, DUA, SETTINGS_PIN, UPDATE_CHECK, AUTO_UPDATE, KAHF, KAHF_FILE,
-           JUMMAH_TIME)
+           JUMMAH_TIME, JUMMAH_AZAAN)
 
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_MQTT_TOPIC = "piprayer"
@@ -149,9 +151,13 @@ class Config:
         self.warnings = [unknown_option(option, path) for option in section if option not in OPTIONS]
         # The time of the khutbah on Fridays, None for the time of Dhuhr
         self.jummah_time = parse_jummah_time(section.get(JUMMAH_TIME, ""))
+        # The azaan for Dhuhr on Fridays: None for the usual one, 0 for none, or another azaan
+        self.jummah_azaan = parse_jummah_azaan(section.get(JUMMAH_AZAAN, "on"))
         # Surah Al-Kahf on Fridays: the minutes before Jumu'ah to start it, 0 for off, and the recording to play
         self.kahf = parse_kahf(section.get(KAHF, "off"))
         self.kahf_file = parse_kahf_file(section.get(KAHF_FILE, ""), path, self.kahf, self.warnings)
+        # Its length in seconds, None when it can't be read from the file, e.g. an MP3
+        self.kahf_length = duration(self.kahf_file) if self.kahf else None
         if self.kahf and self.kahf <= self.reminder:
             self.warnings.append("{0} = {1}h starts Surah Al-Kahf with the reminder for Dhuhr, {2} minutes before it, "
                                  "so it doesn't play. Use {0} = {3}h, or a shorter reminder".format(
@@ -512,6 +518,18 @@ def parse_jummah_time(value):
         raise ConfigError("Invalid {}: {}, use the time of the khutbah on the 24-hour clock, e.g. 13:30".format(
             JUMMAH_TIME, value))
     return time(int(match.group(1)), int(match.group(2)))
+
+
+def parse_jummah_azaan(value):
+    """jummah-azaan: on for the usual azaan for Dhuhr on Fridays, as None, off for none, as 0, or an azaan number."""
+    choice = value.strip().lower()
+    if choice in ("on", "off"):
+        return None if choice == "on" else 0
+    if not choice.isdigit():
+        raise ConfigError("Invalid {}: {}, use on, off or an azaan from 1 to 99".format(JUMMAH_AZAAN, shown(value)))
+    azaan = check_range(choice, JUMMAH_AZAAN, 1, 99)
+    check_azaan_file(JUMMAH_AZAAN, azaan)
+    return azaan
 
 
 def kahf_file_path(config_path, value):

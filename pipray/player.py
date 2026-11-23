@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from .audio import NOT_CONNECTED, NOT_PLAYED, PLAYED_LOCALLY, STOPPED, TIME_UP
 from .config import DEFAULT_VOLUME, DUA_FILE, MEDIA_DIR, SCRIPT_DIR
-from .schedule import KAHF, REMINDER, SUHOOR
+from .schedule import KAHF, REMINDER, SUHOOR, azaan_for
 from .state import Playing, playing_file
 from . import clock, systemd
 
@@ -126,7 +126,7 @@ def play_event(config, event, on_start=None):
     if event.kind == REMINDER:
         return play(REMINDER_SOUND, volume, "reminder for " + event.prayer, config.speaker, config.fallback_local,
                     on_start)
-    azaan = config.azaan_for(event.prayer)
+    azaan = azaan_for(config, event.prayer, event.at.date())
     return play(azaan, volume, "azaan {} for {}".format(azaan, event.prayer), config.speaker,
                 config.fallback_local, on_start, config.fade_in_for(event.prayer), config.dua_for(event.prayer))
 
