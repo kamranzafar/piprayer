@@ -22,11 +22,12 @@ import praytimes
 from . import __version__, bluetooth, clock, update
 from .config import (ASR_TIME, ASR_TIMES, AZAAN, DEFAULT_HIGH_LATITUDE, DEFAULT_MQTT_PORT, DEFAULT_MQTT_TOPIC,
                      DEFAULT_VOLUME, DST, DUA, FADE_IN, FAJR_AZAAN, FALLBACK_OUTPUT, GMT_OFFSET, HIGH_LATITUDE,
-                     HIGH_LATITUDE_RULES, KAHF, KAHF_CHOICES, KAHF_FILE, LAT, LNG, MAC_ADDRESS, MEDIA_DIR, MAX_FADE_IN,
-                     MAX_OFFSET, MAX_SUHOOR, METHOD, MQTT_HOST, MQTT_PASSWORD, MQTT_PORT, MQTT_TOPIC, MQTT_TOPIC_NAME,
-                     MQTT_USERNAME, PRAYER_NAMES, PRAYERS, RAMADAN, RAMADAN_MODES, REMINDER, SPEAKER, SUHOOR, TIMEZONE,
-                     VOLUME, Config, ConfigError, azaan_file, changed_lines, check_range, kahf_file_path, parse_choice,
-                     parse_coordinate, parse_high_latitude, parse_method, read_section, save_options)
+                     HIGH_LATITUDE_RULES, JUMMAH_TIME, KAHF, KAHF_CHOICES, KAHF_FILE, LAT, LNG, MAC_ADDRESS,
+                     MEDIA_DIR, MAX_FADE_IN, MAX_OFFSET, MAX_SUHOOR, METHOD, MQTT_HOST, MQTT_PASSWORD, MQTT_PORT,
+                     MQTT_TOPIC, MQTT_TOPIC_NAME, MQTT_USERNAME, PRAYER_NAMES, PRAYERS, RAMADAN, RAMADAN_MODES,
+                     REMINDER, SPEAKER, SUHOOR, TIMEZONE, VOLUME, Config, ConfigError, azaan_file, changed_lines,
+                     check_range, kahf_file_path, parse_choice, parse_coordinate, parse_high_latitude,
+                     parse_jummah_time, parse_method, read_section, save_options)
 from .pairing import PAIRING, Pairing
 from .pin import COOKIE, SESSION_SECONDS, Throttle, check_pin, session_cookie, valid_session
 from .schedule import schedule
@@ -196,13 +197,15 @@ def sections(default_azaan, config_path):
                   kind="select", choices=lambda: list(RAMADAN_LABELS.items())),
         ], "Counts down to iftar, and sounds the suhoor alarm, on the days of fasting."),
         Section("jummah", "Jumu'ah", [
+            Field(JUMMAH_TIME, "Time of the khutbah", checked(parse_jummah_time),
+                  hint="e.g. 13:30, as your mosque holds it. Empty for the time of Dhuhr"),
             Field(KAHF, "Surah Al-Kahf before Jumu'ah", lambda v: parse_choice(v, KAHF, KAHF_CHOICES),
                   default="off", kind="select",
                   choices=lambda: [(choice, KAHF_LABELS[choice]) for choice in KAHF_CHOICES],
                   hint="It stops 2 minutes before the reminder or azaan for Dhuhr", listen="kahf.opus"),
             Field(KAHF_FILE, "Recording of Surah Al-Kahf", kahf_file_check(config_path),
                   hint="A file on the Raspberry Pi, empty for Saad Al-Ghamdi's, which is 29 minutes"),
-        ], "Plays Surah Al-Kahf on Fridays, before Jumu'ah at the time of Dhuhr."),
+        ], "Plays Surah Al-Kahf on Fridays, before Jumu'ah."),
         Section("speaker", "Speaker", [
             Field(SPEAKER, "Speaker", speaker_check, kind="select"),
         ], "PiPrayer plays on this speaker. Pair a new one below."),

@@ -172,13 +172,16 @@ class Entry:
     fade_in: int = 0  # seconds
     dua: bool = False  # the dua plays after the azaan
     kahf: Optional[Event] = None  # Surah Al-Kahf before Jumu'ah
+    khutbah: Optional[datetime] = None  # on Fridays with jummah-time, the time of the khutbah
 
     @classmethod
     def of(cls, config, prayer, at, state=None):
+        jummah = is_jummah(prayer, at.date())
         return cls(prayer, at, config.azaan_for(prayer), config.volume_for(prayer),
                    at - timedelta(minutes=config.reminder) if config.reminder else None,
                    state.silenced(at) if state else None, config.fade_in_for(prayer), config.dua_for(prayer),
-                   kahf_event(config, at.date()) if is_jummah(prayer, at.date()) else None)
+                   kahf_event(config, at.date()) if jummah else None,
+                   jummah_time(config, at.date()) if jummah and config.jummah_time else None)
 
     @property
     def name(self):
@@ -196,6 +199,7 @@ class Entry:
             "reminder": self.reminder.isoformat() if self.reminder else None,
             "jummah": is_jummah(self.prayer, self.at.date()),
             "kahf": {"start": self.kahf.at.isoformat(), "until": self.kahf.until.isoformat()} if self.kahf else None,
+            "khutbah": self.khutbah.isoformat() if self.khutbah else None,
             "skipped": self.silenced == "skipped",
             "muted": self.silenced == "muted",
         }
@@ -237,11 +241,24 @@ def prayer_name(prayer, day):
 
 
 def jummah_time(config, day):
-    """The time of Jumu'ah on the given day, the calculated Dhuhr with its offset, or None if it isn't a Friday."""
+    """The time of Jumu'ah on the given day, or None if it isn't a Friday: the khutbah at jummah-time, or without it,
+    the calculated Dhuhr with its offset."""
     if day.weekday() != FRIDAY:
         return None
+    if config.jummah_time:
+        return datetime.combine(day, config.jummah_time, config.tz)
     times = prayer_times(config, day, ["dhuhr"])
     return times[0][1] if times else None
+
+
+def upcoming_jummah(config, now):
+    """The next Jumu'ah, this Friday's until it is over, or None where there is no Dhuhr time."""
+    friday = now.date() + timedelta(days=(FRIDAY - now.date().weekday()) % 7)
+    for day in (friday, friday + timedelta(days=7)):
+        at = jummah_time(config, day)
+        if at and at > now:
+            return at
+    return None
 
 
 def kahf_event(config, day, others=None):

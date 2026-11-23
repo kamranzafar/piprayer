@@ -371,6 +371,8 @@ def times_list(entries, upcoming, now, fast=None):
             alarm = " · alarm {}".format(fast.suhoor_alarm.strftime("%H:%M")) \
                 if entry.prayer == "fajr" and fast.suhoor_alarm else ""
             detail += '<span class="detail fast">{}{}</span>'.format(label, alarm)
+        if entry.khutbah:
+            detail += '<span class="detail">Khutbah {}</span>'.format(entry.khutbah.strftime("%H:%M"))
         if entry.kahf:
             detail += '<span class="detail">Surah Al-Kahf {} to {}</span>'.format(
                 entry.kahf.at.strftime("%H:%M"), entry.kahf.until.strftime("%H:%M"))

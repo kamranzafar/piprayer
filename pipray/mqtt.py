@@ -17,7 +17,7 @@ import threading
 from . import __version__, clock, update
 from .config import KAHF_CHOICES, MAX_HIJRI_ADJUST, Config, ConfigError, set_hijri_adjust, set_kahf
 from .hijri import hijri_now
-from .schedule import IFTAR, SUHOOR_ENDS, next_azaan, prayer_name, upcoming_fast, upcoming_kahf
+from .schedule import IFTAR, SUHOOR_ENDS, next_azaan, prayer_name, upcoming_fast, upcoming_jummah, upcoming_kahf
 from .output import describe_last
 from .player import stop
 from .state import LastAzaan, Playing, State, last_file, mute_days, playing_file, resume, skip_next, state_file
@@ -106,6 +106,8 @@ def discovery_messages(topics, node, update_check=True, auto_update=False):
                value_template="{{ value_json.iftar }}", **state),
         entity("sensor", "suhoor_ends", "Suhoor ends", device_class="timestamp", icon="mdi:weather-sunset-up",
                value_template="{{ value_json.suhoor_ends }}", **state),
+        entity("sensor", "jummah", "Jumu'ah", device_class="timestamp", icon="mdi:mosque",
+               value_template="{{ value_json.jummah }}", **state),
         # Unknown when kahf is off
         entity("sensor", "kahf", "Surah Al-Kahf", device_class="timestamp", icon="mdi:book-open-variant",
                value_template="{{ value_json.kahf }}", json_attributes_topic=topics.state,
@@ -136,6 +138,7 @@ def state_payload(config, now, state, last=None, synchronised=None, playing=None
     hijri = hijri_now(config, now)
     fast = upcoming_fast(config, now)
     kahf = upcoming_kahf(config, now)
+    jummah = upcoming_jummah(config, now)
     problems = ([describe_last(last, now)] if last and last.problem else []) + \
         ([clock.NOT_SYNCHRONISED] if synchronised is False else [])
     return json.dumps({
@@ -153,6 +156,7 @@ def state_payload(config, now, state, last=None, synchronised=None, playing=None
         "playing_reminder": bool(playing and playing.reminder),
         "playing_suhoor": bool(playing and playing.suhoor),
         "playing_kahf": bool(playing and playing.kahf),
+        "jummah": jummah.isoformat() if jummah else None,
         "kahf": kahf.at.isoformat() if kahf else None,
         "kahf_until": kahf.until.isoformat() if kahf else None,
         "kahf_hours": "{}h".format(config.kahf // 60) if config.kahf else "off",

@@ -10,7 +10,7 @@ import re
 import stat
 import tempfile
 import threading
-from datetime import timedelta, timezone
+from datetime import time, timedelta, timezone
 
 import praytimes
 
@@ -47,10 +47,12 @@ UPDATE_CHECK = "update-check"
 AUTO_UPDATE = "auto-update"
 KAHF = "kahf"
 KAHF_FILE = "kahf-file"
+JUMMAH_TIME = "jummah-time"
 
 OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, FADE_IN, REMINDER,
            SPEAKER, FALLBACK_OUTPUT, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
-           MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR, DUA, SETTINGS_PIN, UPDATE_CHECK, AUTO_UPDATE, KAHF, KAHF_FILE)
+           MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR, DUA, SETTINGS_PIN, UPDATE_CHECK, AUTO_UPDATE, KAHF, KAHF_FILE,
+           JUMMAH_TIME)
 
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_MQTT_TOPIC = "piprayer"
@@ -145,6 +147,8 @@ class Config:
         self.auto_update = parse_choice(section.get(AUTO_UPDATE, "off"), AUTO_UPDATE, ["on", "off"]) == "on"
         # Not errors, as PiPrayer still works, but e.g. status_port for status-port would silently do nothing
         self.warnings = [unknown_option(option, path) for option in section if option not in OPTIONS]
+        # The time of the khutbah on Fridays, None for the time of Dhuhr
+        self.jummah_time = parse_jummah_time(section.get(JUMMAH_TIME, ""))
         # Surah Al-Kahf on Fridays: the minutes before Jumu'ah to start it, 0 for off, and the recording to play
         self.kahf = parse_kahf(section.get(KAHF, "off"))
         self.kahf_file = parse_kahf_file(section.get(KAHF_FILE, ""), path, self.kahf, self.warnings)
@@ -493,6 +497,21 @@ def parse_kahf_file(value, path, kahf, warnings):
         raise ConfigError("{} is on, but there is no {}. Set {} to a recording of Surah Al-Kahf, or turn it off"
                           .format(KAHF, os.path.relpath(KAHF_SOUND, SCRIPT_DIR), KAHF_FILE))
     return KAHF_SOUND
+
+
+JUMMAH_TIME_FORMAT = re.compile(r"^([01]?[0-9]|2[0-3]):([0-5][0-9])$")
+
+
+def parse_jummah_time(value):
+    """jummah-time, e.g. 13:30, as a time of day, or None when it isn't set."""
+    value = value.strip()
+    if not value:
+        return None
+    match = JUMMAH_TIME_FORMAT.match(value)
+    if not match:
+        raise ConfigError("Invalid {}: {}, use the time of the khutbah on the 24-hour clock, e.g. 13:30".format(
+            JUMMAH_TIME, value))
+    return time(int(match.group(1)), int(match.group(2)))
 
 
 def kahf_file_path(config_path, value):

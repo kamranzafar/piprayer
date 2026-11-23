@@ -143,6 +143,7 @@ def test_discovery_creates_sensors_and_buttons():
         "homeassistant/select/piprayer_raspberrypi/kahf_hours/config",
         "homeassistant/sensor/piprayer_raspberrypi/hijri_date/config",
         "homeassistant/sensor/piprayer_raspberrypi/iftar/config",
+        "homeassistant/sensor/piprayer_raspberrypi/jummah/config",
         "homeassistant/sensor/piprayer_raspberrypi/kahf/config",
         "homeassistant/sensor/piprayer_raspberrypi/last_azaan/config",
         "homeassistant/sensor/piprayer_raspberrypi/next_azaan/config",
@@ -166,7 +167,7 @@ def test_discovery_creates_sensors_and_buttons():
     assert configs["kahf"]["device_class"] == "timestamp"
     assert configs["kahf_hours"]["options"] == ["off", "1h", "2h", "3h"]
     assert configs["kahf_hours"]["command_template"] == "kahf {{ value }}"
-    assert len({config["unique_id"] for config in configs.values()}) == 17
+    assert len({config["unique_id"] for config in configs.values()}) == 18
     assert all(config["device"]["identifiers"] == ["piprayer_raspberrypi"] for config in configs.values())
 
 
@@ -180,7 +181,7 @@ def test_state_payload(write_config):
         "last_result": None, "last_prayer": None, "last_time": None, "last_error": None,
         "clock_synchronised": None, "problem": None, "playing": None, "playing_reminder": False,
         "playing_suhoor": False, "playing_kahf": False, "iftar": None, "suhoor_ends": None,
-        "kahf": None, "kahf_until": None, "kahf_hours": "off",
+        "jummah": "2026-11-13T13:06:00+11:00", "kahf": None, "kahf_until": None, "kahf_hours": "off",
         "hijri_date": "2 Jumada al-Thani 1448", "hijri_adjust": 0,
         "hijri": {"day": 2, "month": 6, "month_name": "Jumada al-Thani", "year": 1448, "evening": False, "adjust": 0,
                   "text": "2 Jumada al-Thani 1448"},
@@ -274,7 +275,7 @@ def test_announces_itself_on_connecting(connected):
     bridge, client, path = connected
     assert client.subscribed == ["piprayer/command", "homeassistant/status"]
     discovery = [(topic, retain) for topic, _, retain in client.published if topic.startswith("homeassistant/")]
-    assert len(discovery) == 17 and all(retain for _, retain in discovery)
+    assert len(discovery) == 18 and all(retain for _, retain in discovery)
     assert published(client, "piprayer/availability") == ["online"]
     assert json.loads(published(client, "piprayer/state")[0])["next_prayer"] == "Asr"
 
@@ -298,7 +299,7 @@ def test_announces_again_when_home_assistant_restarts(connected):
     bridge, client, path = connected
     client.published.clear()
     bridge.on_message(client, None, Message("homeassistant/status", "online"))
-    assert len([t for t, _, _ in client.published if t.startswith("homeassistant/")]) == 17
+    assert len([t for t, _, _ in client.published if t.startswith("homeassistant/")]) == 18
     assert published(client, "piprayer/state")  # sent again, although unchanged
 
 

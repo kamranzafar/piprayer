@@ -4,7 +4,7 @@
 """Jumu'ah mode: Surah Al-Kahf before Jumu'ah on Fridays, stopping before the reminder or azaan for Dhuhr."""
 import json
 import os
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -13,7 +13,7 @@ from pipray import audio, mqtt, player
 from pipray.cli import main
 from pipray.config import KAHF_SOUND, Config, ConfigError, set_kahf
 from pipray.output import format_next, format_times, times_json
-from pipray.schedule import KAHF, events, kahf_event, next_azaan, upcoming_kahf
+from pipray.schedule import KAHF, events, jummah_time, kahf_event, next_azaan, upcoming_jummah, upcoming_kahf
 from pipray.state import AZAAN, SUHOOR, LastAzaan, Playing, State, last_file, mute, skip_next, state_file
 from pipray.web import status_html
 from conftest import MELBOURNE_CONFIG, make_command
@@ -302,3 +302,73 @@ def test_settings_page_saves_the_jummah_section(settings):
     assert "kahf-file" not in s.text()
     response = s.get("/media/kahf.opus")
     assert (response.status, response.content_type) == (200, "audio/ogg")
+
+
+# ------------------------------------------------------------------ the time of the khutbah
+
+@pytest.mark.parametrize("value, expected", [("13:30", time(13, 30)), ("9:05", time(9, 5)), (" 12:00 ", time(12, 0)),
+                                             ("", None)])
+def test_jummah_time(write_config, value, expected):
+    assert config_with(write_config, "jummah-time = " + value).jummah_time == expected
+
+
+@pytest.mark.parametrize("value", ["1:30pm", "25:00", "13.30", "13:5", "noon"])
+def test_invalid_jummah_time(write_config, value):
+    with pytest.raises(ConfigError, match="Invalid jummah-time: {}, use the time of the khutbah on the 24-hour clock"
+                       .format(value)):
+        config_with(write_config, "jummah-time = " + value)
+
+
+def test_jummah_is_dhuhr_without_jummah_time(write_config):
+    config = config_with(write_config)
+    assert (jummah_time(config, FRIDAY), jummah_time(config, THURSDAY)) == (at(FRIDAY, 13, 6), None)
+
+
+def test_kahf_counts_back_from_the_khutbah_and_stops_before_the_azaan(write_config):
+    config = config_with(write_config, "jummah-time = 13:30", "kahf = 2h")
+    assert jummah_time(config, FRIDAY) == at(FRIDAY, 13, 30)
+    kahf = kahf_event(config, FRIDAY)
+    # the azaan for Dhuhr is still at 13:06, so Al-Kahf stops before it
+    assert (kahf.at, kahf.until) == (at(FRIDAY, 11, 30), at(FRIDAY, 13, 4))
+    assert [(event.kind, event.at) for event in events(config, FRIDAY) if event.prayer == "dhuhr"] == \
+        [(KAHF, at(FRIDAY, 11, 30)), ("azaan", at(FRIDAY, 13, 6))]
+
+
+def test_khutbah_before_the_calculated_dhuhr(write_config):
+    kahf = kahf_event(config_with(write_config, "jummah-time = 12:30", "kahf = 1h"), FRIDAY)
+    assert (kahf.at, kahf.until) == (at(FRIDAY, 11, 30), at(FRIDAY, 12, 28))
+
+
+def test_khutbah_time_stays_the_same_across_daylight_saving(write_config):
+    config = config_with(write_config, "jummah-time = 13:30")
+    before, after = jummah_time(config, date(2026, 10, 2)), jummah_time(config, date(2026, 10, 9))  # AEST, then AEDT
+    assert (before.strftime("%H:%M"), after.strftime("%H:%M")) == ("13:30", "13:30")
+    assert (before.utcoffset(), after.utcoffset()) == (timedelta(hours=10), timedelta(hours=11))
+
+
+def test_upcoming_jummah(write_config):
+    config = config_with(write_config, "jummah-time = 13:30")
+    assert upcoming_jummah(config, at(THURSDAY, 9, 0)) == at(FRIDAY, 13, 30)
+    assert upcoming_jummah(config, at(FRIDAY, 13, 30)) == at(date(2026, 11, 20), 13, 30)
+
+
+def test_khutbah_is_shown(write_config):
+    config = config_with(write_config, "jummah-time = 13:30", "kahf = 2h")
+    now = at(FRIDAY, 9, 0)
+    table = format_times(config, FRIDAY, now)
+    assert "Jumu'ah  13:06" in table and "khutbah 13:30" in table
+    assert "khutbah at 13:30" in format_next(config, next_azaan(config, now), now)
+    dhuhr = times_json(config, FRIDAY, now)["prayers"][1]
+    assert (dhuhr["time"], dhuhr["khutbah"]) == ("2026-11-13T13:06:00+11:00", "2026-11-13T13:30:00+11:00")
+    assert "Khutbah 13:30" in status_html(config, now, State())
+    assert times_json(config_with(write_config), FRIDAY, now)["prayers"][1]["khutbah"] is None
+    data = json.loads(mqtt.state_payload(config, now, State()))
+    assert data["jummah"] == "2026-11-13T13:30:00+11:00"
+
+
+def test_settings_page_saves_the_khutbah_time(settings):
+    s = settings()
+    s.login()
+    assert s.post("jummah", jummah_time="13:30", kahf="off", kahf_file="").location.startswith("/settings?saved")
+    assert "jummah-time = 13:30\n" in s.text()
+    assert "Invalid jummah-time: 1:30pm" in s.post("jummah", jummah_time="1:30pm", kahf="off", kahf_file="").body

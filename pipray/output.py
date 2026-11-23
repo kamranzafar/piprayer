@@ -108,6 +108,7 @@ def format_times(config, day, now, state=None, last=None, synchronised=None):
             row.append(entry.reminder.strftime("%H:%M"))
         notes = (["◀ next"] if entry is upcoming else []) + \
                 ([fast.label(entry.prayer).lower()] if fast and fast.label(entry.prayer) else []) + \
+                (["khutbah " + entry.khutbah.strftime("%H:%M")] if entry.khutbah else []) + \
                 ([describe_kahf(entry.kahf)] if entry.kahf else []) + \
                 ([entry.silenced] if entry.silenced else []) + (["after midnight"] if entry.at.date() != day else [])
         rows.append((row, " · ".join(notes)))
@@ -150,6 +151,8 @@ def format_next(config, entry, now, state=None, synchronised=None):
     details = "Azaan {} · {}% volume".format(entry.azaan, entry.volume) + (" · then the dua" if entry.dua else "")
     if entry.reminder:
         details += " · reminder at " + entry.reminder.strftime("%H:%M")
+    if entry.khutbah:
+        details += " · khutbah at " + entry.khutbah.strftime("%H:%M")
     if entry.kahf:
         details += " · " + describe_kahf(entry.kahf)
 

@@ -17,6 +17,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   Assistant has a **Surah Al-Kahf** sensor and a select to choose the hours, also with the MQTT command
   `kahf <1h, 2h, 3h or off>`
   ([#25](https://github.com/kamranzafar/piprayer/issues/25)).
+- `jummah-time = 13:30` sets the time of the khutbah on Fridays, as your mosque holds it, on the settings page too.
+  Surah Al-Kahf counts back from it, `piprayer.py times`, the status page and the JSON (`khutbah`) show it with
+  Jumu'ah, and Home Assistant has a **Jumu'ah** sensor with the next one, the khutbah or the time of Dhuhr. The Azaan
+  for Dhuhr still plays at its calculated time ([#26](https://github.com/kamranzafar/piprayer/issues/26)).
 
 ### Changed
 - A reminder isn't played when another sound is due at the same time, e.g. the suhoor alarm, or when another sound is
