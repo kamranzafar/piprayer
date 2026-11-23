@@ -280,7 +280,7 @@ def status_html(config, now, state, last=None, synchronised=None, playing=None, 
         hero = ('<p class="label">Next azaan</p>'
                 '<div class="hero-row"><span class="hero-prayer">{}</span><span class="hero-time">{}</span></div>'
                 '<div class="countdown" data-at="{}">{}, in <span class="in">{}</span></div>').format(
-            escape(upcoming.prayer.capitalize()), upcoming.at.strftime("%H:%M"), upcoming.at.isoformat(),
+            escape(upcoming.name), upcoming.at.strftime("%H:%M"), upcoming.at.isoformat(),
             describe_day(upcoming.at.date(), now.date()).capitalize(), format_duration(upcoming.at - now))
     else:
         hero = '<p class="label">Next azaan</p><div class="hero-row">None in the next two days</div>'
@@ -293,11 +293,12 @@ def status_html(config, now, state, last=None, synchronised=None, playing=None, 
     buttons = []
     if playing and not playing.stopped:
         hero = '<div class="notice" data-playing>Playing {}</div>'.format(escape(playing.describe())) + hero
-        buttons.append(("/stop", "primary", "wide", "Stop the " + playing.what))
+        what = playing.what if playing.kahf else "the " + playing.what
+        buttons.append(("/stop", "primary", "wide", "Stop " + what))
     if next_to_play:
         when = "{} {}".format(next_to_play.at.strftime("%H:%M"), describe_day(next_to_play.at.date(), now.date()))
         buttons.append(('/skip', "" if buttons else "primary", "wide", 'Skip {}<span class="sub">{}</span>'.format(
-            escape(next_to_play.prayer.capitalize()), escape(when))))
+            escape(next_to_play.name), escape(when))))
     if not muted:
         buttons.append(("/mute", "", "secondary", "Mute today"))
     if muted or state.skip:
@@ -370,11 +371,14 @@ def times_list(entries, upcoming, now, fast=None):
             alarm = " · alarm {}".format(fast.suhoor_alarm.strftime("%H:%M")) \
                 if entry.prayer == "fajr" and fast.suhoor_alarm else ""
             detail += '<span class="detail fast">{}{}</span>'.format(label, alarm)
+        if entry.kahf:
+            detail += '<span class="detail">Surah Al-Kahf {} to {}</span>'.format(
+                entry.kahf.at.strftime("%H:%M"), entry.kahf.until.strftime("%H:%M"))
         if entry.at.date() != now.date():
             detail += '<span class="detail">After midnight</span>'
         rows.append('<li class="{}"><span class="name">{}{}</span>'
                     '<span class="right">{}<time datetime="{}">{}</time></span></li>'.format(
-                        cls, escape(entry.prayer.capitalize()), detail, pill,
+                        cls, escape(entry.name), detail, pill,
                         entry.at.isoformat(), entry.at.strftime("%H:%M")))
     return '<ol class="times">{}</ol>'.format("".join(rows))
 

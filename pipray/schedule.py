@@ -1,7 +1,7 @@
 # PiPrayer - Azaan for Raspberry Pi
 # Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Prayer times, and the azaans, reminders and suhoor alarms to play at them."""
+"""Prayer times, and the azaans, reminders, suhoor alarms and Surah Al-Kahf to play at them."""
 import heapq
 import logging
 import math
@@ -58,39 +58,70 @@ def timezone_name(config, day):
 
 # ------------------------------------------------------------------ what the service plays
 
+# The kinds of event
+AZAAN = "azaan"
+REMINDER = "reminder"
+SUHOOR = "suhoor"
+KAHF = "kahf"
+
+# Which plays first when two are due at the same time: the azaan, then the suhoor alarm, the reminder and Al-Kahf. A
+# reminder due at the same time as another sound isn't played
+PRIORITY = {AZAAN: 0, SUHOOR: 1, REMINDER: 2, KAHF: 3}
+
+FRIDAY = 4  # as date.weekday() gives it
+
+# Surah Al-Kahf stops this long before whatever plays next, so the speaker is free to connect for it
+KAHF_MARGIN = timedelta(minutes=2)
+# Al-Kahf isn't started with less time than this to play before it has to stop
+MIN_KAHF = timedelta(minutes=1)
+
+
 @dataclass
 class Event:
-    """Something to play: the azaan for a prayer, the reminder before it, or the suhoor alarm before Fajr."""
+    """Something to play: the azaan for a prayer, the reminder before it, the suhoor alarm before Fajr, or Surah
+    Al-Kahf before Jumu'ah."""
     at: datetime
     prayer: str
-    reminder: bool = False
-    azaan_at: Optional[datetime] = None  # the time of the azaan, also for its reminder and the suhoor alarm
-    suhoor: bool = False
+    kind: str = AZAAN
+    azaan_at: Optional[datetime] = None  # the time of the azaan, also for its reminder, the suhoor alarm and Al-Kahf
+    until: Optional[datetime] = None  # when it has to stop, so the next event plays on time; None to play to the end
 
     def __post_init__(self):
         if self.azaan_at is None:
             self.azaan_at = self.at
 
     @property
+    def reminder(self):
+        return self.kind == REMINDER
+
+    @property
+    def suhoor(self):
+        return self.kind == SUHOOR
+
+    @property
     def key(self):
         """Identifies the event, e.g. to remember it has been played."""
-        return self.at, self.prayer, self.reminder, self.suhoor
+        return self.at, self.prayer, self.kind
 
     def silenced(self, state):
         """Why it won't play: "muted", "skipped", or None if it will.
 
-        Skipping an azaan skips its reminder too. The suhoor alarm is muted with the azaans, but skipping Fajr
-        doesn't skip it, as it is for waking up to eat rather than for the prayer.
+        Skipping an azaan skips its reminder too. The suhoor alarm and Al-Kahf are muted with the azaans, but
+        skipping Fajr or Dhuhr doesn't skip them: the suhoor alarm is for waking up to eat, and Al-Kahf is for the day,
+        rather than for the prayer.
         """
-        if self.suhoor:
+        if self.kind in (SUHOOR, KAHF):
             return "muted" if state.mute_until and self.at < state.mute_until else None
         return state.silenced(self.azaan_at)
 
     def __str__(self):
-        if self.suhoor:
-            return "Suhoor alarm at " + self.at.strftime("%Y-%m-%d %H:%M %Z")
-        return "{} for {} at {}".format("Reminder" if self.reminder else "Azaan", self.prayer,
-                                        self.at.strftime("%Y-%m-%d %H:%M %Z"))
+        at = self.at.strftime("%Y-%m-%d %H:%M %Z")
+        if self.kind == SUHOOR:
+            return "Suhoor alarm at " + at
+        if self.kind == KAHF:
+            return "Surah Al-Kahf at {}, until {}".format(at, self.until.strftime("%H:%M")) if self.until else \
+                "Surah Al-Kahf at " + at
+        return "{} for {} at {}".format("Reminder" if self.kind == REMINDER else "Azaan", self.prayer, at)
 
 
 def events(config, day):
@@ -98,12 +129,29 @@ def events(config, day):
     result = []
     for prayer, at in prayer_times(config, day):
         if config.reminder:
-            result.append(Event(at - timedelta(minutes=config.reminder), prayer, reminder=True, azaan_at=at))
+            result.append(Event(at - timedelta(minutes=config.reminder), prayer, REMINDER, azaan_at=at))
         result.append(Event(at, prayer))
     fast = fast_times(config, day) if config.suhoor else None
     if fast and fast.suhoor_alarm:
-        result.append(Event(fast.suhoor_alarm, "fajr", azaan_at=fast.suhoor_ends, suhoor=True))
-    return sorted(result, key=lambda event: event.at)
+        result.append(Event(fast.suhoor_alarm, "fajr", SUHOOR, azaan_at=fast.suhoor_ends))
+    kahf = kahf_event(config, day, result)
+    if kahf:
+        result.append(kahf)
+    return resolve(result)
+
+
+def resolve(events_):
+    """The events in the order they play, with a reminder left out when another sound is due at the same time.
+
+    Two sounds at the same time play one after the other, by PRIORITY. A reminder after another sound would come late,
+    and the sound it is with does as well to remind.
+    """
+    result = []
+    for event in sorted(events_, key=lambda event: (event.at, PRIORITY[event.kind])):
+        if event.kind == REMINDER and result and result[-1].at == event.at:
+            continue
+        result.append(event)
+    return result
 
 
 def next_event(config, after, exclude=()):
@@ -111,11 +159,11 @@ def next_event(config, after, exclude=()):
 
     Yesterday's Isha may still be to come, after midnight.
     """
-    upcoming = [event
-                for offset in (-1, 0, 1)
-                for event in events(config, after.date() + timedelta(days=offset))
-                if event.at > after and event.key not in exclude]
-    return min(upcoming, key=lambda event: event.at) if upcoming else None
+    upcoming = resolve([event
+                        for offset in (-1, 0, 1)
+                        for event in events(config, after.date() + timedelta(days=offset))
+                        if event.at > after])
+    return next((event for event in upcoming if event.key not in exclude), None)
 
 
 # ------------------------------------------------------------------ what is shown
@@ -131,12 +179,19 @@ class Entry:
     silenced: Optional[str] = None  # "skipped" or "muted" when it won't play
     fade_in: int = 0  # seconds
     dua: bool = False  # the dua plays after the azaan
+    kahf: Optional[Event] = None  # Surah Al-Kahf before Jumu'ah
 
     @classmethod
     def of(cls, config, prayer, at, state=None):
         return cls(prayer, at, config.azaan_for(prayer), config.volume_for(prayer),
                    at - timedelta(minutes=config.reminder) if config.reminder else None,
-                   state.silenced(at) if state else None, config.fade_in_for(prayer), config.dua_for(prayer))
+                   state.silenced(at) if state else None, config.fade_in_for(prayer), config.dua_for(prayer),
+                   kahf_event(config, at.date()) if is_jummah(prayer, at.date()) else None)
+
+    @property
+    def name(self):
+        """e.g. "Asr", or "Jumu'ah" for Dhuhr on a Friday."""
+        return prayer_name(self.prayer, self.at.date())
 
     def to_json(self):
         return {
@@ -147,6 +202,8 @@ class Entry:
             "fade_in": self.fade_in,
             "dua": self.dua,
             "reminder": self.reminder.isoformat() if self.reminder else None,
+            "jummah": is_jummah(self.prayer, self.at.date()),
+            "kahf": {"start": self.kahf.at.isoformat(), "until": self.kahf.until.isoformat()} if self.kahf else None,
             "skipped": self.silenced == "skipped",
             "muted": self.silenced == "muted",
         }
@@ -170,6 +227,62 @@ def upcoming_azaans(config, now, state=None, days=2):
 def next_azaan(config, now, state=None):
     """The first azaan after now, today or tomorrow, or None."""
     return next(upcoming_azaans(config, now, state), None)
+
+
+# ------------------------------------------------------------------ Jumu'ah
+
+JUMMAH = "Jumu'ah"
+
+
+def is_jummah(prayer, day):
+    """Whether the prayer is Jumu'ah: Dhuhr on a Friday."""
+    return prayer == "dhuhr" and day.weekday() == FRIDAY
+
+
+def prayer_name(prayer, day):
+    """The prayer's name to show, e.g. "Asr", and "Jumu'ah" for Dhuhr on a Friday."""
+    return JUMMAH if is_jummah(prayer, day) else prayer.capitalize()
+
+
+def jummah_time(config, day):
+    """The time of Jumu'ah on the given day, the calculated Dhuhr with its offset, or None if it isn't a Friday."""
+    if day.weekday() != FRIDAY:
+        return None
+    times = prayer_times(config, day, ["dhuhr"])
+    return times[0][1] if times else None
+
+
+def kahf_event(config, day, others=None):
+    """Surah Al-Kahf before Jumu'ah, as an Event, or None when it doesn't play on the given day.
+
+    It plays kahf minutes before Jumu'ah, and has to stop KAHF_MARGIN before the next of the other events, e.g. the
+    reminder or azaan for Dhuhr, and before Jumu'ah, so they always play on time. others are the day's other events,
+    worked out from the configuration when not given.
+    """
+    if not config.kahf:
+        return None
+    jummah = jummah_time(config, day)
+    if jummah is None:
+        return None
+    start = jummah - timedelta(minutes=config.kahf)
+    if others is None:
+        others = [event for event in events(config, day) if event.kind != KAHF]
+    # Something else playing at the same time, e.g. the reminder 60 minutes before, leaves it no time
+    until = min([event.at for event in others if event.at >= start] + [jummah]) - KAHF_MARGIN
+    if until - start < MIN_KAHF:
+        return None  # the configuration warns about it
+    return Event(start, "dhuhr", KAHF, azaan_at=jummah, until=until)
+
+
+def upcoming_kahf(config, now):
+    """The next Surah Al-Kahf, as an Event, including one playing now, or None when kahf is off."""
+    if not config.kahf:
+        return None
+    for offset in range(8):
+        kahf = kahf_event(config, now.date() + timedelta(days=offset))
+        if kahf and kahf.until > now:
+            return kahf
+    return None
 
 
 # ------------------------------------------------------------------ Ramadan

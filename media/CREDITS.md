@@ -14,6 +14,13 @@ Notifications", which its uploader marked Public Domain
 It is the end of his Fajr Azaan with the dua in the same item. It was trimmed of its closing silence, faded out,
 normalised to -16 LUFS and encoded as Opus. It will be removed if the reciter or the rights holder asks.
 
+`kahf.opus`, Surah Al-Kahf, is recited by Saad Al-Ghamdi. It is
+[018.mp3](https://archive.org/download/Quran-MP3-Ghamdi/018.mp3) from the Internet Archive item
+[Quran Recitation by Saad Al-Ghamdi](https://archive.org/details/Quran-MP3-Ghamdi), which its uploader marked Public
+Domain ([Public Domain](https://creativecommons.org/licenses/publicdomain/)), with no licence from the reciter. It
+was normalised to -16 LUFS and encoded as mono Opus at 24 kbps, from the 40 kbps MP3. It will be removed if the
+reciter or the rights holder asks.
+
 Azaans 16 and 17 are used under Creative Commons licences. They were trimmed to the azaan, faded in and out,
 normalised to -16 LUFS and encoded as Opus.
 

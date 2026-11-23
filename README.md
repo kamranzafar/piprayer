@@ -25,6 +25,7 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
 - 🌙 **The Hijri date**, by the Umm al-Qura calendar, adjustable by a day or two to match moon sighting
 - 🤲 **The dua after the Azaan**, optionally played straight after it, for every prayer or some
 - 🍽️ **Ramadan mode**: an optional suhoor alarm before Fajr, and a countdown to iftar
+- 📖 **Jumu'ah mode**: optionally plays Surah Al-Kahf on Fridays before Jumu'ah, stopping in time for the Azaan
 - 📱 **Status and settings page**: an optional web page to see today's times and change the settings from your
   phone, protected by a PIN
 - 🏠 **Home Assistant integration**: PiPrayer appears as a device, with the next Azaan, an alert when one doesn't
@@ -221,6 +222,8 @@ the file directly. The running service picks up changes within a minute, no rest
 | `high-latitude` | How to set Fajr and Isha when summer nights are too short for their angles, see [below](#short-summer-nights) | `NightMiddle` | `AngleBased` |
 | `hijri-adjust` | Days to move the [Hijri date](#hijri-date) on from the Umm al-Qura calendar, from -2 to 2 | `0` | `-1` |
 | `suhoor` | In [Ramadan](#ramadan), sound an alarm this many minutes before Fajr, up to 180, to wake for suhoor. `0` turns it off | `0` | `30` |
+| `kahf` | On Fridays, play [Surah Al-Kahf](#jumuah) this many hours before Jumu'ah: `1h`, `2h` or `3h`. `off` turns it off | `off` | `1h` |
+| `kahf-file` | Your own recording of [Surah Al-Kahf](#jumuah) to play instead, from the folder of `.piprayer` if it isn't a full path | Saad Al-Ghamdi's | `/home/pi/kahf.mp3` |
 | `settings-pin` | The PIN for the [settings page](#settings-page), 4 to 8 digits. PiPrayer saves it as a hash | none, off | `4826` |
 | `ramadan` | Which days are [days of fasting](#ramadan): `auto` for the days of Ramadan by the Hijri date, `on` for every day, `off` for none | `auto` | `on` |
 | `update-check` | Once a day, ask GitHub whether there's a new version, and say so. `off` stops PiPrayer contacting GitHub, see [Updating](#updating) | `on` | `off` |
@@ -275,6 +278,33 @@ is none on Eid. To fast on other days, or to start or end Ramadan by hand, set `
 
 Mute silences the suhoor alarm with the Azaans. Skipping Fajr doesn't, as the alarm is for eating before the fast,
 not for the prayer. `python3 piprayer.py play -s` plays the alarm, to try it.
+
+### Jumu'ah
+
+On Fridays, `piprayer.py times`, the status page and Home Assistant show Dhuhr as Jumu'ah. To play Surah Al-Kahf
+before Jumu'ah, set how many hours before it to start, `1h`, `2h` or `3h`:
+
+```ini
+kahf = 1h
+```
+
+It plays Saad Al-Ghamdi's recitation, which is 29 minutes, at the volume set for Dhuhr, so starting a whole hour or
+more before Jumu'ah leaves it time to finish before the reminder and the Azaan. The Azaan always comes first: if a
+long recording or reminder leaves it too little time, Al-Kahf fades out and stops 2 minutes before the next thing
+PiPrayer plays. With `kahf = 1h` and `reminder = 60`, the two would start together, so Al-Kahf doesn't play: use
+`2h`. If the speaker drops while it plays, it isn't played again from the start, as an Azaan is. Jumu'ah is at the
+time of Dhuhr, with its offset in `prayers`.
+
+To hear another reciter, set `kahf-file` to a recording on the Raspberry Pi, in any format PiPrayer plays, e.g.
+[Aaqib Azeez's murattal recitation](https://commons.wikimedia.org/wiki/File:Chapter_18,_Al-Kahf_(Murattal)_-_Recitation_of_the_Holy_Qur%27an.mp3)
+on Wikimedia Commons, which is public domain and 39 minutes:
+
+```ini
+kahf-file = /home/pi/kahf.mp3
+```
+
+Mute silences Al-Kahf with the Azaans. Skipping Dhuhr doesn't, as Al-Kahf is for the day, not the prayer.
+`python3 piprayer.py play --kahf` plays it, to try it, and `python3 piprayer.py stop` stops it.
 
 ### Calculation methods
 
@@ -351,7 +381,8 @@ dst = 1            # 1 during daylight saving, otherwise 0
 | `python3 piprayer.py play -r` | Play the reminder chime |
 | `python3 piprayer.py play -s` | Play the [suhoor alarm](#ramadan) |
 | `python3 piprayer.py play --dua` | Play the dua after the Azaan. `play` plays it after the Azaan too when `dua` is on |
-| `python3 piprayer.py stop` | Stop the Azaan, reminder or suhoor alarm that is playing, and disconnect the speaker |
+| `python3 piprayer.py play --kahf` | Play [Surah Al-Kahf](#jumuah) |
+| `python3 piprayer.py stop` | Stop the Azaan, reminder, suhoor alarm or Surah Al-Kahf that is playing, and disconnect the speaker |
 | `python3 piprayer.py skip` | Don't play the next Azaan or its reminder. Run it again to skip the one after too |
 | `python3 piprayer.py mute` | Don't play any Azaan until the end of today. `-d 3` mutes today and the next 2 days, `-u 2026-12-25` until the end of a date, up to 30 days |
 | `python3 piprayer.py resume` | Clear skip and mute, so every Azaan plays again |
@@ -364,7 +395,7 @@ dst = 1            # 1 during daylight saving, otherwise 0
 
 ### Azaan recordings
 
-The Azaan recordings, the dua after the Azaan, the reminder chime and the suhoor alarm are in the
+The Azaan recordings, the dua after the Azaan, the reminder chime, the suhoor alarm and Surah Al-Kahf are in the
 [`media`](media) folder. The recordings are Opus files,
 normalised to the same loudness (-16 LUFS), so they play at a similar level at the same volume.
 
@@ -376,6 +407,8 @@ The dua after the Azaan, `dua.opus`, is recited by Mishary Rashid Alafasy. It pl
 which `python3 piprayer.py config` asks about.
 To use another recording, replace `media/dua.opus` with it, e.g. converted with
 `ffmpeg -i my-dua.mp3 -ac 1 -c:a libopus -b:a 64k media/dua.opus`.
+
+Surah Al-Kahf, `kahf.opus`, is recited by Saad Al-Ghamdi. To play another, set [`kahf-file`](#jumuah).
 
 ## Status page
 
@@ -409,8 +442,8 @@ settings needs a PIN, see below. Don't make the port reachable from the internet
 The **Settings** link at the bottom of the status page opens `/settings`, to change the settings without logging in
 to the Raspberry Pi. It has a section for each group of settings, each with its own **Save**: prayer times (showing
 the times the new settings give before saving), the prayers with each one's offset, volume, fade in and dua, the
-Azaan and sound, with **Listen** to hear each one, Ramadan, the speaker, and Home Assistant. Each setting is checked
-as it is typed, with the same checks as `.piprayer`, and a mistake is shown next to it rather than saved.
+Azaan and sound, with **Listen** to hear each one, Ramadan, Jumu'ah, the speaker, and Home Assistant. Each setting
+is checked as it is typed, with the same checks as `.piprayer`, and a mistake is shown next to it rather than saved.
 
 The speaker section also pairs a new speaker, e.g. after replacing or resetting one. Put the speaker in pairing mode,
 then press **Find speakers**, which looks for about 15 seconds, and **Pair** next to yours. Once it is paired, the page
@@ -439,7 +472,7 @@ It also answers JSON requests, e.g. for Home Assistant:
 |---|---|
 | `GET /api/next` | The next Azaan, the same as `piprayer.py times next -f json` |
 | `GET /api/times` | Today's times, the same as `piprayer.py times -f json` |
-| `POST /api/stop` | Stop the Azaan, reminder or suhoor alarm that is playing, and return it, or `null` if nothing is |
+| `POST /api/stop` | Stop the Azaan, reminder, suhoor alarm or Surah Al-Kahf that is playing, and return it, or `null` if nothing is |
 | `POST /api/skip` | Skip the next Azaan that would play, and return it |
 | `POST /api/mute?days=1` | Mute until the end of today, or for up to 30 days counting today |
 | `POST /api/resume` | Clear skip and mute |
@@ -451,6 +484,8 @@ time the mute ends. `/api/times` also has `last`, how the last Azaan went, with 
 `hijri` is the Hijri date, with its `day`, `month` (1 to 12), `month_name`, `year`, `evening` (`true` from Maghrib,
 when it is the next day's date), `adjust` and `text`, e.g. "Evening of 1 Ramadan 1448". On a day of fasting,
 `ramadan` has the day's `suhoor_alarm` (`null` without one), `suhoor_ends` and `iftar`, and is `null` on other days.
+On Fridays, Dhuhr has `jummah` set to `true`, and with `kahf` set, `kahf` has the `start` and `until` of Surah
+Al-Kahf. `playing` has the `kind` of sound playing: `azaan`, `reminder`, `suhoor` or `kahf`.
 
 ## Home Assistant
 
@@ -459,14 +494,16 @@ when it is the next day's date), `adjust` and `text`, e.g. "Evening of 1 Ramadan
 | Entity | Shows or does |
 |---|---|
 | Next azaan | When the next Azaan is, e.g. "in 2 hours", with the prayer and whether it is skipped |
-| Next prayer | e.g. Asr |
+| Next prayer | e.g. Asr, and Jumu'ah for Dhuhr on Fridays |
 | Muted | On while muted, with the time the mute ends |
 | Last azaan | How the last Azaan went, e.g. played or failed, with the prayer, time and error |
 | Problem | On when the last Azaan didn't play as it should have, or the clock isn't set from the network. Use it in an automation to send yourself a notification |
-| Playing | On while an Azaan, reminder or suhoor alarm plays, with the prayer. Use it e.g. to pause the TV |
+| Playing | On while an Azaan, reminder, suhoor alarm or Surah Al-Kahf plays, with the prayer. Use it e.g. to pause the TV |
 | Hijri date | e.g. 23 Jumada al-Awwal 1448, with the day, month and year. From Maghrib, "Evening of" the next date |
 | Hijri date adjustment | Days to move the Hijri date on from the Umm al-Qura calendar, from -2 to 2. Change it when the month starts a day earlier or later |
 | Iftar, Suhoor ends | In [Ramadan](#ramadan), the next iftar and the next end of suhoor. Unknown on other days |
+| Surah Al-Kahf | When [Surah Al-Kahf](#jumuah) next plays, with the time it stops. Unknown when it is off |
+| Surah Al-Kahf before Jumu'ah | The hours before Jumu'ah to start it, `kahf`: `1h`, `2h`, `3h` or `off` |
 | Stop, Skip next azaan, Mute today, Resume | Buttons |
 | PiPrayer (update) | In Home Assistant's Updates when there's a new version, with a link to what's new. With `auto-update = on`, **Install** updates PiPrayer within a minute, unless an Azaan is about to play |
 
@@ -489,7 +526,8 @@ while the Raspberry Pi or the service is off. The password is saved in `.pipraye
 makes readable only by you. Skip and mute from Home Assistant, the status page and the command line all apply
 to the same Azaans.
 
-Automations can also publish `stop`, `skip`, `mute`, `mute 3` (days, up to 30), `resume` or `hijri-adjust -1` to
+Automations can also publish `stop`, `skip`, `mute`, `mute 3` (days, up to 30), `resume`, `hijri-adjust -1` or
+`kahf 1h` to
 `piprayer/command`. The state
 is published to `piprayer/state` as JSON. MQTT is off unless `mqtt-host` is set, so PiPrayer doesn't need
 `paho-mqtt` otherwise.
@@ -574,6 +612,12 @@ Prayer times are calculated with the [PrayTimes.org](http://praytimes.org) libra
 
 If the clock jumps forward after boot (the Raspberry Pi has no hardware clock), any Azaan missed by more than
 5 minutes is skipped rather than played late.
+
+PiPrayer plays one sound at a time. When two are due at the same time, the Azaan plays first, then the suhoor
+alarm, the reminder and Surah Al-Kahf, one after the other, and a reminder due at the same time as another sound
+isn't played. A reminder is only played within a minute of its time: if another sound is still playing then, e.g. a
+long Azaan with the dua, the reminder is left out rather than played late, close to its Azaan or after it. Surah
+Al-Kahf stops in time for what comes next.
 
 With `dua` on, the player plays `media/dua.opus` straight after the Azaan, before disconnecting the speaker.
 Skipping or muting the Azaan skips the dua too, and Stop stops whichever is playing.

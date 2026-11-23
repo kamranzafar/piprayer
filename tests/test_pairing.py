@@ -9,6 +9,7 @@ import pytest
 
 from pipray.pairing import Pairing
 from pipray.settings import SettingsRoutes
+from pipray.schedule import AZAAN
 from pipray.state import Playing, playing_file
 from test_settings import settings  # noqa: F401, the settings fixture
 from test_wizard import ECHO, KITCHEN, PHONE, SOUNDBAR, bluetooth  # noqa: F401, the bluetooth fixture
@@ -187,7 +188,7 @@ def test_page_says_which_speaker_is_pairing(speakers):
 
 
 def test_doesnt_scan_while_an_azaan_plays(speakers):
-    Playing("fajr", False, datetime(2026, 11, 12, 4, 23, tzinfo=MELBOURNE)).save(playing_file(speakers.path))
+    Playing("fajr", AZAAN, datetime(2026, 11, 12, 4, 23, tzinfo=MELBOURNE)).save(playing_file(speakers.path))
     speakers.act("scan")
     assert "--timeout 15 scan on" not in speakers.bluetooth.commands
     assert "Wait until the Azaan has finished" in speakers.section()

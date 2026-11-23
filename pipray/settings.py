@@ -22,10 +22,12 @@ import praytimes
 from . import __version__, bluetooth, clock, update
 from .config import (ASR_TIME, ASR_TIMES, AZAAN, DEFAULT_HIGH_LATITUDE, DEFAULT_MQTT_PORT, DEFAULT_MQTT_TOPIC,
                      DEFAULT_VOLUME, DST, DUA, FADE_IN, FAJR_AZAAN, FALLBACK_OUTPUT, GMT_OFFSET, HIGH_LATITUDE,
-                     HIGH_LATITUDE_RULES, LAT, LNG, MAC_ADDRESS, MEDIA_DIR, MAX_FADE_IN, MAX_OFFSET, MAX_SUHOOR, METHOD,
+                     HIGH_LATITUDE_RULES, KAHF, KAHF_CHOICES, KAHF_FILE, LAT, LNG, MAC_ADDRESS, MEDIA_DIR,
+                     MAX_FADE_IN,
+                     MAX_OFFSET, MAX_SUHOOR, METHOD,
                      MQTT_HOST, MQTT_PASSWORD, MQTT_PORT, MQTT_TOPIC, MQTT_TOPIC_NAME, MQTT_USERNAME, PRAYER_NAMES,
                      PRAYERS, RAMADAN, RAMADAN_MODES, REMINDER, SPEAKER, SUHOOR, TIMEZONE, VOLUME, Config,
-                     ConfigError, azaan_file, changed_lines, check_range, parse_choice, parse_coordinate,
+                     ConfigError, azaan_file, changed_lines, check_range, parse_choice, parse_coordinate, parse_kahf,
                      parse_high_latitude, parse_method, read_section, save_options)
 from .pairing import PAIRING, Pairing
 from .pin import COOKIE, SESSION_SECONDS, Throttle, check_pin, session_cookie, valid_session
@@ -34,7 +36,7 @@ from .state import Playing, playing_file
 from .web import HTMX, STATUS_STYLE, Response, times_list, update_html
 
 # The sound files the page can play, to hear them before choosing
-MEDIA = re.compile(r"^/media/(azaan-[0-9]{1,2}\.opus|dua\.opus|suhoor\.opus|reminder\.wav)$")
+MEDIA = re.compile(r"^/media/(azaan-[0-9]{1,2}\.opus|dua\.opus|suhoor\.opus|kahf\.opus|reminder\.wav)$")
 
 HIGH_LATITUDE_LABELS = {
     "NightMiddle": "Middle of the night",
@@ -47,6 +49,7 @@ CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 SINGLE_LINE = "Use a single line, without line breaks or tabs"
 
 RAMADAN_LABELS = {"auto": "Ramadan, by the Hijri date", "on": "Every day", "off": "Off"}
+KAHF_LABELS = {"off": "Off", "1h": "1 hour before", "2h": "2 hours before", "3h": "3 hours before"}
 
 
 def azaan_numbers():
@@ -107,6 +110,23 @@ def azaan_check(option):
     return check
 
 
+def kahf_check(value):
+    """kahf, saved as e.g. 1h."""
+    parse_kahf(value)
+    return value.strip().lower()
+
+
+def kahf_file_check(config_path):
+    """kahf-file must be a file on the Raspberry Pi, from the folder of .piprayer when it is relative."""
+    def check(value):
+        path = os.path.join(os.path.dirname(os.path.abspath(config_path)), os.path.expanduser(value))
+        if not os.path.isfile(path):
+            raise ConfigError("There is no file {} on the Raspberry Pi".format(value))
+        return value
+
+    return check
+
+
 def mqtt_host_check(value):
     if any(c.isspace() for c in value) or "/" in value:
         raise ConfigError("Invalid {}: {}, use a hostname or address, e.g. homeassistant.local"
@@ -147,7 +167,7 @@ class Section:
     preview: bool = False  # shows the times the new settings give before saving
 
 
-def sections(default_azaan):
+def sections(default_azaan, config_path):
     return [
         Section("times", "Prayer times", [
             Field(LAT, "Latitude", checked(lambda v: parse_coordinate(v, LAT, "latitude", 90, "-37.909499")),
@@ -184,6 +204,13 @@ def sections(default_azaan):
             Field(RAMADAN, "Days of fasting", lambda v: parse_choice(v, RAMADAN, RAMADAN_MODES), default="auto",
                   kind="select", choices=lambda: list(RAMADAN_LABELS.items())),
         ], "Counts down to iftar, and sounds the suhoor alarm, on the days of fasting."),
+        Section("jummah", "Jumu'ah", [
+            Field(KAHF, "Surah Al-Kahf before Jumu'ah", kahf_check, default="off", kind="select",
+                  choices=lambda: [(choice, KAHF_LABELS[choice]) for choice in KAHF_CHOICES],
+                  hint="It stops 2 minutes before the reminder or azaan for Dhuhr", listen="kahf.opus"),
+            Field(KAHF_FILE, "Recording of Surah Al-Kahf", kahf_file_check(config_path),
+                  hint="A file on the Raspberry Pi, empty for Saad Al-Ghamdi's, which is 29 minutes"),
+        ], "Plays Surah Al-Kahf on Fridays, before Jumu'ah at the time of Dhuhr."),
         Section("speaker", "Speaker", [
             Field(SPEAKER, "Speaker", speaker_check, kind="select"),
         ], "PiPrayer plays on this speaker. Pair a new one below."),
@@ -282,7 +309,7 @@ class SettingsRoutes:
     def __init__(self, config_path, default_azaan, throttle=None, speakers=None, pairing=None):
         self.config_path = config_path
         self.default_azaan = default_azaan
-        self.sections = {section.id: section for section in sections(default_azaan)}
+        self.sections = {section.id: section for section in sections(default_azaan, config_path)}
         self.throttle = throttle or Throttle()
         self.speakers = speakers or bluetooth.bluetooth_speakers
         self.pairing = pairing or Pairing(playing=self.playing)

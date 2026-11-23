@@ -7,6 +7,27 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+- Jumu'ah mode: `kahf = 1h` plays Surah Al-Kahf on Fridays, 1 hour before Jumu'ah, at the time of Dhuhr, or 2 or 3
+  hours with `2h` or `3h`. It plays Saad Al-Ghamdi's recitation, 29 minutes, which comes with PiPrayer, or your own
+  with `kahf-file`, at the volume set for Dhuhr. The Azaan always comes first: Al-Kahf fades out and stops 2 minutes
+  before the reminder or Azaan for Dhuhr if it hasn't finished, and isn't played again from the start if the
+  speaker drops. Mute silences it, and skipping Dhuhr doesn't. `piprayer.py times`, the status page and its JSON
+  show its times with Dhuhr, the settings page has a Jumu'ah section, `piprayer.py play --kahf` plays it, and Home
+  Assistant has a **Surah Al-Kahf** sensor and a select to choose the hours, also with the MQTT command
+  `kahf <1h, 2h, 3h or off>`
+  ([#25](https://github.com/kamranzafar/piprayer/issues/25)).
+
+### Changed
+- A reminder isn't played when another sound is due at the same time, e.g. the suhoor alarm, or when another sound is
+  still playing a minute after its time, e.g. a long Azaan with the dua, rather than played late, close to its Azaan
+  or after it. Sounds due at the same time play in a fixed order: the Azaan first, then the suhoor alarm, the
+  reminder and Surah Al-Kahf.
+- On Fridays, Dhuhr is shown as Jumu'ah in `piprayer.py times`, on the status page, and in Home Assistant's **Next
+  prayer** and **Last azaan**. The JSON still says `dhuhr`, with `jummah: true`.
+- What is playing, in `/api/times`, `/api/stop` and the `.piprayer-playing` file, has a `kind`: `azaan`,
+  `reminder`, `suhoor` or `kahf`, as well as `reminder` and `suhoor` as before.
+
 ## [1.1] - 2026-11-22
 
 ### Upgrading from 1.0

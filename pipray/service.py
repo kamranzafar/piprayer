@@ -1,7 +1,7 @@
 # PiPrayer - Azaan for Raspberry Pi
 # Copyright (C) 2021-2026 Kamran Zafar
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The service: wait for each azaan, reminder and suhoor alarm, and play it.
+"""The service: wait for each azaan, reminder, suhoor alarm and Surah Al-Kahf, and play it.
 
 setup-piprayer.sh installs it with systemd.
 """
@@ -14,7 +14,7 @@ from . import clock, systemd
 from .config import DEFAULT_AZAAN, SCRIPT_DIR, SETTINGS_PIN, Config, ConfigError, save_option
 from .pin import hash_pin, is_hash
 from . import player
-from .schedule import next_event
+from .schedule import AZAAN, REMINDER, next_event
 from .mqtt import MqttBridge
 from .state import (FAILED, MISSED, PLAYED, PLAYED_LOCALLY, STOPPED, LastAzaan, Playing, State, last_file,
                     playing_file, state_file, tidy_state)
@@ -26,6 +26,10 @@ log = logging.getLogger("piprayer")
 # Skip an azaan if we only notice its time after this long, e.g. when the
 # clock jumps forward after boot (the Pi has no hardware clock)
 MAX_LATENESS = timedelta(minutes=5)
+
+# A reminder is only played this close to its time. Later, e.g. after an azaan that was playing at its time, it
+# would come too close to its azaan, or after it
+REMINDER_LATENESS = timedelta(minutes=1)
 
 # Longest single sleep while waiting, so clock changes and config edits are noticed
 MAX_SLEEP_SECONDS = 60
@@ -217,6 +221,10 @@ def wait_and_play(config_path, config, mtime, state_path, event, version=None, c
             clock.sleep(min(remaining - ahead, MAX_SLEEP_SECONDS))
 
         late = clock.now(config.tz) - event.at
+        if event.kind == REMINDER and late > REMINDER_LATENESS:
+            log.info("Not playing %s, it is %d minutes late, e.g. as something else was playing at its time",
+                     event, late.total_seconds() // 60)
+            return True
         if late > MAX_LATENESS:
             log.warning("Skipping %s, noticed %d minutes late (clock changed?)",
                         event, late.total_seconds() // 60)
@@ -257,7 +265,7 @@ def play_with_retries(config_path, config, state_path, event, notify=None):
     While it plays, it can be stopped with piprayer.py stop, the status page or Home Assistant.
     """
     playing_path = playing_file(config_path)
-    Playing(event.prayer, event.reminder, event.at, suhoor=event.suhoor).save(playing_path)
+    Playing(event.prayer, event.kind, event.at).save(playing_path)
     if notify:
         notify()
     try:
@@ -268,12 +276,14 @@ def play_with_retries(config_path, config, state_path, event, notify=None):
                 record(config_path, event, STOPPED)
                 return
             if played.ok:
+                if played.time_up:
+                    log.info("Stopped %s before the end, so what plays next is on time", event)
                 record(config_path, event, PLAYED_LOCALLY if played.local else PLAYED,
                        "played on the Raspberry Pi's own audio output, as the speaker couldn't be reached"
                        if played.local else None)
                 return
             if not played.worth_retrying or \
-                    clock.now(config.tz) + timedelta(seconds=RETRY_SECONDS) - event.at > MAX_LATENESS:
+                    clock.now(config.tz) + timedelta(seconds=RETRY_SECONDS) - event.at > lateness(event):
                 log.error("Couldn't play %s: %s", event, played.message)
                 record(config_path, event, FAILED, played.message)
                 return
@@ -296,6 +306,11 @@ def play_with_retries(config_path, config, state_path, event, notify=None):
             notify()
 
 
+def lateness(event):
+    """How late the event can still be played."""
+    return REMINDER_LATENESS if event.kind == REMINDER else MAX_LATENESS
+
+
 def started_playing(path, pid):
     """Remember the player's process, so it can be stopped. Stop it straight away if that was asked already."""
     playing = Playing.load(path)
@@ -313,8 +328,8 @@ def stop_requested(path):
 
 
 def record(config_path, event, result, error=None):
-    """Remember how an azaan went. Reminders and suhoor alarms aren't recorded."""
-    if not event.reminder and not event.suhoor:
+    """Remember how an azaan went. Reminders, suhoor alarms and Surah Al-Kahf aren't recorded."""
+    if event.kind == AZAAN:
         LastAzaan(event.prayer, event.at, result, error).save(last_file(config_path))
 
 

@@ -112,7 +112,7 @@ class FakeClock:
             self.events.remove(event)
             event[1]()
 
-    def run_player(self, args, on_start=None):
+    def run_player(self, args, on_start=None, seconds=None):
         """Replaces player.run_player: returns the player's exit code and the lines it printed."""
         minute = self.local_now().replace(second=0, microsecond=0)
         if args[0] in ("--connect", "--disconnect"):
@@ -122,9 +122,9 @@ class FakeClock:
             return 0, [args[1] if len(args) > 1 else "AA:AA:AA:AA:AA:01"]
         then = None
         while args[0].startswith("--"):
-            if args[0] == "--fallback":
+            if args[0] in ("--fallback", "--once"):
                 args = args[1:]
-            else:  # --fade-in seconds, --then sound
+            else:  # --fade-in seconds, --then sound, --for seconds
                 if args[0] == "--then":
                     then = args[1]
                 args = args[2:]
@@ -137,7 +137,9 @@ class FakeClock:
         self.played.append((minute, args[0], args[1]))
         if then:
             self.then.append((minute, then))
-        self.advance(self.play_duration)
+        # A sound with a time limit stops at it, as the player stops it
+        limit = timedelta(seconds=seconds) if seconds is not None else self.play_duration
+        self.advance(min(self.play_duration, limit))
         if self.stopped_while_playing:
             self.stopped_while_playing = False
             return 4, ["Stopped"]

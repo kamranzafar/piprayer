@@ -15,7 +15,7 @@ from pipray.config import Config, ConfigError
 from pipray.hijri import fasting
 from pipray.output import format_next, format_times, times_json
 from pipray.player import SUHOOR_SOUND
-from pipray.schedule import IFTAR, SUHOOR_ENDS, events, fast_times, next_azaan, next_fast_time
+from pipray.schedule import IFTAR, SUHOOR, SUHOOR_ENDS, events, fast_times, next_azaan, next_fast_time
 from pipray.state import LastAzaan, Playing, State, last_file, mute, skip_next, state_file
 from pipray.web import status_html
 from conftest import MELBOURNE_CONFIG
@@ -155,7 +155,8 @@ def test_suhoor_alarm_is_muted_but_not_skipped_with_fajr(write_config, fake_cloc
 
 def test_playing_the_suhoor_alarm(write_config, monkeypatch):
     commands = []
-    monkeypatch.setattr(player, "run_player", lambda args, on_start=None: commands.append(args) or (0, []))
+    monkeypatch.setattr(player, "run_player", lambda args, on_start=None, seconds=None:
+                        commands.append(args) or (0, []))
     monkeypatch.setattr("sys.argv", ["piprayer.py", "-c", write_config(MELBOURNE_CONFIG + "volume = 80, Fajr:40\n"),
                                      "play", "--suhoor"])
     assert main() == 0
@@ -164,7 +165,7 @@ def test_playing_the_suhoor_alarm(write_config, monkeypatch):
 
 
 def test_stopping_the_suhoor_alarm(write_config):
-    playing = Playing("fajr", False, at(FIRST_DAY, 4, 34), 4242, suhoor=True)
+    playing = Playing("fajr", SUHOOR, at(FIRST_DAY, 4, 34), 4242)
     assert playing.describe() == "the suhoor alarm"
     page = status_html(config_with(write_config, "suhoor = 30"), at(FIRST_DAY, 4, 35), State(), playing=playing)
     assert "Stop the suhoor alarm" in page

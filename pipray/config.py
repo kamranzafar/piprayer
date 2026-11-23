@@ -45,10 +45,12 @@ DUA = "dua"
 SETTINGS_PIN = "settings-pin"
 UPDATE_CHECK = "update-check"
 AUTO_UPDATE = "auto-update"
+KAHF = "kahf"
+KAHF_FILE = "kahf-file"
 
 OPTIONS = (LAT, LNG, TIMEZONE, DST, GMT_OFFSET, METHOD, ASR_TIME, PRAYERS, AZAAN, FAJR_AZAAN, VOLUME, FADE_IN, REMINDER,
            SPEAKER, FALLBACK_OUTPUT, STATUS_PORT, HIGH_LATITUDE, MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD,
-           MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR, DUA, SETTINGS_PIN, UPDATE_CHECK, AUTO_UPDATE)
+           MQTT_TOPIC, HIJRI_ADJUST, RAMADAN, SUHOOR, DUA, SETTINGS_PIN, UPDATE_CHECK, AUTO_UPDATE, KAHF, KAHF_FILE)
 
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_MQTT_TOPIC = "piprayer"
@@ -74,6 +76,8 @@ SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 DEFAULT_CONFIG = os.path.join(SCRIPT_DIR, ".piprayer")
 MEDIA_DIR = os.path.join(SCRIPT_DIR, "media")
 DUA_FILE = os.path.join(MEDIA_DIR, "dua.opus")
+# Surah Al-Kahf, played before Jumu'ah when kahf-file doesn't give another recording
+KAHF_SOUND = os.path.join(MEDIA_DIR, "kahf.opus")
 
 DEFAULT_AZAAN = 1
 DEFAULT_VOLUME = 100
@@ -90,6 +94,11 @@ RAMADAN_MODES = ["auto", "on", "off"]
 
 # Longest time the suhoor alarm sounds before Fajr, in minutes
 MAX_SUHOOR = 180
+
+# The hours before Jumu'ah that Surah Al-Kahf can start, as kahf takes them, e.g. 1h. Whole hours leave the
+# recitation, about half an hour, time to finish before the reminder and the azaan
+KAHF_HOURS = ["1h", "2h", "3h"]
+KAHF_CHOICES = ["off"] + KAHF_HOURS
 
 
 class ConfigError(Exception):
@@ -137,6 +146,12 @@ class Config:
         self.auto_update = parse_choice(section.get(AUTO_UPDATE, "off"), AUTO_UPDATE, ["on", "off"]) == "on"
         # Not errors, as PiPrayer still works, but e.g. status_port for status-port would silently do nothing
         self.warnings = [unknown_option(option, path) for option in section if option not in OPTIONS]
+        # Surah Al-Kahf on Fridays: minutes before Jumu'ah, 0 for none, and the recording to play
+        self.kahf = parse_kahf(section.get(KAHF, "off"))  # in minutes, 0 for off
+        self.kahf_file = parse_kahf_file(section.get(KAHF_FILE, ""), path, self.kahf, self.warnings)
+        if self.kahf and self.kahf <= self.reminder:
+            self.warnings.append("{} = 1h starts Surah Al-Kahf with the reminder for Dhuhr, 60 minutes before it, so "
+                                 "it doesn't play. Use {} = 2h, or a shorter reminder".format(KAHF, KAHF))
         self.default_azaan = default_azaan
 
     def azaan_for(self, prayer):
@@ -302,6 +317,27 @@ def set_hijri_adjust(path, value):
     return days
 
 
+def set_kahf(path, value):
+    """Save kahf, the hours before Jumu'ah to start Surah Al-Kahf, e.g. 1h, or off. Returns it as saved. Raises
+    ValueError when it isn't one of KAHF_CHOICES, or the configuration can't play it."""
+    try:
+        parse_kahf(str(value))
+        choice = str(value).strip().lower()
+        save_options(path, {KAHF: choice}, check=Config)
+    except ConfigError as e:
+        raise ValueError(str(e))
+    return choice
+
+
+def parse_kahf(value):
+    """kahf, e.g. 1h, as the minutes before Jumu'ah to start Surah Al-Kahf, 0 for off."""
+    choice = value.strip().lower()
+    if choice not in KAHF_CHOICES:
+        raise ConfigError("Invalid {}: {}, use {} or off, the hours before Jumu'ah to start Surah Al-Kahf".format(
+            KAHF, shown(value), ", ".join(KAHF_HOURS)))
+    return int(choice[:-1]) * 60 if choice != "off" else 0
+
+
 def parse_coordinate(value, option, what, limit, example):
     """A latitude or longitude, in decimal degrees."""
     try:
@@ -442,6 +478,25 @@ def parse_list(value, allow_bare_value=False):
         result.append((prayer, setting.strip()))
 
     return result
+
+
+def parse_kahf_file(value, path, kahf, warnings):
+    """The recording of Surah Al-Kahf to play: kahf-file, or the one PiPrayer comes with.
+
+    A relative path is from the folder of the configuration file. When kahf-file can't be found, the one PiPrayer
+    comes with plays instead, with a warning, so a mistake doesn't stop it.
+    """
+    value = value.strip()
+    if value:
+        given = os.path.join(os.path.dirname(os.path.abspath(path)), os.path.expanduser(value))
+        if os.path.isfile(given):
+            return given
+        warnings.append("{} {} isn't found, playing the recording of Surah Al-Kahf PiPrayer comes with".format(
+            KAHF_FILE, value))
+    if kahf and not os.path.isfile(KAHF_SOUND):
+        raise ConfigError("{} is on, but there is no {}. Set {} to a recording of Surah Al-Kahf, or turn it off"
+                          .format(KAHF, os.path.relpath(KAHF_SOUND, SCRIPT_DIR), KAHF_FILE))
+    return KAHF_SOUND
 
 
 def parse_azaan(section, option):

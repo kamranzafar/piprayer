@@ -15,7 +15,7 @@ from pipray import clock, mqtt, player, service
 from pipray.config import Config, ConfigError
 from pipray.output import format_next, format_times, times_json
 from pipray.player import PLAYED_LOCALLY, REMINDER_SOUND
-from pipray.schedule import Event
+from pipray.schedule import REMINDER, Event
 from pipray.state import LastAzaan, State, last_file, state_file
 from pipray.web import status_html
 from conftest import MELBOURNE_CONFIG, FakeResult
@@ -174,11 +174,12 @@ def test_fallback_output_option(write_config):
 
 def test_fallback_is_passed_to_play_azaan(write_config, monkeypatch):
     commands = []
-    monkeypatch.setattr(player, "run_player", lambda args, on_start=None: commands.append(args) or (0, []))
+    monkeypatch.setattr(player, "run_player", lambda args, on_start=None, seconds=None:
+                        commands.append(args) or (0, []))
     config = Config(write_config(MELBOURNE_CONFIG + "fallback-output = local\nspeaker = AA:BB:CC:DD:EE:FF\n"))
 
     player.play_event(config, Event(ASR, "asr"))
-    player.play_event(config, Event(ASR, "asr", reminder=True))
+    player.play_event(config, Event(ASR, "asr", REMINDER))
     assert commands == [["--fallback", "1", "100", "AA:BB:CC:DD:EE:FF"],
                         ["--fallback", REMINDER_SOUND, "100", "AA:BB:CC:DD:EE:FF"]]
 

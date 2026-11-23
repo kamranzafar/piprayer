@@ -6,7 +6,7 @@ from datetime import datetime, time, timedelta
 
 from .clock import NOT_SYNCHRONISED
 from .hijri import hijri_day, hijri_now
-from .schedule import fast_times, next_fast_time, schedule, timezone_name
+from .schedule import fast_times, next_fast_time, prayer_name, schedule, timezone_name
 from .state import FAILED, MISSED, PLAYED_LOCALLY
 
 RESUME_HINT = "Run piprayer.py resume to play again."
@@ -24,8 +24,8 @@ def describe_day(day, today):
 
 
 def describe_azaan(entry, now):
-    """e.g. "Asr at 18:03 today"."""
-    return "{} at {} {}".format(entry.prayer.capitalize(), entry.at.strftime("%H:%M"),
+    """e.g. "Asr at 18:03 today", or "Jumu'ah at 12:58 today"."""
+    return "{} at {} {}".format(prayer_name(entry.prayer, entry.at.date()), entry.at.strftime("%H:%M"),
                                 describe_day(entry.at.date(), now.date()))
 
 
@@ -54,6 +54,11 @@ def format_duration(delta):
     if hours and minutes:
         return "{} h {} min".format(hours, minutes)
     return "{} h".format(hours) if hours else "{} min".format(minutes)
+
+
+def describe_kahf(kahf):
+    """e.g. "Surah Al-Kahf 11:28-12:56"."""
+    return "Surah Al-Kahf {}-{}".format(kahf.at.strftime("%H:%M"), kahf.until.strftime("%H:%M"))
 
 
 def describe_fast(config, fast):
@@ -94,7 +99,7 @@ def format_times(config, day, now, state=None, last=None, synchronised=None):
         (["Reminder"] if config.reminder else [])
     rows = []
     for entry in entries:
-        row = [entry.prayer.capitalize(), entry.at.strftime("%H:%M"), str(entry.azaan), "{}%".format(entry.volume)]
+        row = [entry.name, entry.at.strftime("%H:%M"), str(entry.azaan), "{}%".format(entry.volume)]
         if config.fades_in:
             row.append("{} s".format(entry.fade_in) if entry.fade_in else "-")
         if config.plays_dua:
@@ -103,6 +108,7 @@ def format_times(config, day, now, state=None, last=None, synchronised=None):
             row.append(entry.reminder.strftime("%H:%M"))
         notes = (["◀ next"] if entry is upcoming else []) + \
                 ([fast.label(entry.prayer).lower()] if fast and fast.label(entry.prayer) else []) + \
+                ([describe_kahf(entry.kahf)] if entry.kahf else []) + \
                 ([entry.silenced] if entry.silenced else []) + (["after midnight"] if entry.at.date() != day else [])
         rows.append((row, " · ".join(notes)))
 
@@ -144,6 +150,8 @@ def format_next(config, entry, now, state=None, synchronised=None):
     details = "Azaan {} · {}% volume".format(entry.azaan, entry.volume) + (" · then the dua" if entry.dua else "")
     if entry.reminder:
         details += " · reminder at " + entry.reminder.strftime("%H:%M")
+    if entry.kahf:
+        details += " · " + describe_kahf(entry.kahf)
 
     lines = [
         "Next azaan: {}, in {}".format(describe_azaan(entry, now), format_duration(entry.at - now)),

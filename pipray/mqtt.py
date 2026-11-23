@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Optional MQTT for Home Assistant, turned on with mqtt-host in .piprayer.
 
-Publishes the next azaan, whether PiPrayer is muted, the Hijri date, and in Ramadan, iftar and the end of suhoor,
-with Home Assistant MQTT discovery so the entities appear on their own, and takes stop, skip, mute, resume and
-hijri-adjust commands. Needs paho-mqtt, which is only imported when MQTT is on:
+Publishes the next azaan, whether PiPrayer is muted, the Hijri date, in Ramadan, iftar and the end of suhoor, and
+when Surah Al-Kahf plays, with Home Assistant MQTT discovery so the entities appear on their own, and takes stop,
+skip, mute, resume, hijri-adjust and kahf commands. Needs paho-mqtt, which is only imported when MQTT is on:
 sudo apt install python3-paho-mqtt
 """
 import json
@@ -15,9 +15,9 @@ import socket
 import threading
 
 from . import __version__, clock, update
-from .config import MAX_HIJRI_ADJUST, Config, ConfigError, set_hijri_adjust
+from .config import KAHF_CHOICES, MAX_HIJRI_ADJUST, Config, ConfigError, set_hijri_adjust, set_kahf
 from .hijri import hijri_now
-from .schedule import IFTAR, SUHOOR_ENDS, next_azaan, upcoming_fast
+from .schedule import IFTAR, SUHOOR_ENDS, next_azaan, prayer_name, upcoming_fast, upcoming_kahf
 from .output import describe_last
 from .player import stop
 from .state import LastAzaan, Playing, State, last_file, mute_days, playing_file, resume, skip_next, state_file
@@ -96,7 +96,8 @@ def discovery_messages(topics, node, update_check=True, auto_update=False):
                value_template="{{ 'ON' if value_json.playing else 'OFF' }}", json_attributes_topic=topics.state,
                json_attributes_template="{{ {'prayer': value_json.playing, "
                                         "'reminder': value_json.playing_reminder, "
-                                        "'suhoor': value_json.playing_suhoor} | tojson }}", **state),
+                                        "'suhoor': value_json.playing_suhoor, "
+                                        "'kahf': value_json.playing_kahf} | tojson }}", **state),
         entity("sensor", "hijri_date", "Hijri date", icon="mdi:moon-waxing-crescent",
                value_template="{{ value_json.hijri_date }}", json_attributes_topic=topics.state,
                json_attributes_template="{{ (value_json.hijri or {}) | tojson }}", **state),
@@ -105,6 +106,13 @@ def discovery_messages(topics, node, update_check=True, auto_update=False):
                value_template="{{ value_json.iftar }}", **state),
         entity("sensor", "suhoor_ends", "Suhoor ends", device_class="timestamp", icon="mdi:weather-sunset-up",
                value_template="{{ value_json.suhoor_ends }}", **state),
+        # Unknown when kahf is off
+        entity("sensor", "kahf", "Surah Al-Kahf", device_class="timestamp", icon="mdi:book-open-variant",
+               value_template="{{ value_json.kahf }}", json_attributes_topic=topics.state,
+               json_attributes_template="{{ {'until': value_json.kahf_until} | tojson }}", **state),
+        entity("select", "kahf_hours", "Surah Al-Kahf before Jumu'ah", icon="mdi:book-open-variant",
+               entity_category="config", options=KAHF_CHOICES, value_template="{{ value_json.kahf_hours }}",
+               command_topic=topics.command, command_template="kahf {{ value }}", **state),
         entity("number", "hijri_adjust", "Hijri date adjustment", icon="mdi:calendar-arrow-right",
                entity_category="config", min=-MAX_HIJRI_ADJUST, max=MAX_HIJRI_ADJUST, step=1, mode="box",
                unit_of_measurement="days", value_template="{{ value_json.hijri_adjust }}",
@@ -127,15 +135,16 @@ def state_payload(config, now, state, last=None, synchronised=None, playing=None
     muted = state.muted_at(now)
     hijri = hijri_now(config, now)
     fast = upcoming_fast(config, now)
+    kahf = upcoming_kahf(config, now)
     problems = ([describe_last(last, now)] if last and last.problem else []) + \
         ([clock.NOT_SYNCHRONISED] if synchronised is False else [])
     return json.dumps({
         "next_azaan": entry.at.isoformat() if entry else None,
-        "next_prayer": entry.prayer.capitalize() if entry else None,
+        "next_prayer": entry.name if entry else None,
         "next_skipped": bool(entry and entry.silenced == "skipped"),
         "muted_until": muted.isoformat() if muted else None,
         "last_result": last.result if last else None,
-        "last_prayer": last.prayer.capitalize() if last else None,
+        "last_prayer": prayer_name(last.prayer, last.at.date()) if last else None,
         "last_time": last.at.isoformat() if last else None,
         "last_error": last.error if last else None,
         "clock_synchronised": synchronised,
@@ -143,6 +152,10 @@ def state_payload(config, now, state, last=None, synchronised=None, playing=None
         "playing": playing.prayer.capitalize() if playing else None,
         "playing_reminder": bool(playing and playing.reminder),
         "playing_suhoor": bool(playing and playing.suhoor),
+        "playing_kahf": bool(playing and playing.kahf),
+        "kahf": kahf.at.isoformat() if kahf else None,
+        "kahf_until": kahf.until.isoformat() if kahf else None,
+        "kahf_hours": "{}h".format(config.kahf // 60) if config.kahf else "off",
         "iftar": fast[IFTAR].isoformat() if IFTAR in fast else None,
         "suhoor_ends": fast[SUHOOR_ENDS].isoformat() if SUHOOR_ENDS in fast else None,
         "hijri_date": str(hijri) if hijri else None,
@@ -168,7 +181,8 @@ def update_payload(config_path, config):
 
 
 def handle_command(text, config_path, default_azaan):
-    """Do what a command message asks: stop, skip, mute, mute <days>, resume, hijri-adjust <days> or update.
+    """Do what a command message asks: stop, skip, mute, mute <days>, resume, hijri-adjust <days>, kahf <hours> or
+    update.
 
     Returns a log message.
     """
@@ -201,6 +215,12 @@ def handle_command(text, config_path, default_azaan):
             return "Ignoring MQTT command {!r}: {}".format(text, e)
         hijri = hijri_now(Config(config_path, default_azaan), now)
         return "MQTT: hijri-adjust set to {}{}".format(days, ", the Hijri date is " + str(hijri) if hijri else "")
+    if words[0] == "kahf" and len(words) == 2:
+        try:
+            choice = set_kahf(config_path, words[1])
+        except ValueError as e:
+            return "Ignoring MQTT command {!r}: {}".format(text, e)
+        return "MQTT: Surah Al-Kahf " + ("{} before Jumu'ah".format(choice) if choice != "off" else "turned off")
     if words == ["update"]:
         if not (config.update_check and config.auto_update):
             return "Ignoring MQTT command 'update': PiPrayer only updates itself with auto-update = on"
@@ -208,8 +228,8 @@ def handle_command(text, config_path, default_azaan):
             return "MQTT: no new version to update to"
         update.request_install(config_path)
         return "MQTT: updating PiPrayer within a minute"
-    return "Ignoring unknown MQTT command {!r}, use stop, skip, mute, mute <days>, resume, hijri-adjust <days> or " \
-        "update".format(text)
+    return "Ignoring unknown MQTT command {!r}, use stop, skip, mute, mute <days>, resume, hijri-adjust <days>, " \
+        "kahf <1h, 2h, 3h or off> or update".format(text)
 
 
 # ------------------------------------------------------------------ connection

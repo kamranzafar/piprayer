@@ -6,8 +6,8 @@
 The service runs this in a process of its own, python -m pipray.audio, so that stopping it (piprayer.py stop, the
 status page or Home Assistant) stops paplay with it, and a stuck bluetoothctl can't hold up the service:
 
-    python -m pipray.audio [--fallback] [--fade-in seconds] [--then sound file] <azaan number | sound file>
-                           [volume percent] [speaker]
+    python -m pipray.audio [--fallback] [--fade-in seconds] [--then sound file] [--for seconds] [--once]
+                           <azaan number | sound file> [volume percent] [speaker]
     python -m pipray.audio --connect [speaker address]
     python -m pipray.audio --disconnect <speaker address>
 
@@ -16,11 +16,13 @@ audio output (headphone jack or HDMI) when no speaker connects. --connect connec
 azaan starts on time, and prints its address. A second of silence plays before the sound, so the speaker is awake and
 the start isn't cut off. --fade-in raises the volume from silent over the first seconds. --then plays another sound
 straight after, e.g. the dua after the azaan, at the same volume and without disconnecting in between. If only that
-one doesn't play, it still exits with 0.
+one doesn't play, it still exits with 0. --for plays for at most that many seconds, fading out over the last few, e.g.
+so Surah Al-Kahf stops before the azaan, and exits with 0.
 
 While it plays on a speaker, it checks every few seconds that the speaker is still connected and playing the sound.
-If the connection drops, the sound would carry on to another output or to nothing, so it stops, and exits with 3 so
-PiPrayer tries again.
+If the connection drops, the sound would carry on to another output or to nothing, so it stops, connects again and
+plays it again from the start, and exits with 3 if that fails, so PiPrayer tries again. With --once, it isn't played
+again, e.g. for a long recitation, which shouldn't start over.
 
 Stop it with SIGTERM: it stops playing and disconnects the speaker. The last line it prints says how it went.
 """
@@ -44,6 +46,8 @@ STOPPED = 4
 
 # What it says when it played on the Raspberry Pi's own audio output
 PLAYED_LOCALLY = "Played on the local audio output"
+# What it says when --for stopped it
+TIME_UP = "Stopped, as its time was up"
 
 # How long to wait for a speaker to connect, and then for its audio output to appear
 CONNECT_SECONDS = 10
@@ -67,6 +71,9 @@ MAX_REPLAYS = 2
 
 # How often the volume is raised while fading in
 FADE_STEPS_PER_SECOND = 4
+
+# The seconds to fade out over before --for stops a sound
+FADE_OUT_SECONDS = 10
 
 # 65536 is 100%, on the same scale as the system volume control
 FULL_VOLUME = 65536
@@ -197,18 +204,21 @@ def not_playing(mac, device, stream):
 
 
 class Fade(threading.Thread):
-    """Raises a stream's volume from silent to the given level over a number of seconds."""
+    """Raises a stream's volume from silent to the given level over a number of seconds, or with fade_out, lowers it
+    from the level to silent."""
 
-    def __init__(self, stream, level, seconds):
+    def __init__(self, stream, level, seconds, fade_out=False):
         super().__init__(daemon=True)
-        self.stream, self.level, self.steps = stream, level, seconds * FADE_STEPS_PER_SECOND
+        self.stream, self.level, self.steps = stream, level, max(1, int(seconds * FADE_STEPS_PER_SECOND))
+        self.fade_out = fade_out
         self.cancelled = False
 
     def run(self):
         for i in range(1, self.steps + 1):
             clock.sleep(1 / FADE_STEPS_PER_SECOND)
+            step = self.steps - i if self.fade_out else i
             if self.cancelled or not succeeds(
-                    ["pactl", "set-sink-input-volume", self.stream, str(self.level * i // self.steps)]):
+                    ["pactl", "set-sink-input-volume", self.stream, str(self.level * step // self.steps)]):
                 return
 
     def cancel(self):
@@ -220,9 +230,11 @@ class Fade(threading.Thread):
 class Output:
     """Plays sounds on one audio output, keeping what is playing so a stop can end it."""
 
-    def __init__(self, mac, device):
+    def __init__(self, mac, device, end=None):
         self.mac = mac  # the speaker, None on the local output
         self.device = device  # the audio output, None for the default one
+        self.end = end  # clock.monotonic() at which to stop playing, None to play to the end
+        self.time_up = False  # it was stopped at the end
         self.paplay = None
         self.fade = None
 
@@ -242,7 +254,11 @@ class Output:
         self.paplay = subprocess.Popen(["paplay", "--volume={}".format(level)] + self.device_args() + [sound])
 
     def play(self, sound, level, fade_in=0):
-        """Play a sound to the end. Returns (paplay's exit code, why the speaker stopped playing it or None)."""
+        """Play a sound to the end, or until the output's end. Returns (paplay's exit code, why the speaker stopped
+        playing it or None). At the end, it fades out and stops, returning 0, and time_up is set."""
+        if self.end is not None and self.end - clock.monotonic() <= 0:
+            self.time_up = True
+            return 0, None
         try:
             stream = None
             if fade_in and has_pactl():
@@ -262,24 +278,40 @@ class Output:
             say("Can't run paplay: {}".format(e))
             return 127, None
         # Not cleared if stopped meanwhile, so stop() can end them
-        result = self.wait(stream)
+        result = self.wait(stream, level)
         self.paplay = None
         if self.fade:
             self.fade.cancel()
             self.fade = None
         return result
 
-    def wait(self, stream):
+    def wait(self, stream, level):
         """Wait for paplay to finish, checking the speaker while it plays. Stops paplay if the speaker stops playing
-        it, for FAILED_CHECKS checks in a row. Returns (paplay's exit code, why it stopped or None)."""
-        if self.mac and not stream and self.device and has_pactl():
+        it, for FAILED_CHECKS checks in a row, or at the output's end, after fading it out. Returns (paplay's exit
+        code, why it stopped or None)."""
+        if (self.mac and self.device or self.end is not None) and not stream and has_pactl():
             stream = stream_of(self.paplay.pid)
         failed = 0
         while True:
+            timeout = CHECK_SECONDS if self.mac else None
+            if self.end is not None:
+                left = self.end - clock.monotonic()
+                if left <= 0:
+                    self.time_up = True
+                    self.kill()
+                    return 0, None
+                if left <= FADE_OUT_SECONDS and stream and not (self.fade and self.fade.fade_out):
+                    if self.fade:
+                        self.fade.cancel()
+                    self.fade = Fade(stream, level, left, fade_out=True)
+                    self.fade.start()
+                # Wake for the fade out, then for the end
+                until_next = left - FADE_OUT_SECONDS if left > FADE_OUT_SECONDS else left
+                timeout = until_next if timeout is None else min(timeout, until_next)
             try:
-                return exit_code(self.paplay.wait(timeout=CHECK_SECONDS if self.mac else None)), None
+                return exit_code(self.paplay.wait(timeout=timeout)), None
             except subprocess.TimeoutExpired:
-                if self.paplay.poll() is not None:
+                if self.paplay.poll() is not None or not self.mac:
                     continue
                 why = not_playing(self.mac, self.device, stream)
                 failed = failed + 1 if why else 0
@@ -330,17 +362,22 @@ def not_connected(speaker):
     return message
 
 
-def play(sound, volume=100, speaker=None, fallback=False, fade_in=0, then=None):
-    """Connect the speaker and play the sound, then the one after it. Returns the exit code."""
+def play(sound, volume=100, speaker=None, fallback=False, fade_in=0, then=None, seconds=None, once=False):
+    """Connect the speaker and play the sound, then the one after it. Returns the exit code.
+
+    With seconds, it stops after that long, counting from now. With once, it isn't played again from the start when
+    the speaker drops.
+    """
     output = None
+    end = clock.monotonic() + seconds if seconds is not None else None
     try:
         mac = connect_speaker(speaker)
         if mac:
-            output = Output(mac, speaker_sink(mac))
+            output = Output(mac, speaker_sink(mac), end)
             where = "speaker " + mac
         elif fallback:
             say(not_connected(speaker) + ", playing on the local audio output instead")
-            output = Output(None, local_sink())
+            output = Output(None, local_sink(), end)
             where = "the local audio output"  # PiPrayer looks for PLAYED_LOCALLY
         else:
             say(not_connected(speaker))
@@ -352,7 +389,7 @@ def play(sound, volume=100, speaker=None, fallback=False, fade_in=0, then=None):
 
         # Connect again straight away and play it again from the start, rather than wait for PiPrayer to try again
         replays = 0
-        while lost and replays < MAX_REPLAYS:
+        while lost and not once and replays < MAX_REPLAYS:
             say(capitalised(lost) + ", connecting again")
             connected, device = reconnect(mac)
             if not connected:
@@ -365,7 +402,7 @@ def play(sound, volume=100, speaker=None, fallback=False, fade_in=0, then=None):
             status, lost = output.play(sound, level, fade_in)
 
         # The sound to play after it, while still connected. Stopping it stops this one too
-        if status == 0 and not lost and then:
+        if status == 0 and not lost and then and not output.time_up:
             then_status, then_lost = output.play(then, level)
             if then_lost:
                 say("{} didn't play to the end: {}".format(os.path.basename(then), then_lost))
@@ -385,6 +422,8 @@ def play(sound, volume=100, speaker=None, fallback=False, fade_in=0, then=None):
     if status != 0:
         say("paplay failed with exit code {}".format(status))
         return NOT_PLAYED
+    if output.time_up:
+        say(TIME_UP)
     say("Played on " + where)
     return PLAYED
 
@@ -413,7 +452,7 @@ def check_speaker(arg):
 
 def main(args):
     """Run as the command line says. Returns the exit code."""
-    mode, fallback, fade_in, then = "play", False, "0", None
+    mode, fallback, fade_in, then, seconds, once = "play", False, "0", None, None, False
     args = list(args)
     try:
         while args and args[0].startswith("--"):
@@ -424,10 +463,14 @@ def main(args):
                 mode = "disconnect"
             elif option == "--fallback":
                 fallback = True
-            elif option in ("--fade-in", "--then"):
+            elif option == "--once":
+                once = True
+            elif option in ("--fade-in", "--then", "--for"):
                 value = args.pop(0) if args else ""
                 if option == "--fade-in":
                     fade_in = value
+                elif option == "--for":
+                    seconds = value
                 else:
                     then = value or None
             else:
@@ -435,6 +478,8 @@ def main(args):
 
         if not is_number(fade_in) or int(fade_in) > MAX_FADE_IN:
             raise Invalid("Invalid fade-in: {}, use a number of seconds from 0 to {}".format(fade_in, MAX_FADE_IN))
+        if seconds is not None and (not is_number(seconds) or int(seconds) < 1):
+            raise Invalid("Invalid --for: {}, use a number of seconds from 1".format(seconds or "(empty)"))
 
         if mode != "play":
             speaker = check_speaker(args[0] if args else "")
@@ -463,7 +508,8 @@ def main(args):
         say(str(e))
         return INVALID
 
-    return play(sound, int(volume), speaker, fallback, int(fade_in), then)
+    return play(sound, int(volume), speaker, fallback, int(fade_in), then,
+                int(seconds) if seconds is not None else None, once)
 
 
 def raise_stopped(signum, frame):

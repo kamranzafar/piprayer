@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from typing import Optional
 
-from .schedule import upcoming_azaans
+from .schedule import AZAAN, KAHF, REMINDER, SUHOOR, upcoming_azaans
 
 log = logging.getLogger("piprayer")
 
@@ -187,38 +187,54 @@ def playing_file(config_path):
 
 @dataclass
 class Playing:
-    """The azaan, reminder or suhoor alarm the service is playing, or trying again to play, so it can be stopped.
+    """The azaan, reminder, suhoor alarm or Surah Al-Kahf the service is playing, or trying again to play, so it can
+    be stopped.
 
     The service keeps the file while it plays, and removes it once done.
     """
     prayer: str
-    reminder: bool
+    kind: str  # as an Event's: AZAAN, REMINDER, SUHOOR or KAHF
     at: datetime
     pid: Optional[int] = None  # the player's process, None between attempts
     stopped: bool = False  # piprayer.py stop, the status page or Home Assistant asked to stop it
-    suhoor: bool = False
+
+    @property
+    def reminder(self):
+        return self.kind == REMINDER
+
+    @property
+    def suhoor(self):
+        return self.kind == SUHOOR
+
+    @property
+    def kahf(self):
+        return self.kind == KAHF
 
     @property
     def what(self):
-        """"azaan", "reminder" or "suhoor alarm"."""
-        return "suhoor alarm" if self.suhoor else "reminder" if self.reminder else "azaan"
+        """"azaan", "reminder", "suhoor alarm" or "Surah Al-Kahf"."""
+        return {REMINDER: "reminder", SUHOOR: "suhoor alarm", KAHF: "Surah Al-Kahf"}.get(self.kind, "azaan")
 
     def describe(self):
-        """e.g. "the azaan for Asr", or "the suhoor alarm"."""
-        if self.suhoor:
+        """e.g. "the azaan for Asr", "the suhoor alarm" or "Surah Al-Kahf"."""
+        if self.kind == SUHOOR:
             return "the suhoor alarm"
+        if self.kind == KAHF:
+            return "Surah Al-Kahf"
         return "the {} for {}".format(self.what, self.prayer.capitalize())
 
     def to_json(self):
-        return {"prayer": self.prayer, "reminder": self.reminder, "suhoor": self.suhoor, "time": self.at.isoformat()}
+        return {"prayer": self.prayer, "kind": self.kind, "reminder": self.reminder, "suhoor": self.suhoor,
+                "kahf": self.kahf, "time": self.at.isoformat()}
 
     @classmethod
     def load(cls, path):
         try:
             with open(path) as f:
                 data = json.load(f)
-            return cls(data["prayer"], bool(data["reminder"]), datetime.fromisoformat(data["time"]),
-                       data.get("pid"), bool(data.get("stopped")), bool(data.get("suhoor")))
+            kind = data.get("kind") or (SUHOOR if data.get("suhoor") else REMINDER if data["reminder"] else AZAAN)
+            return cls(data["prayer"], kind, datetime.fromisoformat(data["time"]), data.get("pid"),
+                       bool(data.get("stopped")))
         except FileNotFoundError:
             return None
         except (OSError, ValueError, TypeError, KeyError, AttributeError) as e:

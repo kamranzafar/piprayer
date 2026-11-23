@@ -15,7 +15,7 @@ from pipray import mqtt, player, service
 from pipray.cli import main
 from pipray.config import Config
 from pipray.output import times_json
-from pipray.schedule import Event
+from pipray.schedule import AZAAN, REMINDER, Event
 from pipray.state import LastAzaan, Playing, State, last_file, playing_file
 from pipray.web import StatusRoutes, status_html
 from conftest import MELBOURNE_CONFIG
@@ -39,7 +39,7 @@ def terminated(monkeypatch):
 
 
 def playing_asr(path, pid=4242, reminder=False):
-    Playing("asr", reminder, ASR, pid).save(playing_file(path))
+    Playing("asr", REMINDER if reminder else AZAAN, ASR, pid).save(playing_file(path))
 
 
 # ---------------------------------------------------------------- the service
@@ -56,7 +56,7 @@ def test_stopping_while_the_azaan_plays(write_config, fake_clock):
     clock_.at(datetime(2026, 11, 12, 18, 4), stop_it)
     clock_.run_service(path, hours=1.5)
 
-    assert seen == [Playing("asr", False, ASR, 4242)]
+    assert seen == [Playing("asr", AZAAN, ASR, 4242)]
     assert clock_.terminated == [4242]
     assert LastAzaan.load(last_file(path)) == LastAzaan("asr", ASR, "stopped")
     assert not os.path.exists(playing_file(path))  # removed once done
@@ -85,7 +85,7 @@ def test_stopped_reminder_doesnt_stop_the_azaan(write_config, fake_clock):
 
 def test_stop_asked_before_the_player_started_stops_it_straight_away(write_config, terminated):
     path = playing_file(write_config())
-    Playing("asr", False, ASR, stopped=True).save(path)
+    Playing("asr", AZAAN, ASR, stopped=True).save(path)
     service.started_playing(path, 99)
     assert terminated == [99]
     assert Playing.load(path).pid == 99
@@ -173,7 +173,7 @@ def test_stop_command(write_config, monkeypatch, capsys, terminated):
 
 def test_status_page_has_a_stop_button_while_playing(write_config):
     config = Config(write_config())
-    page = status_html(config, NOW, State(), playing=Playing("asr", False, ASR, 4242))
+    page = status_html(config, NOW, State(), playing=Playing("asr", AZAAN, ASR, 4242))
     assert '<div class="notice" data-playing>Playing the azaan for Asr</div>' in page
     assert ('<form method="post" action="/stop" hx-post="/stop" hx-disabled-elt="find button" class="wide">'
             '<button class="primary">Stop the azaan</button>') in page
@@ -194,7 +194,8 @@ def test_status_page_stop(write_config, at_time, terminated):
 
     playing_asr(path)
     assert json.loads(routes.post("/api/stop", {}).body) == {
-        "stopped": {"prayer": "asr", "reminder": False, "suhoor": False, "time": "2026-11-12T18:03:00+11:00"}}
+        "stopped": {"prayer": "asr", "kind": "azaan", "reminder": False, "suhoor": False, "kahf": False,
+                    "time": "2026-11-12T18:03:00+11:00"}}
     assert terminated == [4242]
     playing_asr(path)
     assert routes.post("/stop", {}).status == 303  # back to the page
@@ -202,8 +203,9 @@ def test_status_page_stop(write_config, at_time, terminated):
 
 def test_times_json_says_what_is_playing(write_config):
     config = Config(write_config())
-    data = times_json(config, NOW.date(), NOW, State(), playing=Playing("asr", True, ASR, 4242))
-    assert data["playing"] == {"prayer": "asr", "reminder": True, "suhoor": False, "time": "2026-11-12T18:03:00+11:00"}
+    data = times_json(config, NOW.date(), NOW, State(), playing=Playing("asr", REMINDER, ASR, 4242))
+    assert data["playing"] == {"prayer": "asr", "kind": "reminder", "reminder": True, "suhoor": False, "kahf": False,
+                               "time": "2026-11-12T18:03:00+11:00"}
 
 
 def test_mqtt_stop_command_and_state(write_config, at_time, terminated):
@@ -214,5 +216,5 @@ def test_mqtt_stop_command_and_state(write_config, at_time, terminated):
     assert mqtt.handle_command("stop", path, 1) == "MQTT: stopping the azaan for Asr"
     assert terminated == [4242]
 
-    data = json.loads(mqtt.state_payload(Config(path), NOW, State(), playing=Playing("asr", True, ASR)))
+    data = json.loads(mqtt.state_payload(Config(path), NOW, State(), playing=Playing("asr", REMINDER, ASR)))
     assert (data["playing"], data["playing_reminder"]) == ("Asr", True)

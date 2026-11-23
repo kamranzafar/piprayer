@@ -13,7 +13,7 @@ from pipray.cli import main
 from pipray.config import Config, ConfigError
 from pipray.output import format_times
 from pipray.player import REMINDER_SOUND
-from pipray.schedule import Event, schedule
+from pipray.schedule import REMINDER, Event, schedule
 from conftest import MELBOURNE_CONFIG
 
 MELBOURNE = ZoneInfo("Australia/Melbourne")
@@ -28,7 +28,7 @@ def config_with(write_config, *lines):
 def commands(monkeypatch):
     """The arguments the player is run with."""
     run = []
-    monkeypatch.setattr(player, "run_player", lambda args, on_start=None: run.append(args) or (0, []))
+    monkeypatch.setattr(player, "run_player", lambda args, on_start=None, seconds=None: run.append(args) or (0, []))
     return run
 
 
@@ -70,7 +70,7 @@ def test_invalid_fade_in(write_config, value, message):
 def test_azaan_fades_in_but_not_the_reminder(write_config, commands):
     config = config_with(write_config, "fade-in = 5, Fajr:15", "volume = 80, Fajr:40")
     player.play_event(config, Event(FAJR, "fajr"))
-    player.play_event(config, Event(FAJR, "fajr", reminder=True))
+    player.play_event(config, Event(FAJR, "fajr", REMINDER))
     player.play_event(config, Event(FAJR, "isha"))
     assert commands == [["--fade-in", "15", "1", "40"], [REMINDER_SOUND, "40"], ["--fade-in", "5", "1", "80"]]
 
@@ -99,7 +99,7 @@ def test_service_plays_with_fade_in(write_config, fake_clock, monkeypatch):
     clock_ = fake_clock(datetime(2026, 11, 12, 3, 0), MELBOURNE)
     calls = []
 
-    def run_player(args, on_start=None):
+    def run_player(args, on_start=None, seconds=None):
         calls.append(args)
         return clock_.run_player(args, on_start)
 

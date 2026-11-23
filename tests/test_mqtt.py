@@ -140,8 +140,10 @@ def test_discovery_creates_sensors_and_buttons():
         "homeassistant/button/piprayer_raspberrypi/skip/config",
         "homeassistant/button/piprayer_raspberrypi/stop/config",
         "homeassistant/number/piprayer_raspberrypi/hijri_adjust/config",
+        "homeassistant/select/piprayer_raspberrypi/kahf_hours/config",
         "homeassistant/sensor/piprayer_raspberrypi/hijri_date/config",
         "homeassistant/sensor/piprayer_raspberrypi/iftar/config",
+        "homeassistant/sensor/piprayer_raspberrypi/kahf/config",
         "homeassistant/sensor/piprayer_raspberrypi/last_azaan/config",
         "homeassistant/sensor/piprayer_raspberrypi/next_azaan/config",
         "homeassistant/sensor/piprayer_raspberrypi/next_prayer/config",
@@ -161,7 +163,10 @@ def test_discovery_creates_sensors_and_buttons():
     assert configs["hijri_adjust"]["command_topic"] == "piprayer/command"
     assert configs["hijri_adjust"]["command_template"] == "hijri-adjust {{ value | int }}"
     assert configs["hijri_date"]["value_template"] == "{{ value_json.hijri_date }}"
-    assert len({config["unique_id"] for config in configs.values()}) == 15
+    assert configs["kahf"]["device_class"] == "timestamp"
+    assert configs["kahf_hours"]["options"] == ["off", "1h", "2h", "3h"]
+    assert configs["kahf_hours"]["command_template"] == "kahf {{ value }}"
+    assert len({config["unique_id"] for config in configs.values()}) == 17
     assert all(config["device"]["identifiers"] == ["piprayer_raspberrypi"] for config in configs.values())
 
 
@@ -174,7 +179,8 @@ def test_state_payload(write_config):
         "next_azaan": "2026-11-12T18:03:00+11:00", "next_prayer": "Asr", "next_skipped": False, "muted_until": None,
         "last_result": None, "last_prayer": None, "last_time": None, "last_error": None,
         "clock_synchronised": None, "problem": None, "playing": None, "playing_reminder": False,
-        "playing_suhoor": False, "iftar": None, "suhoor_ends": None,
+        "playing_suhoor": False, "playing_kahf": False, "iftar": None, "suhoor_ends": None,
+        "kahf": None, "kahf_until": None, "kahf_hours": "off",
         "hijri_date": "2 Jumada al-Thani 1448", "hijri_adjust": 0,
         "hijri": {"day": 2, "month": 6, "month_name": "Jumada al-Thani", "year": 1448, "evening": False, "adjust": 0,
                   "text": "2 Jumada al-Thani 1448"},
@@ -268,7 +274,7 @@ def test_announces_itself_on_connecting(connected):
     bridge, client, path = connected
     assert client.subscribed == ["piprayer/command", "homeassistant/status"]
     discovery = [(topic, retain) for topic, _, retain in client.published if topic.startswith("homeassistant/")]
-    assert len(discovery) == 15 and all(retain for _, retain in discovery)
+    assert len(discovery) == 17 and all(retain for _, retain in discovery)
     assert published(client, "piprayer/availability") == ["online"]
     assert json.loads(published(client, "piprayer/state")[0])["next_prayer"] == "Asr"
 
@@ -292,7 +298,7 @@ def test_announces_again_when_home_assistant_restarts(connected):
     bridge, client, path = connected
     client.published.clear()
     bridge.on_message(client, None, Message("homeassistant/status", "online"))
-    assert len([t for t, _, _ in client.published if t.startswith("homeassistant/")]) == 15
+    assert len([t for t, _, _ in client.published if t.startswith("homeassistant/")]) == 17
     assert published(client, "piprayer/state")  # sent again, although unchanged
 
 

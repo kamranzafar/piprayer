@@ -10,7 +10,7 @@ import sys
 from datetime import datetime, timedelta
 
 from . import __version__, clock, update
-from .config import DEFAULT_AZAAN, DEFAULT_CONFIG, DEFAULT_VOLUME, Config, ConfigError, azaan_file
+from .config import DEFAULT_AZAAN, DEFAULT_CONFIG, DEFAULT_VOLUME, KAHF_SOUND, Config, ConfigError, azaan_file
 from .output import (RESUME_HINT, describe_azaan, describe_mute, format_next, format_plain, format_times,
                      next_json, times_json)
 from . import player
@@ -93,6 +93,10 @@ def play_command(args):
 
     if args.dua:
         return play(player.DUA_FILE, volume, "dua", speaker, fallback).returncode
+    if args.kahf:
+        volume = config.volume_for("dhuhr") if config else DEFAULT_VOLUME
+        return play(config.kahf_file if config else KAHF_SOUND, volume, "Surah Al-Kahf", speaker, fallback,
+                    once=True).returncode
 
     azaan = args.azaan or (config.azaan_for(args.prayer) if config else DEFAULT_AZAAN)
     fade_in = config.fade_in_for(args.prayer) if config else 0
@@ -217,9 +221,11 @@ def parser():
     play_sound.add_argument("-s", "--suhoor", action="store_true",
                             help="play the suhoor alarm, at the volume set for Fajr")
     play_sound.add_argument("--dua", action="store_true", help="play only the dua after the azaan")
+    play_sound.add_argument("--kahf", action="store_true",
+                            help="play Surah Al-Kahf, as before Jumu'ah, at the volume set for Dhuhr")
     play_parser.set_defaults(func=play_command)
 
-    commands.add_parser("stop", help="stop the azaan, reminder or suhoor alarm that is playing") \
+    commands.add_parser("stop", help="stop the azaan, reminder, suhoor alarm or Surah Al-Kahf that is playing") \
         .set_defaults(func=stop_command)
 
     commands.add_parser("skip", help="don't play the next azaan or its reminder").set_defaults(func=skip_command)

@@ -12,7 +12,7 @@ from pipray.cli import main
 from pipray.config import Config, ConfigError
 from pipray.output import format_next, format_times, times_json
 from pipray.player import REMINDER_SOUND, SUHOOR_SOUND, play_event
-from pipray.schedule import Event, next_azaan
+from pipray.schedule import REMINDER, SUHOOR, Event, next_azaan
 from pipray.state import State, skip_next, state_file
 from pipray.web import status_html
 from conftest import MELBOURNE_CONFIG
@@ -74,7 +74,8 @@ def test_needs_a_recording_when_on(write_config, monkeypatch, tmp_path):
 @pytest.fixture
 def played_commands(monkeypatch):
     commands = []
-    monkeypatch.setattr(player, "run_player", lambda args, on_start=None: commands.append(args) or (0, []))
+    monkeypatch.setattr(player, "run_player", lambda args, on_start=None, seconds=None:
+                        commands.append(args) or (0, []))
     return commands
 
 
@@ -83,8 +84,8 @@ def test_played_after_the_azaan_only(write_config, played_commands, dua_file):
     at = datetime(2026, 11, 13, 5, 0, tzinfo=MELBOURNE)
     play_event(config, Event(at, "isha"))
     play_event(config, Event(at, "fajr"))
-    play_event(config, Event(at, "isha", reminder=True))
-    play_event(config, Event(at, "fajr", suhoor=True))
+    play_event(config, Event(at, "isha", REMINDER))
+    play_event(config, Event(at, "fajr", SUHOOR))
     assert played_commands == [["--then", dua_file, "1", "80"], ["1", "80"], [REMINDER_SOUND, "80"],
                                [SUHOOR_SOUND, "80"]]
 
