@@ -35,4 +35,4 @@ Modules, each depending only on the ones above it:
 """
 
 # The release, set when a release is made (see CHANGELOG.md)
-__version__ = "1.1"
+__version__ = "1.2"

@@ -7,16 +7,22 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [1.2] - 2026-11-24
+
+### Upgrading from 1.1
+- Nothing to run: `git pull`, or Install in Home Assistant, and restart the service. Surah Al-Kahf then plays on
+  Fridays, 2 hours before Jumu'ah. Set `kahf = off` in `piprayer.conf`, on the settings page or in Home Assistant if
+  you don't want it.
+
 ### Added
-- Jumu'ah mode: PiPrayer plays Surah Al-Kahf on Fridays, 2 hours before Jumu'ah, at the time of Dhuhr, or 1 or 3
-  hours with `kahf = 1h` or `3h`. It is on unless `kahf = off`, also after updating. It plays Saad Al-Ghamdi's recitation, 29 minutes, which comes with PiPrayer, or your own
-  with `kahf-file`, at the volume set for Dhuhr. The Azaan always comes first: Al-Kahf fades out and stops 2 minutes
-  before the reminder or Azaan for Dhuhr if it hasn't finished, and isn't played again from the start if the
-  speaker drops. Mute silences it, and skipping Dhuhr doesn't. `piprayer.py times`, the status page and its JSON
-  show its times with Dhuhr, the settings page has a Jumu'ah section, `piprayer.py play --kahf` plays it, and Home
-  Assistant has a **Surah Al-Kahf** sensor and a select to choose the hours, also with the MQTT command
-  `kahf <1h, 2h, 3h or off>`
-  ([#25](https://github.com/kamranzafar/piprayer/issues/25)).
+- Jumu'ah mode: PiPrayer plays Surah Al-Kahf on Fridays, 2 hours before Jumu'ah, at the time of Dhuhr, or 1 or 3 hours
+  with `kahf = 1h` or `3h`. It is on unless `kahf = off`, also after updating. It plays Saad Al-Ghamdi's recitation, 29
+  minutes, which comes with PiPrayer, or your own with `kahf-file`, at the volume set for Dhuhr. The Azaan always comes
+  first: Al-Kahf fades out and stops 2 minutes before the reminder or Azaan for Dhuhr if it hasn't finished, and isn't
+  played again from the start if the speaker drops. Mute silences it, and skipping Dhuhr doesn't. `piprayer.py times`,
+  the status page and its JSON show its times with Dhuhr, the settings page has a Jumu'ah section, `piprayer.py play
+  --kahf` plays it, and Home Assistant has a **Surah Al-Kahf** sensor and a select to choose the hours, also with the
+  MQTT command `kahf <1h, 2h, 3h or off>` ([#25](https://github.com/kamranzafar/piprayer/issues/25)).
 - `jummah-time = 13:30` sets the time of the khutbah on Fridays, as your mosque holds it, on the settings page too.
   Surah Al-Kahf counts back from it, `piprayer.py times`, the status page and the JSON (`khutbah`) show it with
   Jumu'ah, and Home Assistant has a **Jumu'ah** sensor with the next one, the khutbah or the time of Dhuhr. The Azaan
@@ -385,7 +391,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - First release: plays the Azaan on a Bluetooth speaker at calculated prayer times, scheduled with cron.
 - 15 Azaan recordings, selectable with an argument to the setup script.
 
-[Unreleased]: https://github.com/kamranzafar/piprayer/compare/v1.1...HEAD
+[Unreleased]: https://github.com/kamranzafar/piprayer/compare/v1.2...HEAD
+[1.2]: https://github.com/kamranzafar/piprayer/compare/v1.1...v1.2
 [1.1]: https://github.com/kamranzafar/piprayer/compare/v1.0...v1.1
 [1.0]: https://github.com/kamranzafar/piprayer/compare/v0.9...v1.0
 [0.9]: https://github.com/kamranzafar/piprayer/compare/v0.8...v0.9

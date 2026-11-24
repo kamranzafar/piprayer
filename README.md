@@ -34,9 +34,9 @@ are, and it calculates each day's prayer times and plays the Azaan when they arr
   status page or Home Assistant
 - ⚙️ **And more**, e.g. fading in the Azaan at Fajr. See [Configuration](#configuration) for all the options
 
-**PiPrayer 1.1** installs with one command, pairs speakers from the settings page, restarts itself when it hangs
-and tells you when there's a new version. See the [changelog](CHANGELOG.md#11---2026-11-22) for what's new and how to
-upgrade from 1.0.
+**PiPrayer 1.2** adds Jumu'ah mode: Surah Al-Kahf before Jumu'ah, the time of the khutbah, a reminder to go to the
+mosque and a choice of Azaan for Dhuhr on Fridays. See the [changelog](CHANGELOG.md#12---2026-11-24) for what's new
+and how to upgrade from 1.1.
 
 Tested on a **Raspberry Pi 3** and an original **Raspberry Pi Model B+ (rev 1.2)** with an **Amazon Echo Pop** speaker and a **Yamaha Bluetooth soundbar**. Google
 Home and Nest speakers work as Bluetooth speakers too.
@@ -56,7 +56,7 @@ updates PiPrayer and keeps your settings. To install into another folder, or a p
 `PIPRAYER_DIR` or `PIPRAYER_VERSION` set:
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/kamranzafar/piprayer/main/install.sh | PIPRAYER_VERSION=v1.1 bash
+curl -fsSL https://raw.githubusercontent.com/kamranzafar/piprayer/main/install.sh | PIPRAYER_VERSION=v1.2 bash
 ```
 
 ### Or install it step by step
